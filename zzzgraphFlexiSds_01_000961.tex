@@ -1,0 +1,134 @@
+\documentclass{article}
+\usepackage[margin=0in]{geometry}
+\usepackage{orne1}
+\usepackage{plotjour1}
+\begin{document}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={latency in frames per incorporation}
+      ]%
+      \addplot coordinates {%
+        (7, 8.32956820304)%
+        (11, 9.94510912698)%
+        (15, 12.2107777778)%
+        (19, 13.5459027778)%
+        (22, 14.7545833333)};%
+      \addplot coordinates {%
+        (7, 8.53836927044)%
+        (11, 9.94065079365)%
+        (15, 12.3191805556)%
+        (19, 13.1158333333)%
+        (22, 14.6163888889)};%
+      \addplot coordinates {%
+        (7, 7.62029176216)%
+        (11, 8.52062301587)%
+        (15, 9.95654166667)%
+        (19, 10.555)%
+        (22, 12.230625)};%
+      \addplot coordinates {%
+        (7, 1.175453564)%
+        (11, 1.16064880952)%
+        (15, 1.15476388889)%
+        (19, 1.15743055556)%
+        (22, 1.14777777778)};%
+      \legend{{SDS = 0}, {SDS = 1}, {SDS = 2}, {FlexiTP}}%
+    \end{axis}
+  \end{tikzpicture}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={attempts per incorporation}
+      ]%
+      \addplot coordinates {%
+        (7, 1.64213440073)%
+        (11, 1.98889087302)%
+        (15, 2.46902777778)%
+        (19, 2.78256944444)%
+        (22, 2.99201388889)};%
+      \addplot coordinates {%
+        (7, 1.6301022462)%
+        (11, 1.93909920635)%
+        (15, 2.423125)%
+        (19, 2.63145833333)%
+        (22, 2.86451388889)};%
+      \addplot coordinates {%
+        (7, 1.42810783253)%
+        (11, 1.62437698413)%
+        (15, 1.90034722222)%
+        (19, 2.07555555556)%
+        (22, 2.34534722222)};%
+      \legend{{SDS = 0}, {SDS = 1}, {SDS = 2}}%
+    \end{axis}
+  \end{tikzpicture}
+
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={expelled nodes per incorporation},%
+      legend style={at={(1.02,0.5)}, anchor=west },%
+      ylabel style={yshift = 3mm}
+      ]%
+      \addplot coordinates {%
+        (7, 0.0617725999491)%
+        (11, 0.0615555555556)%
+        (15, 0.0742361111111)%
+        (19, 0.0709027777778)%
+        (22, 0.0748611111111)};%
+      \addplot coordinates {%
+        (7, 0.0579306086071)%
+        (11, 0.0541944444444)%
+        (15, 0.0691666666667)%
+        (19, 0.0597916666667)%
+        (22, 0.0646527777778)};%
+      \addplot coordinates {%
+        (7, 0.0)%
+        (11, 0.0)%
+        (15, 0.0)%
+        (19, 0.0)%
+        (22, 0.0)};%
+      \legend{{SDS = 0}, {SDS = 1}, {SDS = 2}}%
+    \end{axis}
+  \end{tikzpicture}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={energy per incorporation (mJ)}
+      ]%
+      \addplot coordinates {%
+        (7, 65.9033412524)%
+        (11, 120.508979883)%
+        (15, 193.117725451)%
+        (19, 268.617772591)%
+        (22, 335.6328898)};%
+      \addplot coordinates {%
+        (7, 66.4488632721)%
+        (11, 119.582931076)%
+        (15, 193.33854431)%
+        (19, 258.717814323)%
+        (22, 329.780967274)};%
+      \addplot coordinates {%
+        (7, 59.4440159755)%
+        (11, 103.383634436)%
+        (15, 157.038940534)%
+        (19, 211.188178299)%
+        (22, 275.961907053)};%
+      \legend{{SDS = 0}, {SDS = 1}, {SDS = 2}}%
+    \end{axis}
+  \end{tikzpicture}
+
+
+\begin{verbatim}
+|       Protocol|   rho|            E_f|            E_g|
+|      $FlexiTP$|     7|      18.425225|       0.000000|
+|               |    15|      31.017000|       0.000000|
+|               |    22|      38.915800|       0.000000|
+|         SDS=0$|     7|       0.031250|      65.903341|
+|               |    15|       0.031250|     193.117725|
+|               |    22|       0.031250|     335.632890|
+|         SDS=2$|     7|       0.093750|      59.444016|
+|               |    15|       0.093750|     157.038941|
+|               |    22|       0.093750|     275.961907|
+
+\end{verbatim}
+\end{document}
