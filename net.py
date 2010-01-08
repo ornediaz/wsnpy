@@ -2532,6 +2532,10 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     """Dependence on the number of SDS tones. 
 
     tsn_nr:seconds per iteration, 1:2700@ee-modalap
+
+    DEBUGGING:
+    
+    It breaks down for iteration 962, SDS = 0, simulating for 20 nodes.
     """
     bitrate = 19.2e3
     packet_size = 56 * 8 # bits
