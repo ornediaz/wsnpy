@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+
 '''Provides:
 * Network creation routines.
 * Network plotting routines
@@ -132,7 +133,7 @@ class Pgf(list):
             subprocess.call(['pdflatex', '{0}.tex'.format(f_name)])  
             os.remove(f_name + '.aux')
             os.remove(f_name + '.log')
-            subprocess.Popen(['xpdf',  '{0}.pdf'.format(f_name)])
+            subprocess.Popen(['evince',  '{0}.pdf'.format(f_name)])
 class PgfAxis():
     def __init__(z, xlabel='', ylabel=''):
         z.buf = []
@@ -1226,7 +1227,7 @@ class ACSPNode(RandSchedNode):
         """Run the data transmission phase of an ACSPNode.
 
         z.b contains the list of nodes for which I have to claim a slot.
-        Initially this list contains at most one element, namely my
+        Initially thas list contains at most one element, namely my
         identity.  This is because the execution of
         RandSchedNet.update_net() removes the slots of the full path from
         the data sources to the data sink if any of the nodes of that path
@@ -2628,6 +2629,26 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
 """)
     g.save(plot=plot)
 #     nw.update_schedule(until=200)
+def debugGraphFlexiSds():
+    """Dependence on the number of SDS tones. 
+    tsn_nr:seconds per iteration, 1:2700@ee-modalap
+    """
+    bitrate = 19.2e3
+    packet_size = 56 * 8 # bits
+    slot_t = packet_size / bitrate
+    sglt = 20.0 / bitrate # 10 bits
+    x = 3 * tx_rg1
+    nnew = 2 # Number of new nodes to add 
+    c = 20
+    k = 962
+    print_nodes(c, 962)
+    wsn = PhyNet(c=c, x=x, y=x, **net_par1)
+    net1 = ACSPNet(wsn, cont_f=100., Q=1/bitrate, slot_t=slot_t,
+            pairs=40, VB=0)
+    net2 = FlexiTPNet(wsn, fr=2, n_exch=70)
+    wsn.generate(c - nnew, nnew)
+    np.random.seed(k)
+    net1.update_schedule(nsds=0, sglt=sglt, cap=1, mult=8)
 def testFlexiSds():
     """Dependence on the number of channel change cycles. """
     x, y = np.array([3,3]) * tx_rg1
