@@ -126,7 +126,7 @@ class Pgf(list):
         b.append('\\end{document}')
         print(''.join(b))
         if f_name is None:
-            f_name = "zzz" + name_npz()
+            f_name = name_npz()
         with open(f_name + '.tex', 'w') as f:
             f.writelines(b)
         if plot:
