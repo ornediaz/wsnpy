@@ -1162,6 +1162,8 @@ class ACSPNode(RandSchedNode):
                     z.print("will raise SDS^^^")
             elif active_in_all:
                 yield z.listen(z.slot_t)
+                # if z.now() > 246.986041 and z.id == 19:
+                #     pdb.set_trace()
                 if z.correct_rec(p='incorp'):
                     for i in z.tx_pkt(d=z.i.r, p='ack', t=z.slot_t): yield i
                 else:
@@ -1184,6 +1186,7 @@ class ACSPNode(RandSchedNode):
                 z.print('won slot {0} for node {1}'.format(test_slot, src))
                 if z.f > 0:
                     z.sim[z.f].b.append(src)
+                    z.sim[z.f].target_slot = test_slot + 1
                 assert test_slot not in z.sim[z.f].rx_d
                 z.sim[z.f].rx_d[test_slot] = (z.id, src)
                 z.tx_d[test_slot] = src
@@ -1208,6 +1211,7 @@ class ACSPNode(RandSchedNode):
                         node.b.remove(source)
                     node = z.sim[node.f]
                 z.b.append(source)
+                z.target_slot += np.random.randint(6)
         yield z.sleep(z.pause / 2.0)
     def stamp_alert_free_counter(z, longbo): 
         """Stamp myself with a counter with the number of TFs without
@@ -1227,15 +1231,14 @@ class ACSPNode(RandSchedNode):
         """Run the data transmission phase of an ACSPNode.
 
         z.b contains the list of nodes for which I have to claim a slot.
-        Initially thas list contains at most one element, namely my
-        identity.  This is because the execution of
+        Initially z.b contains only my identity because the execution of
         RandSchedNet.update_net() removes the slots of the full path from
         the data sources to the data sink if any of the nodes of that path
         belongs to the nodes that were just added.
 
         """
         z.b = [z.id] if z.f >=0 and z.id not in z.tx_d.values() else []
-        slot = 0 # Next slot in which to attempt incorporation
+        z.target_slot = 0 # Next slot in which to attempt incorporation
         while True:
             while not z.b: # I don't have any slot to claim
                 if z.id == 0: 
@@ -1279,11 +1282,11 @@ class ACSPNode(RandSchedNode):
                         z.alert_free_counter += 1
                     continue
                 # Find the target DS
-                for slot in xrange(slot, z.max_slots):
+                for z.target_slot in xrange(z.target_slot, z.max_slots):
                     # Increase the variable sensea that keeps track of the
                     # number of channel check operations.
                     z.sim.record['sensea'] += 1
-                    conc1 = [node for node in z.sim if slot in node.tx_d]
+                    conc1 = [node for node in z.sim if z.target_slot in node.tx_d]
                     conc2 = [z.sim[node.f] for node in conc1]
                     max_sig  = 0.0
                     for sources in conc1, conc2:
@@ -1294,15 +1297,15 @@ class ACSPNode(RandSchedNode):
                         break
                 else:
                     raise Error('No more slots available')
-                z.print('will contend in slot {0}'.format(slot))
+                z.print('will contend in slot {0}'.format(z.target_slot))
                 # Attempt in the selected slot
-                for i in z.serve2(True, slot): yield i
+                for i in z.serve2(True, z.target_slot): yield i
                 z.sim.record['attem'] += 1
                 if not sum(len(n.b) for n in z.sim if hasattr(n, 'b')):
                     z.print("===END OF SIMIULATION===")
                     z.sim.stopSimulation()
                     break
-                slot += 1
+                z.target_slot += 1
 class SimNet(list, simpy.Simulation):
     def __nonzero__(z): return True
     def simulate_net(z, routine='run_su', *args, **kwargs):
@@ -2648,6 +2651,8 @@ def debugGraphFlexiSds():
     net2 = FlexiTPNet(wsn, fr=2, n_exch=70)
     wsn.generate(c - nnew, nnew)
     np.random.seed(k)
+    print("*******Beginning schedule update*************")
+    # net1.VB = 1
     net1.update_schedule(nsds=0, sglt=sglt, cap=1, mult=8)
 def testFlexiSds():
     """Dependence on the number of channel change cycles. """
