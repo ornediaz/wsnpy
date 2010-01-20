@@ -2455,7 +2455,7 @@ def graphRandSched4(tst_nr=1, action=1, plot=0):
 def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     """Dependence on the node density.
 
-    tsn_nr:seconds per iteration, 2:838@ee-moda2
+    tsn_nr:seconds per iteration, 2:983@ee-moda2
     """
     x, y = np.array(((3,3), (3,3), (3,3))[tst_nr]) * tx_rg1
     rho_v = np.array(((7,10), (7,11,15), (7,11,15,19,22)) [tst_nr])
