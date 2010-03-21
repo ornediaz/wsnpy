@@ -72,38 +72,19 @@ class LossNode(dict):
     def __init__(z, id, size):
         z.id = id
         z.size = size
-    def __str__(z):
+    def __repr__(z):
         return "Node %d: {%s}" % (z.id, ', '.join(
             ['%d:%d' % (key, z[key]) for key in sorted(z.keys())]))
-    def extract(z):
-        """Select the next packet that will be extracted."""
-        return 
-    def postorder(z, foo, *args, **kwargs):
-        """Execute function with name foo in this subtree in postorder."""
+    def ret_post_order(z, node_list):
         for n in z.ch:
-            n.postorder(foo, *args, **kwargs)
-        getattr(z, foo)(*args, **kwargs)
+            n.ret_post_order(node_list)
+        node_list.append(z)
     def print(z):
         print(z)
     def discard(z):
         if z.id:
             for key in sorted(z.keys())[0:-z.size]:
                 del z[key]
-    def push(z, ninter, scount):
-        """Receive packet from t=ninter and scount sources."""
-        if z.has_key(ninter):
-            z[ninter] += scount
-        else:
-            z[ninter] = scount
-        z.discard()
-    def round(z, t):
-        """Execute the transmission of each node in each TDMA frame."""
-        z[t] = 1
-        if np.random.rand() < z.ps: # Success
-            key  = min(sorted(z.keys()))
-            z.f.push(key, z.pop(key))
-        else:
-            z.discard()
 class LossTree(list):
     def __init__(z, fv, ps, size):
         z[:] = [LossNode(i, size=size) for i in xrange(len(fv))]
@@ -111,23 +92,64 @@ class LossTree(list):
             node.f = z[fv[i]]
             node.ch = [z[j] for j, k in enumerate(fv) if k==node.id]
             node.ps = ps[i]
-        z.postorder = 
-    def postorder(z, foo, *args,**kwargs):
-        z[0].postorder(foo, *args, **kwargs)
-    def rounds(z, iterations):
+        node_list = []
+        for n in z[0].ch:
+            n.ret_post_order(node_list)
+        z.postorder_list = node_list
+    def round1(z, iterations):
         z.iterations = iterations
         for i in xrange(iterations):
-            for node in z:
-                node[t] = 1
-            for node in z[0].ch:
-                node.postorder('round', i)
-        print("End of computation")
+            for node in z[1:]:
+                node[i] = 1
+                node.discard()
+            for node in z.postorder_list:
+                if np.random.rand() < node.ps: # Success
+                    key  = min(sorted(node.keys()))
+                    value = node.pop(key)
+                    if node.f.has_key(key):
+                        node.f[key] += value
+                    else:
+                        node.f[key] = value
+                    node.f.discard()
+        average = 0.0
+        for count in z[0].itervalues():
+            average += count / float(iterations)
+        print(average)
+    def round2(z, iterations):
+        z.iterations = iterations
+        for i in xrange(iterations):
+            for node in z[1:]:
+                node[i] = 1
+                node.discard()
+            for node in z.postorder_list:
+                if np.random.rand() < node.ps: # Success
+                    key  = min(sorted(node.keys()))
+                    value = node.pop(key)
+                    if node.f.has_key(key):
+                        node.f[key] += value
+                    else:
+                        node.f[key] = value
+                    node.f.discard()
+        results = np.zeros(iterations)
+        for i in xrange(iterations):
+            if z[0].has_key(i):
+                results[i] = z[0][i]
+        print(results.mean())
+        pdb.set_trace()
 def test_postorder():
     fv = [-1, 0, 0, 1, 1, 1, 4]
     ps = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
     t = LossTree(fv, ps, 3)
     plot_logical(fv)
     t.postorder('print')
+def test_postorder2(repetitions):
+    fv = [-1, 0, 1]
+    ps = [1, 1, 0.5]
+    t = LossTree(fv, ps, 3)
+    # plot_logical(fv)
+    # t.postorder('print')
+    # print(t.postorder_list)
+    t.round2(repetitions)
 def test_simple_loss():
     fv = [-1, 0, 1]
     ps = [1, 1, 1]
