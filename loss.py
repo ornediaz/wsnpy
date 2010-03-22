@@ -111,31 +111,51 @@ class LossTree(list):
                     else:
                         node.f[key] = value
                     node.f.discard()
-        average = 0.0
-        for count in z[0].itervalues():
-            average += count / float(iterations)
-        print(average)
-    def round2(z, iterations):
-        z.iterations = iterations
-        for i in xrange(iterations):
-            for node in z[1:]:
-                node[i] = 1
-                node.discard()
-            for node in z.postorder_list:
-                if np.random.rand() < node.ps: # Success
-                    key  = min(sorted(node.keys()))
-                    value = node.pop(key)
-                    if node.f.has_key(key):
-                        node.f[key] += value
-                    else:
-                        node.f[key] = value
-                    node.f.discard()
-        results = np.zeros(iterations)
-        for i in xrange(iterations):
-            if z[0].has_key(i):
-                results[i] = z[0][i]
+        results = np.array([z[0].get(i, 0) for i in xrange(iterations)])
         print(results.mean())
-        pdb.set_trace()
+    def round2(z, iterations, rate):
+        """Incorporating rate reduction."""
+        z.iterations = iterations
+        old = -1
+        sensing_t = -1
+        for frame in xrange(iterations):
+            new = int(frame * rate)
+            if new > old:
+                sensing_t += 1
+                old = new
+                for node in z[1:]:
+                    node[sensing_t] = 1
+                    node.discard()
+            for node in z.postorder_list:
+                if np.random.rand() < node.ps and len(node): # Success
+                    key = min(sorted(node.keys()))
+                    value = node.pop(key)
+                    node.f[key] = node.f.get(key, 0) + value
+                    node.f.discard()
+        z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
+        if rate > 0.1:
+            pdb.set_trace()
+    def round3(z, iterations, rate):
+        """Incorporating rate reduction."""
+        z.iterations = iterations
+        old = -1
+        sensing_t = -1
+        for frame in xrange(iterations):
+            new = int(frame * rate)
+            if new > old:
+                sensing_t += 1
+                old = new
+                for node in z[1:]:
+                    node[sensing_t] = 1
+                    node.discard()
+            for node in z.postorder_list:
+                if np.random.rand() < node.ps and len(node): # Success
+                    for key, value in node.iteritems():
+                        pass
+                    value = node.pop(key)
+                    node.f[key] =  node.f.get(key, 0) + value
+                    node.f.discard()
+        z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
 def test_postorder():
     fv = [-1, 0, 0, 1, 1, 1, 4]
     ps = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
@@ -150,13 +170,50 @@ def test_postorder2(repetitions):
     # t.postorder('print')
     # print(t.postorder_list)
     t.round2(repetitions)
+def test_rate1():
+    fv = [-1, 0, 1, 1, 1 , 1]
+    ps = np.ones(6) * 0.5
+    size = 40
+    t = LossTree(fv, ps, size)
+    print("%8s %8s %8s" % ("Rate", "mean", "std"))
+    for rate in [0.5, 1.0]:
+        t.round2(10000, rate)
+        print("%8s %8.2f %8.2f" % (rate, t.results.mean(), t.results.std()))
+def test_rate2():
+    fv = [-1, 0, 1, 1, 1 , 1]
+    ps = np.ones(6) * 0.3
+    size = 50
+    t = LossTree(fv, ps, size)
+    print("%8s %8s %8s %8s" % ("rate", "mean", "std", "sum"))
+    rate_v = np.arange(0.05, 1.0, 0.1)
+    print(rate_v)
+    mean = var = tot = np.zeros(len(rate_v))
+    for i, rate in enumerate(rate_v):
+        np.random.seed(0)
+        t.round2(20, rate)
+        mean[i] = t.results.mean()
+        var[i] = t.results.var()
+        tot[i] = t.results.sum()
+        # pdb.set_trace()
+        print("%8s %8.2f %8.2f %8.2f" % (rate, t.results.mean(),
+            t.results.std(), t.results.sum()))
 def test_simple_loss():
     fv = [-1, 0, 1]
     ps = [1, 1, 1]
     size = 4
     t = LossTree(fv, ps, size)
-    t.rounds(3)
-    print(t)
+    t.round2(3,1.0)
+    print(t.results.mean())
+def test_rate_variation():
+    old = -1
+    for i in xrange(20):
+        new = int(i * 3.0 / 5.0)
+        if new > old:
+            print("%3d: 1" %i)
+            old = new
+        else:
+            print("%3d: 0" %i)
+
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         exec '{0}({1})'.format(sys.argv[1], ', '.join(sys.argv[2:]))
