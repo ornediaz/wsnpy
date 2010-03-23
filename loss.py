@@ -7,7 +7,7 @@ import subprocess
 import sys
 np.random.seed(0)
 VB = False
-def print(*args):
+def vprint(*args):
     if VB:
         print(*args)
 class Packet1(object):
@@ -100,30 +100,6 @@ class LossTree(list):
         for n in z[0].ch:
             n.ret_post_order(node_list)
         z.postorder_list = node_list
-    def round2(z, iterations, rate):
-        """Incorporating rate reduction."""
-        z.iterations = iterations
-        old = -1
-        sensing_t = -1
-        for frame in xrange(iterations):
-            new = int(frame * rate)
-            if new > old:
-                sensing_t += 1
-                old = new
-                for node in z[1:]:
-                    node[sensing_t] = 1
-                    node.discard()
-            print("Starting frame %d" %frame)
-            for node in z.postorder_list:
-                if np.random.rand() < node.ps and len(node): # Success
-                    key = min(sorted(node.keys()))
-                    value = node.pop(key)
-                    tmp = node.f.get(key, 0) + value
-                    node.f[key] =  tmp
-                    if tmp > 5:
-                        pdb.set_trace()
-                    node.f.discard()
-        z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
     def round3(z, iterations, rate):
         """Incorporating rate reduction."""
         z.iterations = iterations
@@ -137,14 +113,37 @@ class LossTree(list):
                 for node in z[1:]:
                     node[sensing_t] = 1
                     node.discard()
-            print("Starting frame %d" %frame)
+            vprint("Starting frame %d" %frame)
             for node in z.postorder_list:
                 if np.random.rand() < node.ps and len(node): # Success
                     key = min(sorted(node.keys()))
                     value = node.pop(key)
                     tmp = node.f.get(key, 0) + value
                     node.f[key] = tmp
-                    print("Node %d suceeded.  Value: %d" %(node.id, tmp))
+                    vprint("Node %d suceeded.  Value: %d" %(node.id, tmp))
+                    node.f.discard()
+        z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
+    def round4(z, iterations, rate):
+        """Incorporating rate reduction."""
+        z.iterations = iterations
+        old = -1
+        sensing_t = -1
+        for frame in xrange(iterations):
+            new = int(frame * rate)
+            if new > old:
+                sensing_t += 1
+                old = new
+                for node in z[1:]:
+                    node[sensing_t] = 1
+                    node.discard()
+            vprint("Starting frame %d" %frame)
+            for node in z.postorder_list:
+                if np.random.rand() < node.ps and len(node): # Success
+                    key = max(node, key=node.get)
+                    value = node.pop(key)
+                    tmp = node.f.get(key, 0) + value
+                    node.f[key] = tmp
+                    vprint("Node %d suceeded.  Value: %d" %(node.id, tmp))
                     node.f.discard()
         z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
 def test_postorder():
@@ -157,13 +156,18 @@ def test_rate2():
     fv = [-1, 0, 1, 1, 1 , 1]
     ps = np.ones(6) * 0.3
     size = 50
-    print("%8s %8s %8s %8s" % ("rate", "mean", "std", "sum"))
+    rate_v = np.arange(0.05, 1.0, 0.1)
+    test_rate(rate_v, fv, ps, size, 'round3')
+    test_rate(rate_v, fv, ps, size, 'round4')
+def test_rate(rate_v, fv, ps, size, alg):
     rate_v = np.arange(0.05, 1.0, 0.1)
     mean = var = tot = np.zeros(len(rate_v))
+    print("****** Executing %s" % alg)
+    print("%8s %8s %8s %8s" % ("rate", "mean", "std", "sum"))
     for i, rate in enumerate(rate_v):
         np.random.seed(0)
         t = LossTree(fv, ps, size)
-        t.round2(2000, rate)
+        getattr(t, alg)(2000, rate)
         print("%8s %8.2f %8.2f %8.2f" % (rate, t.results.mean(),
             t.results.std(), t.results.sum()))
 def test_simple_loss():
