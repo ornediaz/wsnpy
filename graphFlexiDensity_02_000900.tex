@@ -1,0 +1,135 @@
+\documentclass{article}
+\usepackage[margin=0in]{geometry}
+\usepackage{orne1}
+\usepackage{plotjour1}
+\begin{document}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={number of slots $M$},%
+      legend style={at={(1.02,0.5)}, anchor=west }
+      ]%
+      \addplot coordinates {%
+        (7, 27.8166666667)%
+        (11, 45.6633333333)%
+        (15, 62.0988888889)%
+        (19, 78.4522222222)%
+        (22, 91.8388888889)};%
+      \addplot coordinates {%
+        (7, 28.2066666667)%
+        (11, 46.2133333333)%
+        (15, 62.7222222222)%
+        (19, 79.1288888889)%
+        (22, 92.5533333333)};%
+      \addplot coordinates {%
+        (7, 27.7311111111)%
+        (11, 45.2188888889)%
+        (15, 61.2955555556)%
+        (19, 77.2677777778)%
+        (22, 90.33)};%
+      \legend{{FlexiTP2}, {FlexiTP3}, {ACSPNet}}%
+    \end{axis}
+  \end{tikzpicture}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={fraction of unduly dismissed $p_d$}
+      ]%
+      \addplot coordinates {%
+        (7, 0.0199395487678)%
+        (11, 0.0152158262077)%
+        (15, 0.0121104211307)%
+        (19, 0.010282253584)%
+        (22, 0.00905723570685)};%
+      \addplot coordinates {%
+        (7, 0.00480382312423)%
+        (11, 0.00146353789786)%
+        (15, 0.00102353713347)%
+        (19, 0.000844249118207)%
+        (22, 0.000495279489986)};%
+      \legend{{FlexiTP2}, {FlexiTP3}}%
+    \end{axis}
+  \end{tikzpicture}
+
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={slots per exchange in FlexiTP's init}
+      ]%
+      \addplot coordinates {%
+        (7, 6.70777777778)%
+        (11, 9.15777777778)%
+        (15, 11.0433333333)%
+        (19, 12.6511111111)%
+        (22, 13.7688888889)};%
+      \addplot coordinates {%
+        (7, 15.68)%
+        (11, 21.8888888889)%
+        (15, 26.43)%
+        (19, 30.4)%
+        (22, 33.1366666667)};%
+      \legend{{FlexiTP2}, {FlexiTP3}}%
+    \end{axis}
+  \end{tikzpicture}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={slots per exchange in FlexiTP's tx}
+      ]%
+      \addplot coordinates {%
+        (7, 6.70777777778)%
+        (11, 9.15777777778)%
+        (15, 11.0433333333)%
+        (19, 12.6511111111)%
+        (22, 13.7688888889)};%
+      \addplot coordinates {%
+        (7, 15.68)%
+        (11, 21.8888888889)%
+        (15, 26.43)%
+        (19, 30.4)%
+        (22, 33.1366666667)};%
+      \legend{{FlexiTP2}, {FlexiTP3}}%
+    \end{axis}
+  \end{tikzpicture}
+
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={packets ruined per incorporation in ACSP}
+      ]%
+      \addplot coordinates {%
+        (7, 0.319908754825)%
+        (11, 0.435152116402)%
+        (15, 0.571560846561)%
+        (19, 0.61962962963)%
+        (22, 0.778611111111)};%
+    \end{axis}
+  \end{tikzpicture}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={overhead in slots}
+      ]%
+      \addplot coordinates {%
+        (7, 391.533333333)%
+        (11, 820.657777778)%
+        (15, 1321.00777778)%
+        (19, 1901.4)%
+        (22, 2410.94)};%
+      \addplot coordinates {%
+        (7, 915.711111111)%
+        (11, 1956.33777778)%
+        (15, 3146.74)%
+        (19, 4561.74)%
+        (22, 5793.9)};%
+      \addplot coordinates {%
+        (7, 953.484261954)%
+        (11, 1631.80363757)%
+        (15, 2571.10978836)%
+        (19, 3461.79925926)%
+        (22, 4653.05722222)};%
+      \legend{{FlexiTP2}, {FlexiTP3}, {ACSPNet}}%
+    \end{axis}
+  \end{tikzpicture}
+
+\end{document}
