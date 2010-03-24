@@ -2735,6 +2735,8 @@ class LossNode(dict):
         if z.id:
             for key in sorted(z.keys())[0:-z.size]:
                 del z[key]
+    def opt(z, pmax):
+        return sum(min(pmax, n.ps) + n.opt(min(pmax,n.ps)) for n in z.ch)
 class LossTree(list):
     def __init__(z, fv, ps, size):
         z[:] = [LossNode(i, size=size) for i in xrange(len(fv))]
@@ -2746,6 +2748,8 @@ class LossTree(list):
         for n in z[0].ch:
             n.ret_post_order(node_list)
         z.postorder_list = node_list
+    def optimum(z):
+        return z[0].opt(1)
     def round3(z, iterations, rate):
         """Incorporating rate reduction."""
         z.iterations = iterations
@@ -2792,6 +2796,45 @@ class LossTree(list):
                     vprint("Node %d suceeded.  Value: %d" %(node.id, tmp))
                     node.f.discard()
         z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
+    def round5(z, n_hyperframes):
+        """Implement a schedule for data generation.
+
+        Each node has a list of slots for which it generates data.
+
+        node.gen = [] # list of slots for which it generates data
+
+
+        Scheduler algorithm
+        *******************
+
+        
+        
+
+        """
+
+        # Transmission phase
+        for hyperframe in xrange(n_hyperframes):
+            old = -1
+            sensing_t = -1
+            for frame in xrange(n_frames):
+                new = int(frame * rate)
+                if new > old:
+                    sensing_t +=1
+                    old = new
+                    for node in z[1:]:
+                        if frame in node.gen:
+                            node[sensing_t] = 1
+                            node.discard()
+                vprint("Starting frame %d" %frame)
+                for node in z.postorder_list:
+                    if np.random.rand() < node.ps and len(node):
+                        key = max(node, key=node.get)
+                        value = node.pop(key)
+                        tmp = node.f.get(key, 0) + value
+                        node.f[key] = tmp
+                        vprint("Node %d suceeded.  Value: %d" %(node.id, tmp))
+                        node.f.discard()
+        z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
 def test_postorder():
     fv = [-1, 0, 0, 1, 1, 1, 4]
     ps = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
@@ -2800,12 +2843,20 @@ def test_postorder():
     t.postorder('print')
 def test_rate2():
     fv = [-1, 0, 1, 1, 1 , 1]
-    ps = np.ones(6) * 0.3
+    ps = np.ones(len(fv)) * 0.3
+    ps
     size = 50
+    repetitions = 2000
     rate_v = np.arange(0.05, 1.0, 0.1)
-    test_rate(rate_v, fv, ps, size, 'round3')
-    test_rate(rate_v, fv, ps, size, 'round4')
-def test_rate(rate_v, fv, ps, size, alg):
+    test_rate(rate_v, fv, ps, size, 'round3', repetitions)
+    test_rate(rate_v, fv, ps, size, 'round4', repetitions)
+    t = LossTree(fv, ps, size)
+    opt = t.optimum()
+    print("The optimum fraction of packets is %8.2f" %opt)
+    print("The optimal sum is %8.2f" % (opt * repetitions))
+    print("The max without failures is %d" % ((len(fv)-1) * repetitions))
+    # Now compute the optimum
+def test_rate(rate_v, fv, ps, size, alg, repetitions):
     rate_v = np.arange(0.05, 1.0, 0.1)
     mean = var = tot = np.zeros(len(rate_v))
     print("****** Executing %s" % alg)
@@ -2813,9 +2864,12 @@ def test_rate(rate_v, fv, ps, size, alg):
     for i, rate in enumerate(rate_v):
         np.random.seed(0)
         t = LossTree(fv, ps, size)
-        getattr(t, alg)(2000, rate)
+        getattr(t, alg)(repetitions, rate)
         print("%8s %8.2f %8.2f %8.2f" % (rate, t.results.mean(),
             t.results.std(), t.results.sum()))
+def test_opt():
+    t = LossTree([-1, 0, 0, 1, 1], [1, 0.3, 0.3, 0.1, 0.2], 3)
+    print(t.optimum())
 def test_simple_loss():
     fv = [-1, 0, 1]
     ps = [1, 1, 1]
