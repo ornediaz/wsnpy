@@ -2719,59 +2719,65 @@ def test_pgf2():
 net_par1 = dict(tx_p=1e-6, BW=256e3, sinr=20, d0=100, PL0=1e8, p_exp=3.5,
                shadow=8.0)
 tx_rg1 = PhyNet(**net_par1).tx_range
-class LossNode(dict):
+class LossNode(list):
     def __init__(z, id, size):
         z.id = id
         z.size = size
     def __repr__(z):
+        z.sort(key=lambda x: x[0])
         return "Node %d: {%s}" % (z.id, ', '.join(
-            ['%d:%d' % (key, z[key]) for key in sorted(z.keys())]))
+            ['%d:%d' % pair for pair in sorted(z.keys())]))
     def ret_post_order(z, node_list):
         for n in z.ch:
             n.ret_post_order(node_list)
         node_list.append(z)
+    def merge(z, time, value):
+        vprint("Node %d received packet %d: %d." %(z.id, time, value))
+        d = dict(z[:])
+        d[time] = d.get(time, 0) + value
+        z[:] = d.items()
     def print(z):
         print(z)
     def discard(z):
         if z.id:
             for key in sorted(z.keys())[0:-z.size]:
                 del z[key]
+    def discard2(z):
+        if z.id:
+            z.sort(key=lambda x: x[0])
+            z.sort(key=lambda x: x[0] in n.gen)
+            del z[0]
+            if len(z) > size:
+                raise Exception
     def opt(z, pmax):
         return min(pmax, z.ps) + sum(n.opt(min(pmax,n.ps)) for n in z.ch)
 class LossTree(list):
     def __init__(z, fv, ps, size):
         z[:] = [LossNode(i, size=size) for i in xrange(len(fv))]
-        for n, f, ps in zip(z, fv, ps):
-            n.f = z[f]
-            n.ps = ps
-        for n in z:
-            n.ch = [x for x in z if x.f is n]
+        for i, n in enumerate(z):
+            n.f = z[fv[i]] if i else -1
+            n.ch = [z[j] for j, k in enumerate(fv) if k==i]
+            n.ps = ps[i]
             n.ancestors = []
             n.subtree = []
         for n in z[1:]:
             ancestor = n.f
-            while ancestor.id >= 0:
+            while ancestor != -1:
                 ancestor.subtree.append(n)
                 n.ancestors.append(ancestor)
                 ancestor = ancestor.f
         z.postorder_list = []
         for n in z[0].ch:
-            n.ret_post_order(z.postorderlist)
-
-
+            n.ret_post_order(z.postorder_list)
     def optimum(z):
         """Maximum data rate transmittable assuming infinite buffers and
         perfect node synchronization."""
-        return sum(min(n.ps, min(q.ps for q in n.ancestors)) for n in z[1:])
-    def round3(z, iterations, rate):
-        """
+        return sum(min(q.ps for q in [n] + n.ancestors) for n in z[1:])
+    def simulate_it_1(z, iterations, rate):
+        """ Implementation wherein the packet from the oldest sensing time
+        is transmitted.
 
-        Implementation wherein the packet from the oldest sensing time is
-        transmitted.
-
-        rate is a number between 0 and 1
-
-        """
+        rate is a number between 0 and 1. """
         z.iterations = iterations
         old = -1
         sensing_t = -1
@@ -2786,20 +2792,13 @@ class LossTree(list):
             vprint("Starting frame %d" %frame)
             for node in z.postorder_list:
                 if np.random.rand() < node.ps and len(node): # Success
-                    key = min(sorted(node.keys()))
-                    value = node.pop(key)
-                    tmp = node.f.get(key, 0) + value
-                    node.f[key] = tmp
-                    vprint("Node %d suceeded.  Value: %d" %(node.id, tmp))
+                    node.sort(key=lambda x: x[0])
+                    node.f.merge(node.pop(0))
                     node.f.discard()
         z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
-    def round2(z, iterations, rate):
-        """
-        
-        Implementation wherein the packet with the highest value is
-        transmitted.
-
-        Incorporating rate reduction."""
+    def simulate_it_2(z, iterations, rate):
+        """ Implementation wherein the packet with the highest value is
+        transmitted."""
         z.iterations = iterations
         old = -1
         sensing_t = -1
@@ -2814,15 +2813,13 @@ class LossTree(list):
             vprint("Starting frame %d" %frame)
             for node in z.postorder_list:
                 if np.random.rand() < node.ps and len(node): # Success
-                    key = max(node, key=node.get)
-                    value = node.pop(key)
-                    tmp = node.f.get(key, 0) + value
-                    node.f[key] = tmp
-                    vprint("Node %d suceeded.  Value: %d" %(node.id, tmp))
+                    node.sort(key=lambda x: x[0])
+                    node.sort(key=lambda x: x[1], reverse=True)
+                    node.f.merge(node.pop(0))
                     node.f.discard()
         z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
-    def round5(z, n_frames, n_hyperframes, source_min):
-        """Implement a schedule for data generation.
+    def simulate_schedule(z, n_hyperframes):
+        """Implement the schedule given by z[n].gen
 
         Scheduling algorithm
         ********************
@@ -2831,7 +2828,9 @@ class LossTree(list):
         + source_min: the minimum number of sources per sensing period
         Output:
         + node.gen: list of slots for which node generates data
-          + 
+          + The quality of the schedule is given by:
+          
+          max(n.gen for n in z)
 
 
         Execution
@@ -2839,36 +2838,51 @@ class LossTree(list):
         Parameters:
         + n_hyperframes
 
-        """
-        def set_q(node, nmax):
-            """
-            q is the remaining number of slots that the node has available
 
-            sc: the subtree contribution, which is zero if itself or any of
-            its parents have q < 1.  Otherwise, it is
+        Other defined parameters
 
-            """
-            node.q = min(nmax, np.floor(node.ps * n_frames))
-            for ch in node.ch:
-                set_q(ch, node.q)
+        q: is the remaining number of slots that the node has available
 
-        """ The subtree size should include only those nodes with a positive
-        q.
+        sc: the subtree contribution, which is zero if itself or any of its
+            parents have q < 1.  Otherwise, it is
+
 
         """
+        old = -1
+        sensing_t = -1
+        for frame in xrange(z.frames):
+            new = int(frame * rate)
+            if new > old:
+                sensing_t +=1
+                old = new
+                for node in z[1:]:
+                    if frame in node.gen:
+                        node[sensing_t] = 1
+                        node.discard2()
+            vprint("Starting frame %d" %frame)
+            for n in z.postorder_list:
+                if np.random.rand() < n.ps and len(n):
+                    n.sort(key=lambda x: x[0])
+                    n.sort(key=lambda x: x[0] not in n.gen)
+                    n.f.merge(n.pop(0))
+                    n.f.discard2()
+`        z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
+    def schedule_sampling(z, frames, source_min):
+        """ Stamp then nodes with the list gen of sampling.
+
+        The quality of the the schedule is measured by:
+
+          max(n.gen for n in z).
+
+        """
+        z.frames = frames
         for n in z[1:]:
             n.q = min(int(a.ps * n_frames) for a in [n]+n.ancestors)
         for frame in xrange(10):
-            """ Set for each node its subtree size. 
-
-            I create a dictionary d {node: subtree size}
-            
-            """
             for n in z[1:]:
-                n.ss = sum(bool(x.q) for x in n.subtree)
+                n.ss = len(n.ancestors) + sum(bool(x.q) for x in n.subtree)
                 n.gen = []
-            l = [n for n in z[1:] 
-                 if n.q and n.ss + len(n.ancestors) >= source_min]
+            l = [n for n in z[1:] if n.q and n.ss >= source_min]
             if len(l) < 1:
                 break
             s = max(l, key=lambda x:len(x.ancestors))
@@ -2881,36 +2895,6 @@ class LossTree(list):
         else:
             raise Error
         print([i.q for i in z[1:]])
-        pdb.set_trace()
-        # Transmission phase
-        for hyperframe in xrange(n_hyperframes):
-            old = -1
-            sensing_t = -1
-            for frame in xrange(n_frames):
-                new = int(frame * rate)
-                if new > old:
-                    sensing_t +=1
-                    old = new
-                    for node in z[1:]:
-                        if frame in node.gen:
-                            node[sensing_t] = 1
-                            node.discard()
-                vprint("Starting frame %d" %frame)
-                for node in z.postorder_list:
-                    if np.random.rand() < node.ps and len(node):
-                        key = max(node, key=node.get)
-                        value = node.pop(key)
-                        tmp = node.f.get(key, 0) + value
-                        node.f[key] = tmp
-                        vprint("Node %d suceeded.  Value: %d" %(node.id, tmp))
-                        node.f.discard()
-        z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
-def test_postorder():
-    fv = [-1, 0, 0, 1, 1, 1, 4]
-    ps = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
-    t = LossTree(fv, ps, 3)
-    plot_logical(fv)
-    t.postorder('print')
 def test_rate2():
     fv = [-1, 0, 1, 1, 1 , 1]
     ps = np.ones(len(fv)) * 0.3
