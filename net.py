@@ -2741,23 +2741,24 @@ class LossNode(dict):
 class LossTree(list):
     def __init__(z, fv, ps, size):
         z[:] = [LossNode(i, size=size) for i in xrange(len(fv))]
-        for node, f, ps in zip(z, fv, ps):
-            node.f = f
-            node.ps = ps
+        for n, f, ps in zip(z, fv, ps):
+            n.f = z[f]
+            n.ps = ps
         for n in z:
             n.ch = [x for x in z if x.f is n]
             n.ancestors = []
             n.subtree = []
-        node_list = []
-        for n in z[0].ch:
-            n.ret_post_order(node_list)
         for n in z[1:]:
             ancestor = n.f
             while ancestor.id >= 0:
                 ancestor.subtree.append(n)
                 n.ancestors.append(ancestor)
                 ancestor = ancestor.f
-        z.postorder_list = node_list
+        z.postorder_list = []
+        for n in z[0].ch:
+            n.ret_post_order(z.postorderlist)
+
+
     def optimum(z):
         """Maximum data rate transmittable assuming infinite buffers and
         perfect node synchronization."""
