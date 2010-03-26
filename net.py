@@ -30,6 +30,7 @@ import time as time_module
 KBOL = 1.38e-23 # Boltzman constant
 T0 = 290 # Room temperature in Kelvin (=17C)
 INF = 9999 # Used in Dijkstra's algorithm
+TIER_MAX = 9999 # This tier indicates that the node is disconnected
 STATES = dict(tx=0.063, rx=0.030, id=0.030, sl=3-6) #Energy consumption
 GRAPH_N = 0
 VB = False
@@ -251,9 +252,9 @@ class Tree(object):
         return np.array([z.tier(i) for i in xrange(len(z.f))])
     def tier(z, i):
         """Return tier of node i."""
-        for tier in xrange(999):
+        for tier in xrange(TIER_MAX):
             if i == 0: return tier
-            elif i < 0: return 999
+            elif i < 0: return TIER_MAX
             i = z.f[i]
         return tier
     def event_sources(z, loc, n_src):
@@ -2736,22 +2737,40 @@ class LossNode(dict):
             for key in sorted(z.keys())[0:-z.size]:
                 del z[key]
     def opt(z, pmax):
-        return sum(min(pmax, n.ps) + n.opt(min(pmax,n.ps)) for n in z.ch)
+        return min(pmax, z.ps) + sum(n.opt(min(pmax,n.ps)) for n in z.ch)
 class LossTree(list):
     def __init__(z, fv, ps, size):
         z[:] = [LossNode(i, size=size) for i in xrange(len(fv))]
-        for i, node in enumerate(z):
-            node.f = z[fv[i]]
-            node.ch = [z[j] for j, k in enumerate(fv) if k==node.id]
-            node.ps = ps[i]
+        for node, f, ps in zip(z, fv, ps):
+            node.f = f
+            node.ps = ps
+        for n in z:
+            n.ch = [x for x in z if x.f is n]
+            n.ancestors = []
+            n.subtree = []
         node_list = []
         for n in z[0].ch:
             n.ret_post_order(node_list)
+        for n in z[1:]:
+            ancestor = n.f
+            while ancestor.id >= 0:
+                ancestor.subtree.append(n)
+                n.ancestors.append(ancestor)
+                ancestor = ancestor.f
         z.postorder_list = node_list
     def optimum(z):
-        return z[0].opt(1)
+        """Maximum data rate transmittable assuming infinite buffers and
+        perfect node synchronization."""
+        return sum(min(n.ps, min(q.ps for q in n.ancestors)) for n in z[1:])
     def round3(z, iterations, rate):
-        """Incorporating rate reduction."""
+        """
+
+        Implementation wherein the packet from the oldest sensing time is
+        transmitted.
+
+        rate is a number between 0 and 1
+
+        """
         z.iterations = iterations
         old = -1
         sensing_t = -1
@@ -2773,8 +2792,13 @@ class LossTree(list):
                     vprint("Node %d suceeded.  Value: %d" %(node.id, tmp))
                     node.f.discard()
         z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
-    def round4(z, iterations, rate):
-        """Incorporating rate reduction."""
+    def round2(z, iterations, rate):
+        """
+        
+        Implementation wherein the packet with the highest value is
+        transmitted.
+
+        Incorporating rate reduction."""
         z.iterations = iterations
         old = -1
         sensing_t = -1
@@ -2796,22 +2820,67 @@ class LossTree(list):
                     vprint("Node %d suceeded.  Value: %d" %(node.id, tmp))
                     node.f.discard()
         z.results = np.array([z[0].get(i, 0) for i in xrange(sensing_t + 1)])
-    def round5(z, n_hyperframes):
+    def round5(z, n_frames, n_hyperframes, source_min):
         """Implement a schedule for data generation.
 
-        Each node has a list of slots for which it generates data.
+        Scheduling algorithm
+        ********************
+        Input:
+        + n_frames: number of frames per hyperframe
+        + source_min: the minimum number of sources per sensing period
+        Output:
+        + node.gen: list of slots for which node generates data
+          + 
 
-        node.gen = [] # list of slots for which it generates data
 
-
-        Scheduler algorithm
+        Execution
         *******************
-
-        
-        
+        Parameters:
+        + n_hyperframes
 
         """
+        def set_q(node, nmax):
+            """
+            q is the remaining number of slots that the node has available
 
+            sc: the subtree contribution, which is zero if itself or any of
+            its parents have q < 1.  Otherwise, it is
+
+            """
+            node.q = min(nmax, np.floor(node.ps * n_frames))
+            for ch in node.ch:
+                set_q(ch, node.q)
+
+        """ The subtree size should include only those nodes with a positive
+        q.
+
+        """
+        for n in z[1:]:
+            n.q = min(int(a.ps * n_frames) for a in [n]+n.ancestors)
+        for frame in xrange(10):
+            """ Set for each node its subtree size. 
+
+            I create a dictionary d {node: subtree size}
+            
+            """
+            for n in z[1:]:
+                n.ss = sum(bool(x.q) for x in n.subtree)
+                n.gen = []
+            l = [n for n in z[1:] 
+                 if n.q and n.ss + len(n.ancestors) >= source_min]
+            if len(l) < 1:
+                break
+            s = max(l, key=lambda x:len(x.ancestors))
+            print(s)
+            for n in [s] + s.subtree + s.ancestors:
+                print("operating on %d" %n.id)
+                if n.q > 0:
+                    n.gen.append(frame)
+                    n.q -= 1
+        else:
+            raise Error
+        print([i.q for i in z[1:]])
+        pdb.set_trace()
         # Transmission phase
         for hyperframe in xrange(n_hyperframes):
             old = -1
@@ -2867,6 +2936,12 @@ def test_rate(rate_v, fv, ps, size, alg, repetitions):
         getattr(t, alg)(repetitions, rate)
         print("%8s %8.2f %8.2f %8.2f" % (rate, t.results.mean(),
             t.results.std(), t.results.sum()))
+def test_round5():
+    n_frames = 10
+    fv = [-1, 0, 0, 1, 1, 2, 2, 3, 3]
+    ps = [1, 0.55, 0.35, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25]
+    t = LossTree(fv, ps, 3)
+    t.round5(n_frames, n_hyperframes=10, source_min=2)
 def test_opt():
     t = LossTree([-1, 0, 0, 1, 1], [1, 0.3, 0.3, 0.1, 0.2], 3)
     print(t.optimum())
