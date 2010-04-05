@@ -2969,7 +2969,7 @@ def test_find_schedule4():
     size = 50
     t = LossTree(fv, ps, size)
     t.find_schedule(frames=10, source_min=2, VB=True)
-    t.simulate_schedule(1)
+    t.simulate_schedule(iterations=1, rate=1)
 def test_round5():
     n_frames = 10
     fv = [-1, 0, 0, 1, 1, 2, 2, 3, 3]
