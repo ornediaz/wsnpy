@@ -32,10 +32,7 @@ T0 = 290 # Room temperature in Kelvin (=17C)
 INF = 9999 # Used in Dijkstra's algorithm
 TIER_MAX = 9999 # This tier indicates that the node is disconnected
 STATES = dict(tx=0.063, rx=0.030, id=0.030, sl=3-6) #Energy consumption
-GRAPH_N = 0
-VB = False
-class Error(Exception):
-    pass
+class Error(Exception): pass
 class NoProgressError(Error):
     __str__ = lambda z:"No color assigned in several frames."
 class UnsufficientSlots(Error):
@@ -2721,9 +2718,8 @@ net_par1 = dict(tx_p=1e-6, BW=256e3, sinr=20, d0=100, PL0=1e8, p_exp=3.5,
                shadow=8.0)
 tx_rg1 = PhyNet(**net_par1).tx_range
 class LossNode(list):
-    def __init__(z, id, size):
+    def __init__(z, id):
         z.id = id
-        z.size = size
     def __repr__(z):
         z.sort(key=lambda x: x[0])
         return "Node %d: %s;" % (z.id, list.__repr__(z))
@@ -2731,25 +2727,13 @@ class LossNode(list):
         for n in z.ch:
             n.ret_post_order(node_list)
         node_list.append(z)
-    def merge(z, time, value):
-        vprint("Node %d received packet %d: %d." %(z.id, time, value))
-        d = dict(z[:])
-        d[time] = d.get(time, 0) + value
-        z[:] = d.items()
     def print(z):
         print(z)
-    def discard(z):
-        if z.id:
-            z.sort(key=lambda x: x[0])
-            z[0:-z.size] = []
-    def discard2(z):
-        if z.id:
-            z.sort(key=lambda x: x[0])
-            z.sort(key=lambda x: x[0] % z.frames in n.gen)
-            z[0:-size] = []
 class LossTree(list):
-    def __init__(z, fv, ps, size):
-        z[:] = [LossNode(i, size=size) for i in xrange(len(fv))]
+    def __init__(z, fv, ps, size, VB=False):
+        z.size = size
+        z.VB = VB
+        z[:] = [LossNode(i) for i in xrange(len(fv))]
         for i, n in enumerate(z):
             n.f = z[fv[i]] if i else -1
             n.ch = [z[j] for j, k in enumerate(fv) if k==i]
@@ -2765,6 +2749,30 @@ class LossTree(list):
         z.postorder_list = []
         for n in z[0].ch:
             n.ret_post_order(z.postorder_list)
+    def prnt(z, *args):
+        if z.VB:
+            print(*args)
+    def merge(z, n, discard):
+        t, k = n.pop(0)
+        z.prnt("Node %d tx (%d, %d) to %d" %(n.id, t, k, n.f.id))
+        d = dict(n.f[:])
+        d[t] = d.get(t, 0) + k
+        n.f[:] = d.items()
+        getattr(z, discard)(n.f)
+    def discard1(z, node):
+        if node.id:
+            node.sort(key=lambda x: x[0])
+            node[0:-z.size] = []
+    def discard2(z, node):
+        if node.id:
+            node.sort(key=lambda x: x[0])
+            node.sort(key=lambda x: x[1])
+            node[0:-z.size] = []
+    def discard3(z, node):
+        if node.id:
+            node.sort(key=lambda x: x[0])
+            node.sort(key=lambda x: x[0] % z.frames in node.gen)
+            node[0:-z.size] = []
     def optimum(z):
         """Maximum data rate transmittable assuming infinite buffers and
         perfect node synchronization."""
@@ -2784,13 +2792,12 @@ class LossTree(list):
                 old = new
                 for node in z[1:]:
                     node.append((sensing_t, 1))
-                    node.discard()
-            vprint("Starting frame %d" %frame)
+                    z.discard1(node)
+            z.prnt("Starting frame %d" %frame)
             for node in z.postorder_list:
                 if np.random.rand() < node.ps and len(node): # Success
                     node.sort(key=lambda x: x[0])
-                    node.f.merge(*node.pop(0))
-                    node.f.discard()
+                    z.merge(node, 'discard1')
         d = dict(z[0])
         z.results = np.array([d.get(i, 0) for i in xrange(sensing_t + 1)])
     def simulate_it_2(z, iterations, rate):
@@ -2806,14 +2813,13 @@ class LossTree(list):
                 old = new
                 for node in z[1:]:
                     node.append((sensing_t, 1))
-                    node.discard()
-            vprint("Starting frame %d" %frame)
+                    z.discard2(node)
+            z.prnt("Starting frame %d" %frame)
             for node in z.postorder_list:
                 if np.random.rand() < node.ps and len(node): # Success
                     node.sort(key=lambda x: x[0])
                     node.sort(key=lambda x: -x[1])
-                    node.f.merge(*node.pop(0))
-                    node.f.discard()
+                    z.merge(node, 'discard2')
         d = dict(z[0])
         z.results = np.array([d.get(i, 0) for i in xrange(sensing_t + 1)])
     def simulate_schedule(z, iterations, rate):
@@ -2846,14 +2852,15 @@ class LossTree(list):
                 for node in z[1:]:
                     if frame in node.gen:
                         node.append((sensing_t, 1))
-                        node.discard2()
-            vprint("Starting frame %d" %frame)
+                        z.discard3(node)
+            z.prnt("Starting frame %d" %frame)
             for n in z.postorder_list:
                 if np.random.rand() < n.ps and len(n):
                     n.sort(key=lambda x: x[0])
                     n.sort(key=lambda x: x[0] % z.frames not in n.gen)
-                    n.f.merge(*n.pop(0))
-                    n.f.discard2()
+                    z.merge(n, 'discard3')
+                else:
+                    z.prnt("Node %d did not reach node %d" % (n.id, n.f.id))
         d = dict(z[0])
         z.results = np.array([d.get(i, 0) for i in xrange(sensing_t + 1)])
     def add_frame(z, node, frame):
@@ -2863,8 +2870,8 @@ class LossTree(list):
         if frame >= len(z.count):
             z.count.append(0)
         z.count[frame] += 1
-        vprint("Node %d gained frame %d" % (node.id, frame))
-    def find_schedule(z, frames, source_min, VB=False):
+        z.prnt("Node %d gained frame %d" % (node.id, frame))
+    def find_schedule(z, frames, source_min):
         """ Stamp the nodes with the list gen of sampling.
 
         Input:
@@ -2878,9 +2885,6 @@ class LossTree(list):
           max(n.gen for n in z)
 
         """
-        def vprint(x):
-            if VB:
-                __builtins__.print(x)
         z.frames = frames
         z.count = []
         for n in z[1:]:
@@ -2903,7 +2907,7 @@ class LossTree(list):
             if len(tree_list) < 1:
                 break
             tree = max(tree_list, key=lambda x: len(x[0].ancestors))
-            vprint("***Subtree of node %d selected" % tree[0].id)
+            z.prnt("***Subtree of node %d selected" % tree[0].id)
             for n in tree:
                 z.add_frame(n, frame)
         else:
@@ -2921,13 +2925,13 @@ class LossTree(list):
                 z.add_frame(x, available.pop(0))
                 available = list(set(x.f.gen) - set(x.gen))
         assert not any(x.q for x in z[1:])
-        z.show_schedule(vprint)
-    def show_schedule(z, vprint):
-            vprint("****Show computation results****")
-            vprint([i.q for i in z[1:]])
-            for n in z[1:]: 
-                n.gen.sort()
-                vprint("%d: %s; q=%d" % (n.id, n.gen, n.q))
+        z.show_schedule()
+    def show_schedule(z):
+        z.prnt("****Show computation results****")
+        z.prnt([i.q for i in z[1:]])
+        for n in z[1:]: 
+            n.gen.sort()
+            z.prnt("%d: %s; q=%d" % (n.id, n.gen, n.q))
 def test_rate2():
     fv = [-1, 0, 1, 1, 1 , 1]
     ps = np.ones(len(fv)) * 0.3
@@ -2951,25 +2955,30 @@ def test_rate2():
 def test_find_schedule1():
     fv = [-1, 0, 1, 1, 1 , 1]
     ps = np.ones(len(fv)) * 0.8
-    t = LossTree(fv, ps, size=50)
-    t.find_schedule(frames=4, source_min=2, VB=True)
+    t = LossTree(fv, ps, size=50, VB=True)
+    t.find_schedule(frames=4, source_min=2)
 def test_find_schedule2():
     fv = [-1, 0, 0, 1, 1 , 2, 2, 3, 3]
     ps = np.ones(len(fv)) * 0.3
-    t = LossTree(fv, ps, size=50)
-    t.find_schedule(frames=9, source_min=2, VB=True)
+    t = LossTree(fv, ps, size=50, VB=True)
+    t.find_schedule(frames=9, source_min=2)
 def test_find_schedule3():
     fv = [-1, 0, 0, 1, 1 , 2, 2, 3, 3]
     ps = [1, 0.5, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2, 0.2]
-    t = LossTree(fv, ps, size=50)
-    t.find_schedule(frames=10, source_min=2, VB=True)
-def test_find_schedule4():
+    t = LossTree(fv, ps, size=50, VB=True)
+    t.find_schedule(frames=10, source_min=2)
+def test_find_schedule4(plot):
     fv = [-1, 0, 0, 1, 1 , 2, 2, 3, 3]
+    if plot:
+        plot_logical(fv)
     ps = [1, 0.5, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2, 0.2]
     size = 50
-    t = LossTree(fv, ps, size)
-    t.find_schedule(frames=10, source_min=2, VB=True)
-    t.simulate_schedule(iterations=1, rate=1)
+    t = LossTree(fv, ps, size, VB=True)
+    t.find_schedule(frames=10, source_min=2)
+    global VB
+    VB = True
+    t.simulate_schedule(iterations=10, rate=1)
+    print(t.results)
 def test_round5():
     n_frames = 10
     fv = [-1, 0, 0, 1, 1, 2, 2, 3, 3]
