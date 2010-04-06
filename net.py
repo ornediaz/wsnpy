@@ -21,6 +21,7 @@ import inspect
 import numpy as np 
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
+from operator import itemgetter
 import os
 import pdb
 import SimPy.Simulation as simpy
@@ -2752,115 +2753,58 @@ class LossTree(list):
     def prnt(z, *args):
         if z.VB:
             print(*args)
-    def merge(z, n, discard):
-        t, k = n.pop(0)
-        z.prnt("Node %d tx (%d, %d) to %d" %(n.id, t, k, n.f.id))
-        d = dict(n.f[:])
-        d[t] = d.get(t, 0) + k
-        n.f[:] = d.items()
-        getattr(z, discard)(n.f)
-    def discard1(z, node):
+    def _discard(z, node, discard_type):
         if node.id:
-            node.sort(key=lambda x: x[0])
-            node[0:-z.size] = []
-    def discard2(z, node):
-        if node.id:
-            node.sort(key=lambda x: x[0])
-            node.sort(key=lambda x: x[1])
-            node[0:-z.size] = []
-    def discard3(z, node):
-        if node.id:
-            node.sort(key=lambda x: x[0])
-            node.sort(key=lambda x: x[0] % z.frames in node.gen)
+            if discard_type == 0:
+                node.sort(key=itemgetter(0))
+            if discard_type == 1:
+                node.sort(key=itemgetter(0))
+                node.sort(key=itemgetter(1))
+            if discard_type == 2:
+                node.sort(key=itemgetter(0))
+                node.sort(key=lambda x: x[0] % z.frames in node.gen)
             node[0:-z.size] = []
     def optimum(z):
         """Maximum data rate transmittable assuming infinite buffers and
         perfect node synchronization."""
         return sum(min(q.ps for q in [n] + n.ancestors) for n in z[1:])
-    def simulate_it_1(z, iterations, rate):
+    def simulate_it(z, iterations, rate, type):
         """ Implementation wherein the packet from the oldest sensing time
         is transmitted.
 
         rate is a number between 0 and 1. """
+        assert 0.0 < rate <= 1.0
+        assert type in range(4)
         z.iterations = iterations
         old = -1
         sensing_t = -1
+        discard_type = (0, 0, 1, 2)[type]
+        select_type = (0, 1, 1, 2) [type]
         for frame in xrange(iterations):
             new = int(frame * rate)
             if new > old:
                 sensing_t += 1
                 old = new
-                for node in z[1:]:
-                    node.append((sensing_t, 1))
-                    z.discard1(node)
-            z.prnt("Starting frame %d" %frame)
-            for node in z.postorder_list:
-                if np.random.rand() < node.ps and len(node): # Success
-                    node.sort(key=lambda x: x[0])
-                    z.merge(node, 'discard1')
-        d = dict(z[0])
-        z.results = np.array([d.get(i, 0) for i in xrange(sensing_t + 1)])
-    def simulate_it_2(z, iterations, rate):
-        """ Implementation wherein the packet with the highest value is
-        transmitted."""
-        z.iterations = iterations
-        old = -1
-        sensing_t = -1
-        for frame in xrange(iterations):
-            new = int(frame * rate)
-            if new > old:
-                sensing_t += 1
-                old = new
-                for node in z[1:]:
-                    node.append((sensing_t, 1))
-                    z.discard2(node)
-            z.prnt("Starting frame %d" %frame)
-            for node in z.postorder_list:
-                if np.random.rand() < node.ps and len(node): # Success
-                    node.sort(key=lambda x: x[0])
-                    node.sort(key=lambda x: -x[1])
-                    z.merge(node, 'discard2')
-        d = dict(z[0])
-        z.results = np.array([d.get(i, 0) for i in xrange(sensing_t + 1)])
-    def simulate_schedule(z, iterations, rate):
-        """Implement the schedule given by z[n].gen
-
-        Scheduling algorithm
-        ********************
-        Execution
-        *******************
-        Parameters:
-        + n_hyperframes
-
-
-        Other defined parameters
-
-        q: is the remaining number of slots that the node has available
-
-        sc: the subtree contribution, which is zero if itself or any of its
-            parents have q < 1.  Otherwise, it is
-
-
-        """
-        old = -1
-        sensing_t = -1
-        for frame in xrange(iterations):
-            new = int(frame * rate)
-            if new > old:
-                sensing_t += 1
-                old = new
-                for node in z[1:]:
-                    if frame in node.gen:
-                        node.append((sensing_t, 1))
-                        z.discard3(node)
+                for n in z[1:]:
+                    n.append((sensing_t, 1))
+                    z._discard(n, discard_type)
             z.prnt("Starting frame %d" %frame)
             for n in z.postorder_list:
-                if np.random.rand() < n.ps and len(n):
-                    n.sort(key=lambda x: x[0])
-                    n.sort(key=lambda x: x[0] % z.frames not in n.gen)
-                    z.merge(n, 'discard3')
-                else:
-                    z.prnt("Node %d did not reach node %d" % (n.id, n.f.id))
+                if np.random.rand() < n.ps and len(n): # Success
+                    if select_type == 0:
+                        n.sort(key=itemgetter(0))
+                    elif select_type == 1:
+                        n.sort(key=itemgetter(0))
+                        n.sort(key=itemgetter(1), reverse=True)
+                    elif select_type == 2:
+                        n.sort(key=itemgetter(0))
+                        n.sort(key=lambda x: x[0] % z.frames not in n.gen)
+                    t, k = n.pop(0)
+                    z.prnt("Node %d tx (%d, %d) to %d" %(n.id, t, k, n.f.id))
+                    d = dict(n.f[:])
+                    d[t] = d.get(t, 0) + k
+                    n.f[:] = d.items()
+                    z._discard(n.f, discard_type)
         d = dict(z[0])
         z.results = np.array([d.get(i, 0) for i in xrange(sensing_t + 1)])
     def add_frame(z, node, frame):
@@ -2896,7 +2840,7 @@ class LossTree(list):
                 tree = [n] + n.ancestors[:-1]
                 if not all(x.q > 0 for x in tree):
                     break
-                stack = n.ch[:] # Buffer used for preorder traversal
+                stack = collections.deque(n.ch) # for preorder traversal
                 while stack and len(tree) < source_min:
                     x = stack.pop()
                     if x.q > 0:
@@ -2915,7 +2859,7 @@ class LossTree(list):
         # The number of frames is now fixed.  If possible, use remaining q's to
         # increase the counts. 
         z[0].gen = range(len(z.count))
-        stack = z[0].ch[:]
+        stack = collections.deque(z[0].ch[:])
         while stack:
             x = stack.pop()
             stack.extend(x.ch)
@@ -2938,13 +2882,15 @@ def test_rate2():
     size = 50
     repetitions = 2000
     rate_v = np.arange(0.05, 1.0, 0.1)
-    for alg in ('simulate_it_1', 'simulate_it_2'):
-        print("****** Executing %s" % alg)
+    for type in (0, 1, 2, 3):
+        print("****** Executing %d" % type)
         print("%8s %8s %8s %8s" % ("rate", "mean", "std", "sum"))
         for i, rate in enumerate(rate_v):
             np.random.seed(0)
             t = LossTree(fv, ps, size)
-            getattr(t, alg)(repetitions, rate)
+            if type == 3:
+                t.find_schedule(8, 3)
+            t.simulate_it(repetitions, rate, type)
             print("%8s %8.2f %8.2f %8.2f" % (rate, t.results.mean(),
                 t.results.std(), t.results.sum()))
     opt = t.optimum() 
@@ -2952,33 +2898,91 @@ def test_rate2():
     print("The optimal sum is %8.2f" % (opt * repetitions)) 
     print("The max without failures is %d" % ((len(fv)-1) * repetitions)) 
     # Now compute the optimum
-def test_find_schedule1():
+def graphrate1(tst_nr=0, repetitions=2, action=0, plot=0):
     fv = [-1, 0, 1, 1, 1 , 1]
-    ps = np.ones(len(fv)) * 0.8
-    t = LossTree(fv, ps, size=50, VB=True)
-    t.find_schedule(frames=4, source_min=2)
-def test_find_schedule2():
-    fv = [-1, 0, 0, 1, 1 , 2, 2, 3, 3]
     ps = np.ones(len(fv)) * 0.3
-    t = LossTree(fv, ps, size=50, VB=True)
-    t.find_schedule(frames=9, source_min=2)
-def test_find_schedule3():
-    fv = [-1, 0, 0, 1, 1 , 2, 2, 3, 3]
-    ps = [1, 0.5, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2, 0.2]
-    t = LossTree(fv, ps, size=50, VB=True)
-    t.find_schedule(frames=10, source_min=2)
-def test_find_schedule4(plot):
-    fv = [-1, 0, 0, 1, 1 , 2, 2, 3, 3]
-    if plot:
-        plot_logical(fv)
-    ps = [1, 0.5, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2, 0.2]
+    size = 10
+    rate_v = np.arange(0.5, 1, 0.05)
+    types = (0, 1, 2, 3)
+    metrics = 'mean', 'std','sum'
+    iterations = 100
+    mean = np.zeros((repetitions, len(rate_v), len(types)))
+    std = np.zeros((repetitions, len(rate_v), len(types)))
+    sum = np.zeros((repetitions, len(rate_v), len(types)))
+    if action == 1:
+        for k in xrange(repetitions):
+            for j, rate in enumerate(rate_v):
+                for i, type in enumerate(types):
+                    np.random.seed(0)
+                    t = LossTree(fv, ps, size)
+                    if type == 3:
+                        t.find_schedule(8, 3)
+                    t.simulate_it(iterations, rate, type)
+                    mean[k, j, i] = t.results.mean()
+                    std[k, j, i] = t.results.std()
+                    sum[k, j, i] = t.results.sum()
+        save_npz('mean', 'std', 'sum')
+    r = load_npz()
+    print("================")
+    leg = ('0', '1', '2', '3')
+    g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
+    g.add('rate', r'total') ###############
+    print(r['sum'])
+    g.mplot(rate_v, r['sum'], leg)
+    g.save(plot=plot)
+def test_rate3():
+    fv = [-1, 0, 1, 1, 1 , 1]
+    ps = np.ones(len(fv)) * 0.3
     size = 50
-    t = LossTree(fv, ps, size, VB=True)
-    t.find_schedule(frames=10, source_min=2)
-    global VB
-    VB = True
-    t.simulate_schedule(iterations=10, rate=1)
-    print(t.results)
+    repetitions = 2000
+    rate_v = np.arange(0.05, 1.0, 0.1)
+    m
+    d = collections.namedtuple('d', 'mean', 'std', 'sum')
+    types = (0, 1, 2)
+    d1 = dict((t, d(*[np.zeros(len(rate_v)) if i else rate_v for i in
+                xrange(len(d._fields))])) for t in types)
+    for t in types:
+        print("****** Executing %d" % t)
+
+        print("%8s %8s %8s %8s" % ("rate", "mean", "std", "sum"))
+        for i, rate in enumerate(rate_v):
+            np.random.seed(0)
+            t = LossTree(fv, ps, size)
+            t.simulate_it(repetitions, rate, type)
+            print("%8s %8.2f %8.2f %8.2f" % (rate, t.results.mean(),
+                t.results.std(), t.results.sum()))
+    opt = t.optimum() 
+    print("The optimum fraction of packets is %8.2f" %opt) 
+    print("The optimal sum is %8.2f" % (opt * repetitions)) 
+    print("The max without failures is %d" % ((len(fv)-1) * repetitions)) 
+def test_find_schedule(test, plot):
+    if test == 0:
+        fv = [-1, 0, 1, 1, 1 , 1]
+        if plot: plot_logical(fv)
+        ps = np.ones(len(fv)) * 0.8
+        t = LossTree(fv, ps, size=50, VB=True)
+        t.find_schedule(frames=4, source_min=2)
+    if test == 1:
+        fv = [-1, 0, 0, 1, 1 , 2, 2, 3, 3]
+        if plot: plot_logical(fv)
+        ps = np.ones(len(fv)) * 0.3
+        t = LossTree(fv, ps, size=50, VB=True)
+        t.find_schedule(frames=9, source_min=2)
+    if test == 3:
+        fv = [-1, 0, 0, 1, 1 , 2, 2, 3, 3]
+        if plot: plot_logical(fv)
+        ps = [1, 0.5, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2, 0.2]
+        t = LossTree(fv, ps, size=50, VB=True)
+        t.find_schedule(frames=10, source_min=2)
+    if test == 4:
+        fv = [-1, 0, 0, 1, 1 , 2, 2, 3, 3]
+        if plot: plot_logical(fv)
+        ps = [1, 0.5, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2, 0.2]
+        size = 50
+        t = LossTree(fv, ps, size, VB=True)
+        t.find_schedule(frames=10, source_min=2)
+        t.simulate_it(iterations=10, rate=1, type=2)
+        print(t.results)
 def test_round5():
     n_frames = 10
     fv = [-1, 0, 0, 1, 1, 2, 2, 3, 3]
