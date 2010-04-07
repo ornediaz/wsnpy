@@ -2878,10 +2878,10 @@ class LossTree(list):
             z.prnt("%d: %s; q=%d" % (n.id, n.gen, n.q))
 def test_rate2():
     fv = [-1, 0, 1, 1, 1 , 1]
-    ps = np.ones(len(fv)) * 0.3
-    size = 50
+    ps = [1, 0.2, 0.5, 0.5, 0.5, 0.5]
+    size = 30
     repetitions = 2000
-    rate_v = np.arange(0.05, 1.0, 0.1)
+    rate_v = np.arange(1, 0.1, -0.1)[-1::-1]
     for type in (0, 1, 2, 3):
         print("****** Executing %d" % type)
         print("%8s %8s %8s %8s" % ("rate", "mean", "std", "sum"))
@@ -2889,7 +2889,7 @@ def test_rate2():
             np.random.seed(0)
             t = LossTree(fv, ps, size)
             if type == 3:
-                t.find_schedule(8, 3)
+                t.find_schedule(50, 3)
             t.simulate_it(repetitions, rate, type)
             print("%8s %8.2f %8.2f %8.2f" % (rate, t.results.mean(),
                 t.results.std(), t.results.sum()))
@@ -2898,37 +2898,46 @@ def test_rate2():
     print("The optimal sum is %8.2f" % (opt * repetitions)) 
     print("The max without failures is %d" % ((len(fv)-1) * repetitions)) 
     # Now compute the optimum
-def graphrate1(tst_nr=0, repetitions=2, action=0, plot=0):
+def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
     fv = [-1, 0, 1, 1, 1 , 1]
-    ps = np.ones(len(fv)) * 0.3
-    size = 10
-    rate_v = np.arange(0.5, 1, 0.05)
+    ps = [1, 0.2, 0.4, 0.4, 0.4, 0.4]
+    size = 30
+    rate_v = np.arange(1, 0.1, -0.1)[-1::-1]
     types = (0, 1, 2, 3)
     metrics = 'mean', 'std','sum'
-    iterations = 100
+    iterations = 2000
     mean = np.zeros((repetitions, len(rate_v), len(types)))
     std = np.zeros((repetitions, len(rate_v), len(types)))
     sum = np.zeros((repetitions, len(rate_v), len(types)))
+    pmin = np.zeros((repetitions, len(rate_v), len(types)))
+    threshold = 3
+
     if action == 1:
         for k in xrange(repetitions):
             for j, rate in enumerate(rate_v):
                 for i, type in enumerate(types):
-                    np.random.seed(0)
+                    np.random.seed(k)
                     t = LossTree(fv, ps, size)
                     if type == 3:
-                        t.find_schedule(8, 3)
+                        t.find_schedule(8, threshold)
                     t.simulate_it(iterations, rate, type)
                     mean[k, j, i] = t.results.mean()
                     std[k, j, i] = t.results.std()
                     sum[k, j, i] = t.results.sum()
-        save_npz('mean', 'std', 'sum')
+                    pmin[k,j,i] = (t.results > threshold).mean()
+        save_npz('mean', 'std', 'sum', 'pmin')
     r = load_npz()
     print("================")
     leg = ('0', '1', '2', '3')
     g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
-    g.add('rate', r'total') ###############
-    print(r['sum'])
+    g.add('rate', r'total') 
     g.mplot(rate_v, r['sum'], leg)
+    g.add('rate', r'mean') 
+    g.mplot(rate_v, r['mean'], leg)
+    g.add('rate', r'std') 
+    g.mplot(rate_v, r['std'], leg)
+    g.add('rate', r'pmin') 
+    g.mplot(rate_v, r['pmin'], leg) 
     g.save(plot=plot)
 def test_rate3():
     fv = [-1, 0, 1, 1, 1 , 1]
@@ -2936,7 +2945,6 @@ def test_rate3():
     size = 50
     repetitions = 2000
     rate_v = np.arange(0.05, 1.0, 0.1)
-    m
     d = collections.namedtuple('d', 'mean', 'std', 'sum')
     types = (0, 1, 2)
     d1 = dict((t, d(*[np.zeros(len(rate_v)) if i else rate_v for i in
