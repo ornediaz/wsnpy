@@ -1,0 +1,134 @@
+\documentclass{article}
+\usepackage[margin=0in]{geometry}
+\usepackage{orne1}
+\usepackage{plotjour1}
+\begin{document}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={latency in frames per incorporation}
+      ]%
+      \addplot coordinates {%
+        (7, 9.68673027898)%
+        (11, 11.8817380952)%
+        (15, 14.1527037037)%
+        (19, 15.9206481481)%
+        (22, 18.3500925926)};%
+      \addplot coordinates {%
+        (7, 9.92707792208)%
+        (11, 11.9012751323)%
+        (15, 14.3848333333)%
+        (19, 15.8046296296)%
+        (22, 18.0519444444)};%
+      \addplot coordinates {%
+        (7, 9.42598869649)%
+        (11, 10.5545529101)%
+        (15, 12.3211296296)%
+        (19, 12.97)%
+        (22, 15.3312962963)};%
+      \addplot coordinates {%
+        (7, 1.46682479557)%
+        (11, 1.44938359788)%
+        (15, 1.43737037037)%
+        (19, 1.44601851852)%
+        (22, 1.43240740741)};%
+      \legend{{SDS = 0}, {SDS = 1}, {SDS = 2}, {FlexiTP}}%
+    \end{axis}
+  \end{tikzpicture}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={attempts per incorporation}
+      ]%
+      \addplot coordinates {%
+        (7, 1.90170767196)%
+        (11, 2.36053968254)%
+        (15, 2.83333333333)%
+        (19, 3.25361111111)%
+        (22, 3.71527777778)};%
+      \addplot coordinates {%
+        (7, 1.89056613757)%
+        (11, 2.30118783069)%
+        (15, 2.81212962963)%
+        (19, 3.1675)%
+        (22, 3.53416666667)};%
+      \addplot coordinates {%
+        (7, 1.77233104858)%
+        (11, 2.0065952381)%
+        (15, 2.36)%
+        (19, 2.55537037037)%
+        (22, 2.92898148148)};%
+      \legend{{SDS = 0}, {SDS = 1}, {SDS = 2}}%
+    \end{axis}
+  \end{tikzpicture}
+
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={expelled nodes per incorporation},%
+      legend style={at={(1.02,0.5)}, anchor=west },%
+      ylabel style={yshift = 3mm}
+      ]%
+      \addplot coordinates {%
+        (7, 0.0549739057239)%
+        (11, 0.0670740740741)%
+        (15, 0.0768518518519)%
+        (19, 0.0722222222222)%
+        (22, 0.0837962962963)};%
+      \addplot coordinates {%
+        (7, 0.0484948292448)%
+        (11, 0.0587407407407)%
+        (15, 0.0712962962963)%
+        (19, 0.0656481481481)%
+        (22, 0.0716666666667)};%
+      \addplot coordinates {%
+        (7, 0.0)%
+        (11, 0.0)%
+        (15, 0.0)%
+        (19, 0.0)%
+        (22, 0.0)};%
+      \legend{{SDS = 0}, {SDS = 1}, {SDS = 2}}%
+    \end{axis}
+  \end{tikzpicture}
+  \begin{tikzpicture}
+    \begin{axis}[%
+      xlabel={node density $\bar{\rho}$},%
+      ylabel={energy per incorporation (mJ)}
+      ]%
+      \addplot coordinates {%
+        (7, 75.3374817369)%
+        (11, 142.121746916)%
+        (15, 222.530839433)%
+        (19, 312.4636693)%
+        (22, 412.58679077)};%
+      \addplot coordinates {%
+        (7, 75.9020810196)%
+        (11, 141.414393877)%
+        (15, 223.974037089)%
+        (19, 309.280401678)%
+        (22, 401.119709172)};%
+      \addplot coordinates {%
+        (7, 72.45000005)%
+        (11, 126.285640596)%
+        (15, 193.310378293)%
+        (19, 257.289142477)%
+        (22, 341.746004687)};%
+      \legend{{SDS = 0}, {SDS = 1}, {SDS = 2}}%
+    \end{axis}
+  \end{tikzpicture}
+
+
+\begin{verbatim}
+|       Protocol|   rho|            E_f|            E_g|
+|      $FlexiTP$|     7|      23.000600|       0.000000|
+|               |    15|      38.656100|       0.000000|
+|               |    22|      48.554100|       0.000000|
+|         SDS=0$|     7|       0.031250|      75.337482|
+|               |    15|       0.031250|     222.530839|
+|               |    22|       0.031250|     412.586791|
+|         SDS=2$|     7|       0.093750|      72.450000|
+|               |    15|       0.093750|     193.310378|
+|               |    22|       0.093750|     341.746005|
+
+\end{verbatim}
+\end{document}
