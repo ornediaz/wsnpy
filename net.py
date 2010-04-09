@@ -92,10 +92,11 @@ def k_neigh(node_set, hops, tx_l):
     for h in node_set:
         node_set = node_set.union(tx_l[h])
     return node_set.union(k_neigh(node_set, hops - 1, tx_l))
-def plot_logical(f):
+def plot_logical(f, lab=None):
     def helper(f, i):
         ch = [helper(f, j) for j, h in enumerate(f) if h == i] 
-        return "child {node {%d} %s}" % (i, " ".join(ch))
+        lb = '' if lab is None else 'edge from parent node [fill=white,font=\scriptsize] {%0.2f}' % lab[i]
+        return ("child {node {%d} %s %s}" % (i, " ".join(ch), lb))
     filename = 'ztree'
     os.system('rm %s.*' %filename)
     s = '''\documentclass[landscape,a4paper]{article}
@@ -103,13 +104,37 @@ def plot_logical(f):
 \\begin{document}
 \\thispagestyle{empty}
 \\begin{tikzpicture}[level distance=10mm,
-level/.style={sibling distance=40mm/#1}]
+level/.style={sibling distance=80mm /#1}]
 \\node {0} [grow'=down] %s;
 \end{tikzpicture}
 \end{document}''' % " ".join([helper(f, j) for j, h in enumerate(f) if h==0])
     with open('%s.tex' %filename,'w') as f: f.write(s)
     subprocess.call(['pdflatex', '%s.tex' %filename])
     subprocess.Popen(['xpdf', '%s.pdf' %filename])
+def plot_logical2(fv, ps=None):
+    import yapgvb
+    g = yapgvb.Digraph("tree")
+    n = [g.add_node(str(i)) for i in xrange(len(fv))]
+    for i in xrange(1, len(fv)):
+        edge = n[i] >> n[fv[i]]
+        if ps is not None:
+            edge.label = str(ps[i])
+    g.layout(yapgvb.engines.dot)
+    fname = 'ztree.png'
+    g.render(fname)
+    g.write('ztree.dot')
+    subprocess.Popen(['display', fname])
+def plot_logical3(fv, ps=None, format='png'):
+    fname = 'ztree'
+    with open(fname + '.dot', 'w') as f:
+        f.write("digraph tree {\n")
+        for i in xrange(1, len(fv)):
+            lb = "" if ps is None else "[label = %s]" % ps[i] 
+            f.write("%d -> %d %s;\n" % (i, fv[i], lb ))
+        f.write("}\n")
+    subprocess.call(['dot', '-T' + format, fname + '.dot', '-o', 
+                     fname + '.' + format])
+    subprocess.Popen(['display', fname + '.' + format])
 class Pgf(list):
     def __init__(z, extra_preamble='\\usepackage{plotjour1}\n'):
         z.extra_preamble = extra_preamble
@@ -2753,8 +2778,14 @@ class LossTree(list):
     def prnt(z, *args):
         if z.VB:
             print(*args)
-    def _discard(z, n, discard_type):
+    def _discard(z, n, type, rate):
         if n.id:
+            if type < 4:
+                discard_type = (0, 0, 1, 2)[type]
+            elif min(x.ps for x in [n] + n.ancestors) > rate * 0.15:
+                    discard_type = 1
+            else:
+                discard_type = 0
             if discard_type == 0:
                 n.sort(key=itemgetter(0))
             if discard_type == 1:
@@ -2776,8 +2807,7 @@ class LossTree(list):
         z.iterations = iterations
         old = -1
         sensing_t = -1
-        discard_type = (0, 0, 1, 2)[type]
-        select_type = (0, 1, 1, 2) [type]
+        select_type = (0, 1, 1, 2, 1) [type]
         # if type == 3:
         #     rate = float(len(z.count)) / z.frames
         #    pdb.set_trace()
@@ -2792,6 +2822,8 @@ class LossTree(list):
             z.prnt("Starting frame %d" %frame)
             for n in z.postorder_list:
                 if np.random.rand() < n.ps and len(n): # Success
+                    if type < 4:
+                        select_type = (0, 1, 1, 2) [type]
                     if select_type == 0:
                         n.sort(key=itemgetter(0))
                     elif select_type == 1:
@@ -2933,7 +2965,7 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
         frames = 8
     elif tst_nr == 3:
-        # file:/home/ornediaz/py1/graphRate1_03_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_03_000010.1pdf
         # file:/home/ornediaz/py1/graphRate1_03_000010.tex
         # Type 
         ps = [1, 0.6, 0.6, 0.6, 0.2, 0.2]
@@ -2962,11 +2994,11 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
         frames = 10
     elif tst_nr == 6:
-        # file:/home/ornediaz/py1/graphRate1_05_000010.pdf
-        # file:/home/ornediaz/py1/graphRate1_05_000010.tex
+        # file:/home/ornediaz/py1/graphRate1_06_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_06_000010.tex
 
         # This test case highlights a situation wherein discard_type=1 (type
-        # 2).  It achieves a significant advantage over the other types
+        # 2) achieves a significant advantage over the other types
         # (except 3).
 
         fv = [-1, 0, 1, 2, 3, 4, 5]
@@ -2974,7 +3006,32 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         ps = np.ones(7) * 0.3
         rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
         frames = 10
-    plot_logical(fv)
+    elif tst_nr == 7:
+        # file:/home/ornediaz/py1/graphRate1_07_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_07_000010.tex
+        fv = [-1, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
+        ps = np.ones(11) * 0.8
+        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        frames = 10
+    elif tst_nr == 8:
+        # file:/home/ornediaz/py1/graphRate1_08_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_08_000010.tex
+        fv = [-1, 0, 0, 1, 1, 1, 2, 2, 2]
+        ps = np.ones(11) * 0.8
+        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        frames = 10
+    elif tst_nr == 9:
+        # file:/home/ornediaz/py1/graphRate1_09_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_09_000010.tex
+
+
+        fv = [-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12] 
+        ps = [0.8 if i < 9 else 0.4 for i in xrange(len(fv))]
+        fv = [-1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5]
+        ps = np.ones(12) * 0.3
+        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        frames = 10
+    plot_logical3(fv, ps)
     size = 30
     types = (0, 1, 2, 3)
     metrics = 'mean', 'std','sum'
