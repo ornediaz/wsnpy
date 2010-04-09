@@ -154,7 +154,7 @@ class Pgf(list):
             subprocess.call(['pdflatex', '{0}.tex'.format(f_name)])  
             os.remove(f_name + '.aux')
             os.remove(f_name + '.log')
-            subprocess.Popen(['evince',  '{0}.pdf'.format(f_name)])
+            subprocess.Popen(['xpdf',  '{0}.pdf'.format(f_name)])
 class PgfAxis():
     def __init__(z, xlabel='', ylabel=''):
         z.buf = []
@@ -2028,9 +2028,9 @@ def ellapsed_time():
     seconds -= minutes * 60
     return "{0}. Total time {1}\" ({2}d {3}h {4}' {5}).\"".format(
            time_module.asctime(), totseconds, days, hours, minutes, seconds)
-def print_iter(iteration_n):
+def print_iter(iteration_n, total):
     np.random.seed(iteration_n)
-    print("{0} Iteration {1}".format(ellapsed_time(), iteration_n))
+    print("%s Iteration %d/%d" %(ellapsed_time(), iteration_n, total))
 def print_nodes(c, seed):
     np.random.seed(seed)
     print("{0}.  Simulating for {1:3d} nodes"
@@ -2046,7 +2046,7 @@ def graphAcspPairs(tst_nr=0, repetitions=1, action=0, plot=0):
     n_slots = np.zeros((repetitions, rho_v.size, pairs.size))
     if action == 1:
         for k in xrange(repetitions):
-            print_iter(k)
+            print_iter(k, repetitions)
             for i , c in enumerate(rho_v):
                 print("Simulating for {0:3d} nodes".format(c))
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
@@ -2106,7 +2106,7 @@ def graphFlexiCycles(tst_nr=0, repetitions=1, action=0, plot=False):
     n_dismissed = np.zeros((repetitions, cycles + 1, 2))
     if action == 1:
         for k in xrange(repetitions):
-            print_iter(k)
+            print_iter(k,repetitions)
             wsn = PhyNet(c=c, x=x, y=y, **net_par1)
             nets = [FlexiTPNet(wsn, fr=1, n_exch=80), 
                     FlexiTPNet(wsn, fr=2, n_exch=80),
@@ -2161,7 +2161,7 @@ def graphFlexiLength(tst_nr=0, repetitions=1, action=0, plot=0):
     n_frames = np.zeros((repetitions, n_nodes.size, 3))
     if action == 1:
         for k in xrange(repetitions):
-            print_iter(k)
+            print_iter(k, repetitions)
             for i, (c, y) in enumerate(zip(n_nodes, y_v)):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=y, y=y, **net_par1)
@@ -2511,7 +2511,7 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     n_slots_tx  = np.zeros((repetitions, n_nodes.size, 3))
     if action == 1:
         for k in xrange(repetitions):
-            print_iter(k)
+            print_iter(k, repetitions)
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k+1)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
@@ -2599,7 +2599,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     print(n_nodes)
     if action == 1:
         for k in xrange(repetitions):
-            print_iter(k)
+            print_iter(k, repetitions)
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
@@ -2753,17 +2753,15 @@ class LossTree(list):
     def prnt(z, *args):
         if z.VB:
             print(*args)
-    def _discard(z, node, discard_type):
-        if node.id:
+    def _discard(z, n, discard_type):
+        if n.id:
             if discard_type == 0:
-                node.sort(key=itemgetter(0))
+                n.sort(key=itemgetter(0))
             if discard_type == 1:
-                node.sort(key=itemgetter(0))
-                node.sort(key=itemgetter(1))
+                n.sort(key=itemgetter(1,0))
             if discard_type == 2:
-                node.sort(key=itemgetter(0))
-                node.sort(key=lambda x: x[0] % z.frames in node.gen)
-            node[0:-z.size] = []
+                n.sort(key=lambda x:(x[0] % len(z.count) in n.gen, x[0]))
+            n[0:-z.size] = []
     def optimum(z):
         """Maximum data rate transmittable assuming infinite buffers and
         perfect node synchronization."""
@@ -2780,6 +2778,9 @@ class LossTree(list):
         sensing_t = -1
         discard_type = (0, 0, 1, 2)[type]
         select_type = (0, 1, 1, 2) [type]
+        # if type == 3:
+        #     rate = float(len(z.count)) / z.frames
+        #    pdb.set_trace()
         for frame in xrange(iterations):
             new = int(frame * rate)
             if new > old:
@@ -2797,8 +2798,10 @@ class LossTree(list):
                         n.sort(key=itemgetter(0))
                         n.sort(key=itemgetter(1), reverse=True)
                     elif select_type == 2:
-                        n.sort(key=itemgetter(0))
-                        n.sort(key=lambda x: x[0] % z.frames not in n.gen)
+                        n.sort(key=lambda x: (x[0] % len(z.count) not in
+                            n.gen, x[0]))
+                       # if len(n) > 4:
+                       #     pdb.set_trace()
                     t, k = n.pop(0)
                     z.prnt("Node %d tx (%d, %d) to %d" %(n.id, t, k, n.f.id))
                     d = dict(n.f[:])
@@ -2856,8 +2859,8 @@ class LossTree(list):
                 z.add_frame(n, frame)
         else:
             raise Error,  "too many frames generated"
-        # The number of frames is now fixed.  If possible, use remaining q's to
-        # increase the counts. 
+        # The number of frames is now fixed.  If possible, use remaining q's
+        # to increase the counts.
         z[0].gen = range(len(z.count))
         stack = collections.deque(z[0].ch[:])
         while stack:
@@ -2899,10 +2902,80 @@ def test_rate2():
     print("The max without failures is %d" % ((len(fv)-1) * repetitions)) 
     # Now compute the optimum
 def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
-    fv = [-1, 0, 1, 1, 1 , 1]
-    ps = [1, 0.2, 0.4, 0.4, 0.4, 0.4]
+    """ Some plots
+    """
+    if tst_nr == 0:
+        # file:/home/ornediaz/py1/graphRate1_00_000010.pdf
+        # T0 >= T1 = T2
+        # At its peak, T3 is the best in both sum and pmin
+        ps = [1, 0.8, 0.4, 0.4, 0.4, 0.4]
+        # The optimum rate for type=3 is 0.75
+
+        # In order to see the advantage of the scheduled approach, there must
+        # be some node with two children with lower success probability than
+        # itself.
+        rate_v = np.arange(1.0, 0.1, -0.05)[-1::-1]
+        fv = [-1, 0, 1, 1, 1 , 1]
+        frames=8
+    elif tst_nr == 1:
+        # file:/home/ornediaz/py1/graphRate1_01_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_01_000010.tex
+        # Using a homogeneous success probability the advantage of type 3
+        # cannot be seen.  T0 = T3 >> {T1, T2}
+        ps = [1, 0.4, 0.4, 0.4, 0.4, 0.4]
+        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        fv = [-1, 0, 1, 1, 1 , 1]
+        frames = 8
+    elif tst_nr == 2:
+        # file:/home/ornediaz/py1/graphRate1_02_000010.pdf
+        ps = [1, 0.4, 0.8, 0.8, 0.8, 0.8]
+        fv = [-1, 0, 1, 1, 1 , 1]
+        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        frames = 8
+    elif tst_nr == 3:
+        # file:/home/ornediaz/py1/graphRate1_03_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_03_000010.tex
+        # Type 
+        ps = [1, 0.6, 0.6, 0.6, 0.2, 0.2]
+        # Using a homogeneous success probability the advantage of type 3
+        # cannot be seen.
+        fv = [-1, 0, 1, 1, 1 , 1]
+        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        frames = 10
+    elif tst_nr == 4:
+        # file:/home/ornediaz/py1/graphRate1_04_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_04_000010.tex
+        ps = [1, 0.3, 0.6, 0.6, 0.2, 0.2]
+        fv = [-1, 0, 1, 1, 1 , 1]
+        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        frames = 10
+    elif tst_nr == 5:
+        # file:/home/ornediaz/py1/graphRate1_05_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_05_000010.tex
+
+        # This test case highlights a situation wherein discard_type=1 (type
+        # 2).  It achieves a significant advantage over the other types
+        # (except 3).
+
+        fv = [-1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5]
+        ps = np.ones(12) * 0.3
+        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        frames = 10
+    elif tst_nr == 6:
+        # file:/home/ornediaz/py1/graphRate1_05_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_05_000010.tex
+
+        # This test case highlights a situation wherein discard_type=1 (type
+        # 2).  It achieves a significant advantage over the other types
+        # (except 3).
+
+        fv = [-1, 0, 1, 2, 3, 4, 5]
+        #plot_logical(fv)
+        ps = np.ones(7) * 0.3
+        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        frames = 10
+    plot_logical(fv)
     size = 30
-    rate_v = np.arange(1, 0.1, -0.1)[-1::-1]
     types = (0, 1, 2, 3)
     metrics = 'mean', 'std','sum'
     iterations = 2000
@@ -2910,25 +2983,26 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
     std = np.zeros((repetitions, len(rate_v), len(types)))
     sum = np.zeros((repetitions, len(rate_v), len(types)))
     pmin = np.zeros((repetitions, len(rate_v), len(types)))
-    threshold = 3
-
+    threshold = 2
     if action == 1:
         for k in xrange(repetitions):
+            print_iter(k,repetitions)
             for j, rate in enumerate(rate_v):
                 for i, type in enumerate(types):
                     np.random.seed(k)
                     t = LossTree(fv, ps, size)
                     if type == 3:
-                        t.find_schedule(8, threshold)
+                        t.find_schedule(frames, threshold)
                     t.simulate_it(iterations, rate, type)
-                    mean[k, j, i] = t.results.mean()
-                    std[k, j, i] = t.results.std()
-                    sum[k, j, i] = t.results.sum()
-                    pmin[k,j,i] = (t.results > threshold).mean()
-        save_npz('mean', 'std', 'sum', 'pmin')
+                    mean[k, j, i] = t.results.mean() 
+                    std[k, j, i] = t.results.std() / float(iterations)
+                    sum[k, j, i] = t.results.sum() / float(iterations)
+                    pmin[k,j,i] = (t.results >= threshold).mean()
+        opt = np.array(float(len(t.count))/t.frames)
+        save_npz('mean', 'std', 'sum', 'pmin', 'opt')
     r = load_npz()
     print("================")
-    leg = ('0', '1', '2', '3')
+    leg = ('0', '1', '2', '3=%f' %r['opt'])
     g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
     g.add('rate', r'total') 
     g.mplot(rate_v, r['sum'], leg)
@@ -2939,6 +3013,8 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
     g.add('rate', r'pmin') 
     g.mplot(rate_v, r['pmin'], leg) 
     g.save(plot=plot)
+    t = LossTree(fv, ps, size)
+    t.find_schedule(8, threshold)
 def test_rate3():
     fv = [-1, 0, 1, 1, 1 , 1]
     ps = np.ones(len(fv)) * 0.3
