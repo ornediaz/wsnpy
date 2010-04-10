@@ -135,6 +135,15 @@ def plot_logical3(fv, ps=None, format='png'):
     subprocess.call(['dot', '-T' + format, fname + '.dot', '-o', 
                      fname + '.' + format])
     subprocess.Popen(['display', fname + '.' + format])
+def plot_logical4(fv, ps=None):
+    import dot2tex
+    with open('ztree.tex', 'w') as f:
+        f.write(dot2tex.dot2tex("digraph tree{\n%s}" % 
+          ";\n".join(["%d -> %d %s" % (i, fv[i], 
+          "" if ps is None else "[label = %s]" % ps[i]) 
+          for i in xrange(1, len(fv))]), format='tikz',crop='True'))
+    subprocess.call(['pdflatex', 'ztree.tex'])
+    subprocess.Popen(['xpdf', 'ztree.pdf'])
 class Pgf(list):
     def __init__(z, extra_preamble='\\usepackage{plotjour1}\n'):
         z.extra_preamble = extra_preamble
@@ -2782,16 +2791,12 @@ class LossTree(list):
         if n.id:
             if type < 4:
                 discard_type = (0, 0, 1, 2)[type]
-            elif min(x.ps for x in [n] + n.ancestors) > rate * 0.15:
-                    discard_type = 1
-            else:
+            elif rate < min(x.ps for x in [n] + n.ancestors[:-1]) * 1.1:
                 discard_type = 0
-            if discard_type == 0:
-                n.sort(key=itemgetter(0))
-            if discard_type == 1:
-                n.sort(key=itemgetter(1,0))
-            if discard_type == 2:
-                n.sort(key=lambda x:(x[0] % len(z.count) in n.gen, x[0]))
+            else:
+                discard_type = 1
+            f1 = lambda x:(x[0] % len(z.count) in n.gen, x[0])
+            n.sort(key=[itemgetter(0), itemgetter(1,0), f1][discard_type])
             n[0:-z.size] = []
     def optimum(z):
         """Maximum data rate transmittable assuming infinite buffers and
@@ -2802,12 +2807,10 @@ class LossTree(list):
         is transmitted.
 
         rate is a number between 0 and 1. """
-        assert 0.0 < rate <= 1.0
-        assert type in range(4)
+        assert type in range(5)
         z.iterations = iterations
         old = -1
         sensing_t = -1
-        select_type = (0, 1, 1, 2, 1) [type]
         # if type == 3:
         #     rate = float(len(z.count)) / z.frames
         #    pdb.set_trace()
@@ -2818,12 +2821,18 @@ class LossTree(list):
                 old = new
                 for n in z[1:]:
                     n.append((sensing_t, 1))
-                    z._discard(n, discard_type)
+                    z._discard(n, type, rate)
             z.prnt("Starting frame %d" %frame)
             for n in z.postorder_list:
                 if np.random.rand() < n.ps and len(n): # Success
                     if type < 4:
                         select_type = (0, 1, 1, 2) [type]
+                    elif type == 4:
+                        if (rate < min(x.ps for x in [n] + n.ancestors[:-1])
+                            * 1.1):
+                            select_type = 0
+                        else:
+                            select_type = 1
                     if select_type == 0:
                         n.sort(key=itemgetter(0))
                     elif select_type == 1:
@@ -2839,7 +2848,7 @@ class LossTree(list):
                     d = dict(n.f[:])
                     d[t] = d.get(t, 0) + k
                     n.f[:] = d.items()
-                    z._discard(n.f, discard_type)
+                    z._discard(n.f, type, rate)
         d = dict(z[0])
         z.results = np.array([d.get(i, 0) for i in xrange(sensing_t + 1)])
     def add_frame(z, node, frame):
@@ -2891,6 +2900,7 @@ class LossTree(list):
                 z.add_frame(n, frame)
         else:
             raise Error,  "too many frames generated"
+        assert len(z.count) > 0, "source_min is too small"
         # The number of frames is now fixed.  If possible, use remaining q's
         # to increase the counts.
         z[0].gen = range(len(z.count))
@@ -3022,25 +3032,31 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         frames = 10
     elif tst_nr == 9:
         # file:/home/ornediaz/py1/graphRate1_09_000010.pdf
-        # file:/home/ornediaz/py1/graphRate1_09_000010.tex
-
-
+        # file:/home/ornediaz/py1/graphRate1_09_000001.tex
         fv = [-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12] 
         ps = [0.8 if i < 9 else 0.4 for i in xrange(len(fv))]
-        fv = [-1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5]
-        ps = np.ones(12) * 0.3
-        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
-        frames = 10
-    plot_logical3(fv, ps)
+        rate_v = np.arange(1.4, 0.1, -0.05)[-1::-1]
+        frames = 30
+    elif tst_nr == 10:
+        # file:/home/ornediaz/py1/graphRate1_10_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_10_000001.tex
+        fv = [-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12] 
+        ps = [0.4 if i < 9 else 0.8 for i in xrange(len(fv))]
+        rate_v = np.arange(1.4, 0.1, -0.05)[-1::-1]
+        frames = 30
+    else:
+        raise Error("tst_nr is invalid")
+    if plot:
+        plot_logical3(fv, ps)
     size = 30
-    types = (0, 1, 2, 3)
+    types = (0, 1, 2, 3, 4)
     metrics = 'mean', 'std','sum'
     iterations = 2000
     mean = np.zeros((repetitions, len(rate_v), len(types)))
     std = np.zeros((repetitions, len(rate_v), len(types)))
     sum = np.zeros((repetitions, len(rate_v), len(types)))
     pmin = np.zeros((repetitions, len(rate_v), len(types)))
-    threshold = 2
+    threshold = 3
     if action == 1:
         for k in xrange(repetitions):
             print_iter(k,repetitions)
@@ -3050,16 +3066,17 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
                     t = LossTree(fv, ps, size)
                     if type == 3:
                         t.find_schedule(frames, threshold)
+                        if k == j == 0:
+                            opt = np.array(float(len(t.count))/t.frames)
                     t.simulate_it(iterations, rate, type)
                     mean[k, j, i] = t.results.mean() 
                     std[k, j, i] = t.results.std() / float(iterations)
                     sum[k, j, i] = t.results.sum() / float(iterations)
                     pmin[k,j,i] = (t.results >= threshold).mean()
-        opt = np.array(float(len(t.count))/t.frames)
         save_npz('mean', 'std', 'sum', 'pmin', 'opt')
     r = load_npz()
     print("================")
-    leg = ('0', '1', '2', '3=%f' %r['opt'])
+    leg = ('0', '1', '2', '3=%f' %r['opt'], '4')
     g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
     g.add('rate', r'total') 
     g.mplot(rate_v, r['sum'], leg)
