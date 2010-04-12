@@ -24,6 +24,7 @@ from matplotlib.font_manager import FontProperties
 from operator import itemgetter
 import os
 import pdb
+import platform
 import SimPy.Simulation as simpy
 import subprocess
 import sys
@@ -33,6 +34,16 @@ T0 = 290 # Room temperature in Kelvin (=17C)
 INF = 9999 # Used in Dijkstra's algorithm
 TIER_MAX = 9999 # This tier indicates that the node is disconnected
 STATES = dict(tx=0.063, rx=0.030, id=0.030, sl=3-6) #Energy consumption
+def display(filename):
+    if filename.endswith('pdf'):
+        if platform.system() == 'Windows':
+            subprocess.Popen(['acrord32', filename])
+        else:
+            subprocess.Popen(['xpdf', filename])
+    elif platform.system() == 'Windows':
+        subprocess.Popen(['rundll32.exe', 'C:\WINDOWS\system32\shimgvw.dll,ImageView_Fullscreen', os.path.join(os.getcwd(),filename)])
+    else:
+        subprocess.Popen(['display', filename])
 class Error(Exception): pass
 class NoProgressError(Error):
     __str__ = lambda z:"No color assigned in several frames."
@@ -110,7 +121,7 @@ level/.style={sibling distance=80mm /#1}]
 \end{document}''' % " ".join([helper(f, j) for j, h in enumerate(f) if h==0])
     with open('%s.tex' %filename,'w') as f: f.write(s)
     subprocess.call(['pdflatex', '%s.tex' %filename])
-    subprocess.Popen(['xpdf', '%s.pdf' %filename])
+    display(filename + '.pdf')
 def plot_logical2(fv, ps=None):
     import yapgvb
     g = yapgvb.Digraph("tree")
@@ -123,7 +134,7 @@ def plot_logical2(fv, ps=None):
     fname = 'ztree.png'
     g.render(fname)
     g.write('ztree.dot')
-    subprocess.Popen(['display', fname])
+    display(fname)
 def plot_logical3(fv, ps=None, format='png'):
     fname = 'ztree'
     with open(fname + '.dot', 'w') as f:
@@ -134,7 +145,7 @@ def plot_logical3(fv, ps=None, format='png'):
         f.write("}\n")
     subprocess.call(['dot', '-T' + format, fname + '.dot', '-o', 
                      fname + '.' + format])
-    subprocess.Popen(['display', fname + '.' + format])
+    display(fname + '.' + format)
 def plot_logical4(fv, ps=None):
     import dot2tex
     with open('ztree.tex', 'w') as f:
@@ -143,7 +154,7 @@ def plot_logical4(fv, ps=None):
           "" if ps is None else "[label = %s]" % ps[i]) 
           for i in xrange(1, len(fv))]), format='tikz',crop='True'))
     subprocess.call(['pdflatex', 'ztree.tex'])
-    subprocess.Popen(['xpdf', 'ztree.pdf'])
+    display('ztree.pdf')
 class Pgf(list):
     def __init__(z, extra_preamble='\\usepackage{plotjour1}\n'):
         z.extra_preamble = extra_preamble
@@ -188,7 +199,7 @@ class Pgf(list):
             subprocess.call(['pdflatex', '{0}.tex'.format(f_name)])  
             os.remove(f_name + '.aux')
             os.remove(f_name + '.log')
-            subprocess.Popen(['xpdf',  '{0}.pdf'.format(f_name)])
+            display(f_name + '.pdf')
 class PgfAxis():
     def __init__(z, xlabel='', ylabel=''):
         z.buf = []
