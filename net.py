@@ -3215,6 +3215,7 @@ def run(*args):
                 lst.append(a)
     print("Executing ", lst)
     print("Execution started on {0}.".format(time_module.asctime()))
+    global start_time
     start_time = time_module.time()
     try:
         globals()[lst[0]](*lst[1:])
