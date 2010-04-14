@@ -135,7 +135,10 @@ def plot_logical2(fv, ps=None):
     g.render(fname)
     g.write('ztree.dot')
     display(fname)
-def plot_logical3(fv, ps=None, format='png'):
+def plot_logical3(fv, ps=None, format='png', plot=2):
+    #format = 'png'
+    if plot == 0:
+        return
     fname = 'ztree'
     with open(fname + '.dot', 'w') as f:
         f.write("digraph tree {\n")
@@ -143,9 +146,18 @@ def plot_logical3(fv, ps=None, format='png'):
             lb = "" if ps is None else "[label = %s]" % ps[i] 
             f.write("%d -> %d %s;\n" % (i, fv[i], lb ))
         f.write("}\n")
-    subprocess.call(['dot', '-T' + format, fname + '.dot', '-o', 
-                     fname + '.' + format])
-    display(fname + '.' + format)
+    retcode = subprocess.call(['dot', '-T' + format, fname + '.dot', '-o',
+        fname + '.' + format])
+    print("child returned ", retcode)
+    if retcode != 0:
+        pdb.set_trace()
+        raise Error("dot failed. Is the output file is in use?")
+    if plot == 2:
+        retcode = subprocess.call(['dot', '-Tpng', fname + '.dot', '-o', fname
+            + '.png'])
+        if retcode != 0:
+            pdb.set_trace()
+        display(fname + '.png')
 def plot_logical4(fv, ps=None):
     import dot2tex
     with open('ztree.tex', 'w') as f:
@@ -160,13 +172,14 @@ class Pgf(list):
         z.extra_preamble = extra_preamble
         z.extra_body = []
     def add(z, *args, **kwargs):
+        '''Add new x-y graph.'''
         z.append(PgfAxis(*args, **kwargs))
     def __getattribute__(z, name):
         try:
             return object.__getattribute__(z, name)
         except AttributeError:
             return getattr(z[-1], name)
-    def save(z, f_name=None, plot=True):
+    def save(z, f_name=None, plot=2):
         b = []
         b.append('''\documentclass{article}
 \usepackage[margin=0in]{geometry}
@@ -195,10 +208,11 @@ class Pgf(list):
             f_name = name_npz()
         with open(f_name + '.tex', 'w') as f:
             f.writelines(b)
-        if plot:
+        if plot > 0:
             subprocess.call(['pdflatex', '{0}.tex'.format(f_name)])  
             os.remove(f_name + '.aux')
             os.remove(f_name + '.log')
+        if plot == 2:
             display(f_name + '.pdf')
 class PgfAxis():
     def __init__(z, xlabel='', ylabel=''):
@@ -2792,7 +2806,7 @@ class LossTree(list):
                 ancestor.subtree.append(n)
                 n.ancestors.append(ancestor)
                 ancestor = ancestor.f
-        z.postorder_list = []
+        z.postorder_list = [] # does not include the sink
         for n in z[0].ch:
             n.ret_post_order(z.postorder_list)
     def prnt(z, *args):
@@ -2821,21 +2835,17 @@ class LossTree(list):
         assert type in range(5)
         z.iterations = iterations
         old = -1
-        sensing_t = -1
         # if type == 3:
         #     rate = float(len(z.count)) / z.frames
         #    pdb.set_trace()
         for frame in xrange(iterations):
-            new = int(frame * rate)
-            if new > old:
-                sensing_t += 1
-                old = new
+            for old in xrange(old, int(frame * rate) + 1):
                 for n in z[1:]:
-                    n.append((sensing_t, 1))
+                    n.append((old, 1))
                     z._discard(n, type, rate)
             z.prnt("Starting frame %d" %frame)
             for n in z.postorder_list:
-                if np.random.rand() < n.ps and len(n): # Success
+                if len(n) and np.random.rand() < n.ps: # Success
                     if type < 4:
                         select_type = (0, 1, 1, 2) [type]
                     elif type == 4:
@@ -2861,7 +2871,7 @@ class LossTree(list):
                     n.f[:] = d.items()
                     z._discard(n.f, type, rate)
         d = dict(z[0])
-        z.results = np.array([d.get(i, 0) for i in xrange(sensing_t + 1)])
+        z.results = np.array([d.get(i, 0) for i in xrange(old + 1)])
     def add_frame(z, node, frame):
         assert node.q > 0
         node.q -= 1
@@ -2956,7 +2966,13 @@ def test_rate2():
     # Now compute the optimum
 def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
     """ Some plots
+
+    plot: 0=do not compile, 1: compile, 2: compile and display
     """
+    tst_nr = int(tst_nr)
+    repetitions = int(repetitions)
+    action = int(action)
+    plot = int(plot)
     if tst_nr == 0:
         # file:/home/ornediaz/py1/graphRate1_00_000010.pdf
         # T0 >= T1 = T2
@@ -2983,7 +2999,7 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         # file:/home/ornediaz/py1/graphRate1_02_000010.pdf
         ps = [1, 0.4, 0.8, 0.8, 0.8, 0.8]
         fv = [-1, 0, 1, 1, 1 , 1]
-        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        rate_v = np.arange(1.5, 0.1, -0.05)[-1::-1]
         frames = 8
     elif tst_nr == 3:
         # file:/home/ornediaz/py1/graphRate1_03_000010.1pdf
@@ -3025,7 +3041,7 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         fv = [-1, 0, 1, 2, 3, 4, 5]
         #plot_logical(fv)
         ps = np.ones(7) * 0.3
-        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
+        rate_v = np.arange(1.5, 0.1, -0.05)[-1::-1]
         frames = 10
     elif tst_nr == 7:
         # file:/home/ornediaz/py1/graphRate1_07_000010.pdf
@@ -3055,10 +3071,16 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         ps = [0.4 if i < 9 else 0.8 for i in xrange(len(fv))]
         rate_v = np.arange(1.4, 0.1, -0.05)[-1::-1]
         frames = 30
+    elif tst_nr == 11:
+        # file:/home/ornediaz/py1/graphRate1_10_000010.pdf
+        # file:/home/ornediaz/py1/graphRate1_10_000001.tex
+        fv = [-1, 0, 1, 1, 1, 0, 5, 6, 7, 8] 
+        ps = [0.4 if i < 5 else 0.8 for i in xrange(len(fv))]
+        rate_v = np.arange(1.8, 0.1, -0.05)[-1::-1]
+        frames = 30
     else:
         raise Error("tst_nr is invalid")
-    if plot:
-        plot_logical3(fv, ps)
+    plot_logical3(fv, ps, 'pdf', plot)
     size = 30
     types = (0, 1, 2, 3, 4)
     metrics = 'mean', 'std','sum'
@@ -3097,6 +3119,7 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
     g.mplot(rate_v, r['std'], leg)
     g.add('rate', r'pmin') 
     g.mplot(rate_v, r['pmin'], leg) 
+    g.extra_body.append('\n\includegraphics[scale=0.4]{ztree.pdf}\n')
     g.save(plot=plot)
     t = LossTree(fv, ps, size)
     t.find_schedule(8, threshold)
@@ -3177,24 +3200,39 @@ def test_rate_variation():
             old = new
         else:
             print("%3d: 0" %i)
-if __name__ == '__main__':
+def g():
+    print(locals())
+def run(*args):
     # Remove the files that do not correspond to any graph function.
-    for file_name in glob.glob('graph*'):
-        for fun in dir():
-            if fun == file_name.partition('_')[0]:
-                break
-        else:
-            print('{0} to be removed'.format(file_name))
-            os.remove(file_name)
-    # Execute function requested in the command line
+    lst = []
+    for a in args:
+        try:
+            lst.append(int(a))
+        except ValueError:
+            try:
+                lst.append(float(a))
+            except ValueError:
+                lst.append(a)
+    print("Executing ", lst)
     print("Execution started on {0}.".format(time_module.asctime()))
     start_time = time_module.time()
+    try:
+        globals()[lst[0]](*lst[1:])
+    finally:
+        print("Execution ended on {0}.".format(time_module.asctime()))
+        duration = time_module.time() - start_time
+        print("Execution lasted for {0} seconds.".format(duration))
+for file_name in glob.glob('graph*'):
+    for fun in dir():
+        if fun == file_name.partition('_')[0]:
+            break
+    else:
+        print('{0} to be removed'.format(file_name))
+        os.remove(file_name)
+if __name__ == '__main__':
+    # g()
+    # Execute function requested in the command line
     if len(sys.argv) > 1:
-        try:
-            exec '{0}({1})'.format(sys.argv[1], ', '.join(sys.argv[2:]))
-        finally:
-            print("Execution ended on {0}.".format(time_module.asctime()))
-            duration = time_module.time() - start_time
-            print("Execution lasted for {0} seconds.".format(duration))
+        run(*sys.argv[1:])
     #doctest.testmod()
     pass
