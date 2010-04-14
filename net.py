@@ -2839,7 +2839,7 @@ class LossTree(list):
         #     rate = float(len(z.count)) / z.frames
         #    pdb.set_trace()
         for frame in xrange(iterations):
-            for old in xrange(old, int(frame * rate) + 1):
+            for old in xrange(old + 1, int(frame * rate) + 1):
                 for n in z[1:]:
                     n.append((old, 1))
                     z._discard(n, type, rate)
@@ -3123,6 +3123,18 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
     g.save(plot=plot)
     t = LossTree(fv, ps, size)
     t.find_schedule(8, threshold)
+def gitls(content=''):
+    l1 = subprocess.Popen(['git', 'ls-files'],
+            stdout=subprocess.PIPE).communicate()[0].split()
+    return [i for i in l1 if content in i]
+def gitrm(fname):
+    if type(fname) is not list:
+        fname = [fname]
+    subprocess.call(['git', 'rm'] + fname)
+def rate1_clean():
+    l2 = gitls('graphRate1' in i)
+    print(l2)
+    subprocess.call(['git', 'rm', f])
 def test_rate3():
     fv = [-1, 0, 1, 1, 1 , 1]
     ps = np.ones(len(fv)) * 0.3
