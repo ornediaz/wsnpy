@@ -120,7 +120,7 @@ level/.style={sibling distance=80mm /#1}]
 \end{tikzpicture}
 \end{document}''' % " ".join([helper(f, j) for j, h in enumerate(f) if h==0])
     with open('%s.tex' %filename,'w') as f: f.write(s)
-    subprocess.call(['pdflatex', '%s.tex' %filename])
+    subprocess.check_call(['pdflatex', '%s.tex' %filename])
     display(filename + '.pdf')
 def plot_logical2(fv, ps=None):
     import yapgvb
@@ -146,17 +146,11 @@ def plot_logical3(fv, ps=None, format='png', plot=2):
             lb = "" if ps is None else "[label = %s]" % ps[i] 
             f.write("%d -> %d %s;\n" % (i, fv[i], lb ))
         f.write("}\n")
-    retcode = subprocess.call(['dot', '-T' + format, fname + '.dot', '-o',
+    subprocess.check_call(['dot', '-T' + format, fname + '.dot', '-o',
         fname + '.' + format])
-    print("child returned ", retcode)
-    if retcode != 0:
-        pdb.set_trace()
-        raise Error("dot failed. Is the output file is in use?")
     if plot == 2:
-        retcode = subprocess.call(['dot', '-Tpng', fname + '.dot', '-o', fname
+        subprocess.check_call(['dot', '-Tpng', fname + '.dot', '-o', fname
             + '.png'])
-        if retcode != 0:
-            pdb.set_trace()
         display(fname + '.png')
 def plot_logical4(fv, ps=None):
     import dot2tex
@@ -2983,8 +2977,7 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         # In order to see the advantage of the scheduled approach, there must
         # be some node with two children with lower success probability than
         # itself.
-        rate_v = np.arange(1.0, 0.1, -0.05)[-1::-1]
-        fv = [-1, 0, 1, 1, 1 , 1]
+        fv = [-1, 0, 1, 1, 1, 1]
         frames=8
     elif tst_nr == 1:
         # file:/home/ornediaz/py1/graphRate1_01_000010.pdf
@@ -2992,14 +2985,12 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         # Using a homogeneous success probability the advantage of type 3
         # cannot be seen.  T0 = T3 >> {T1, T2}
         ps = [1, 0.4, 0.4, 0.4, 0.4, 0.4]
-        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
         fv = [-1, 0, 1, 1, 1 , 1]
         frames = 8
     elif tst_nr == 2:
         # file:/home/ornediaz/py1/graphRate1_02_000010.pdf
         ps = [1, 0.4, 0.8, 0.8, 0.8, 0.8]
         fv = [-1, 0, 1, 1, 1 , 1]
-        rate_v = np.arange(1.5, 0.1, -0.05)[-1::-1]
         frames = 8
     elif tst_nr == 3:
         # file:/home/ornediaz/py1/graphRate1_03_000010.1pdf
@@ -3009,14 +3000,12 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         # Using a homogeneous success probability the advantage of type 3
         # cannot be seen.
         fv = [-1, 0, 1, 1, 1 , 1]
-        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
         frames = 10
     elif tst_nr == 4:
         # file:/home/ornediaz/py1/graphRate1_04_000010.pdf
         # file:/home/ornediaz/py1/graphRate1_04_000010.tex
         ps = [1, 0.3, 0.6, 0.6, 0.2, 0.2]
         fv = [-1, 0, 1, 1, 1 , 1]
-        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
         frames = 10
     elif tst_nr == 5:
         # file:/home/ornediaz/py1/graphRate1_05_000010.pdf
@@ -3028,7 +3017,6 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
 
         fv = [-1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5]
         ps = np.ones(12) * 0.3
-        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
         frames = 10
     elif tst_nr == 6:
         # file:/home/ornediaz/py1/graphRate1_06_000010.pdf
@@ -3041,45 +3029,40 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
         fv = [-1, 0, 1, 2, 3, 4, 5]
         #plot_logical(fv)
         ps = np.ones(7) * 0.3
-        rate_v = np.arange(1.5, 0.1, -0.05)[-1::-1]
         frames = 10
     elif tst_nr == 7:
         # file:/home/ornediaz/py1/graphRate1_07_000010.pdf
         # file:/home/ornediaz/py1/graphRate1_07_000010.tex
         fv = [-1, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
         ps = np.ones(11) * 0.8
-        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
         frames = 10
     elif tst_nr == 8:
         # file:/home/ornediaz/py1/graphRate1_08_000010.pdf
         # file:/home/ornediaz/py1/graphRate1_08_000010.tex
         fv = [-1, 0, 0, 1, 1, 1, 2, 2, 2]
         ps = np.ones(11) * 0.8
-        rate_v = np.arange(1, 0.1, -0.05)[-1::-1]
         frames = 10
     elif tst_nr == 9:
         # file:/home/ornediaz/py1/graphRate1_09_000010.pdf
         # file:/home/ornediaz/py1/graphRate1_09_000001.tex
         fv = [-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12] 
         ps = [0.8 if i < 9 else 0.4 for i in xrange(len(fv))]
-        rate_v = np.arange(1.4, 0.1, -0.05)[-1::-1]
         frames = 30
     elif tst_nr == 10:
         # file:/home/ornediaz/py1/graphRate1_10_000010.pdf
         # file:/home/ornediaz/py1/graphRate1_10_000001.tex
         fv = [-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12] 
         ps = [0.4 if i < 9 else 0.8 for i in xrange(len(fv))]
-        rate_v = np.arange(1.4, 0.1, -0.05)[-1::-1]
         frames = 30
     elif tst_nr == 11:
         # file:/home/ornediaz/py1/graphRate1_10_000010.pdf
         # file:/home/ornediaz/py1/graphRate1_10_000001.tex
         fv = [-1, 0, 1, 1, 1, 0, 5, 6, 7, 8] 
         ps = [0.4 if i < 5 else 0.8 for i in xrange(len(fv))]
-        rate_v = np.arange(1.8, 0.1, -0.05)[-1::-1]
         frames = 30
     else:
         raise Error("tst_nr is invalid")
+    rate_v = np.arange(1.5, 0.1, -0.05)[-1::-1]
     plot_logical3(fv, ps, 'pdf', plot)
     size = 30
     types = (0, 1, 2, 3, 4)
