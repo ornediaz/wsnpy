@@ -67,7 +67,7 @@ class Pgf
     {
         body[body.Count - 1].mplot(xv, ym, legv);
     }
-    public void save(string filename)
+    public void save(string filename, int plot)
     {
         List<string> lst = new List<string>();
         lst.Add("\\documentclass{article}\n");
@@ -130,9 +130,15 @@ class Pgf
             }
             sw.Close();
         }
-        Process p = Process.Start("pdflatex", filename);
-        p.WaitForExit();
-        System.Diagnostics.Process.Start("acrord32", filename + ".pdf");
+        if (plot > 0)
+        {
+            Process p = Process.Start("pdflatex", filename);
+            p.WaitForExit();
+        }
+        if (plot == 2)
+        {
+            System.Diagnostics.Process.Start("acrord32", filename + ".pdf");
+        }
     }
 }
 class Packet
@@ -356,7 +362,7 @@ class LossTree
         double random_number;
         int old = 0;
         int select_type = 0;
-        //Random rgen = new Random();
+        Glb.rgen = new Random();
         for (int frame = 0; frame < iterations; frame++)
         {
             Glb.prnt("*** Simulating frame " + frame);
@@ -539,17 +545,17 @@ class LossTree
         {
             throw new Exception("source_min is too small");
         }
-        Stack<Node> unprocessed = new Stack<Node> ();
-        foreach (Node n in nodes[0].ch) 
+        Stack<Node> unprocessed = new Stack<Node>();
+        foreach (Node n in nodes[0].ch)
         {
-            unprocessed.Push(n); 
+            unprocessed.Push(n);
         }
         while (unprocessed.Count > 0)
         {
             Node x = unprocessed.Pop();
-            foreach (Node y in x.ch) 
-            { 
-                unprocessed.Push(y); 
+            foreach (Node y in x.ch)
+            {
+                unprocessed.Push(y);
             }
             List<int> available = new List<int>();
             foreach (int q in x.f.gen)
@@ -584,7 +590,7 @@ class LossTree
     }
     public void add_frame(Node n, int frame)
     {
-        if (n.q < 0) 
+        if (n.q < 0)
         {
             throw new Exception();
         }
@@ -629,7 +635,7 @@ class Glb
         Pgf p = new Pgf();
         p.add("x axis", "y axis");
         p.plot(xv, yv, "mountain");
-        p.save("ztest");
+        p.save("ztest", 2);
     }
     public static void tst_1()
     {
@@ -668,7 +674,7 @@ class Glb
         p.mplot(xv, y1, new string[] { "normal", "double" });
         p.add("x", "y");
         p.mplot(xv, y2, new string[] { "normal", "double" });
-        p.save("zb");
+        p.save("zb", 2);
     }
     public static double[] linspace(double init, double end, int number)
     {
@@ -687,10 +693,17 @@ class Glb
         int tst_nr = 0;
         int repetitions = 2;
         int action = 1;
+        int frames;
+        int plot = 2;
+        double[] ps;
+        double opt;
+        int[] fv;
+        int source_min = 3;
         if (tst_nr == 0)
         {
-            double[] ps = new double[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 };
-            int[] fv = new int[] { -1, 0, 1, 1, 1, 1 };
+            ps = new double[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 };
+            fv = new int[] { -1, 0, 1, 1, 1, 1 };
+            frames = 30;
         }
         else
         {
@@ -702,9 +715,11 @@ class Glb
             Console.WriteLine(t);
         }
         int size = 30;
-        int[] types = new int[] { 0, 2 };
+        int[] types = new int[] { 0, 1, 2, 3, 4 };
         int iterations = 10;
-        double[,,] mean = new double[repetitions, rate_v.Length, types.Length];
+        double[,] sum = new double[rate_v.Length, types.Length];
+        double[,] mean = new double[rate_v.Length, types.Length];
+        double[,] pmin = new double[rate_v.Length, types.Length];
         Glb.VB = true;
         for (int k = 0; k < repetitions; k++)
         {
@@ -714,12 +729,45 @@ class Glb
             }
             for (int j = 0; j < rate_v.Length; j++)
             {
-                for (int i = 0; i < rate_v.Length; i++)
+                for (int i = 0; i < types.Length; i++)
                 {
                     Glb.rgen = new Random(k);
+                    LossTree t = new LossTree(fv, ps, size);
+                    if (types[i] == 3)
+                    {
+                        t.find_schedule(frames, source_min);
+                        if (k == 0 && j == 0)
+                        {
+                            opt = ((double)t.count.Count / frames);
+                        }
+                    }
+                    int[] results = t.simulate_it(iterations, rate_v[j],
+                            types[i], k);
+                    foreach (int h in results)
+                    {
+                        sum[j, i] += (double)h / repetitions;
+                        mean[j, i] += (double)h / iterations / repetitions;
+                        if (h < threshold)
+                        {
+                            pmin[j, i] += (double)1 / iterations /
+                                repetitions;
+                        }
+                    }
                 }
             }
         }
+        Console.WriteLine("**** Printing results *****");
+        string[] legv = new string[] { "0", "1", "2", "3=" + opt, "4" };
+        Pgf g = new Pgf();
+        g.add("rate", "total");
+        g.mplot(rate_v, sum, legv);
+        g.add("rate", "mean");
+        g.mplot(rate_v, mean, legv);
+        g.add("rate", "pmin");
+        g.mplot(rate_v, pmin, legv);
+        string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
+                repetitions);
+        g.save("graphRate1_", plot);
     }
     public static void Main(string[] args)
     {
