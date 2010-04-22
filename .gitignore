@@ -38,6 +38,8 @@
 *.xref
 *_000001*
 /#*
+perdida/obj/*
+perdida/Properties/*
 z*
 *~
 *~  

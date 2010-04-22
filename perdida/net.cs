@@ -156,7 +156,7 @@ class Node
     public int ID;
     public int discard_type = 0;
     public int select_type = 0;
-    public List<Packet> pkts = new List<Packet>();
+    public List<Packet> pkts;
     public List<Node> ancestors = new List<Node>(); // does not include sink
     public List<Node> ch = new List<Node>();
     public List<int> gen = new List<int>();
@@ -195,38 +195,38 @@ class LossTree
         }
         for (int i = 1; i < fv.Length; i++)
         {
-            nodes[i].f = nodes[fv[i]];
-            nodes[fv[i]].ch.Add(nodes[i]);
-        }
-        for (int i = 1; i < fv.Length; i++)
-        {
             Node ancestor = nodes[fv[i]];
+            nodes[i].f = ancestor;
+            ancestor.ch.Add(nodes[i]);
             while (ancestor != null && ancestor.ID != 0)
             {
                 nodes[i].ancestors.Add(ancestor);
-                ancestor = ancestor.f;
+                ancestor = nodes[fv[ancestor.ID]];
             }
-        }
-        foreach (Node n in nodes[2].ancestors)
-        {
-            Console.WriteLine(n.ID);
         }
         foreach (Node n in nodes[0].ch)
         {
             add_postorder(n);
         }
-        Console.WriteLine("Postorder list");
-        foreach (Node n in postorder)
+        if (Glb.VB)
         {
-            Console.WriteLine(n.ID);
+            Console.Write("Postorder list: ");
+            foreach (Node n in postorder)
+            {
+                Console.Write(n.ID + ", ");
+            }
+            Console.Write(";\n");
         }
     }
-    private void discard(Node n, int type, double rate)
+    private void discard(Node n)
     {
-        int position = 0;
-        List<int> l = new List<int>();
+        if (n.ID == 0)
+        {
+            throw new Exception();
+        }
         while (n.pkts.Count > n.size)
         {
+            int position = 0;
             if (n.discard_type == 0)
             {
                 position = 0;
@@ -245,7 +245,7 @@ class LossTree
                 {
                     kmin = Math.Min(kmin, p.k);
                 }
-                l.Clear();
+                List<int> l = new List<int>();
                 for (int i = 0; i < n.pkts.Count; i++)
                 {
                     if (n.pkts[i].k == kmin)
@@ -264,7 +264,7 @@ class LossTree
             }
             else if (n.discard_type == 2)
             {
-                l.Clear();
+                List<int> l = new List<int>();
                 for (int i = 0; i < n.pkts.Count; i++)
                 {
                     if (n.gen.Contains(n.pkts[i].t % count.Count))
@@ -292,99 +292,83 @@ class LossTree
             {
                 throw new Exception("Incorrect discard_type");
             }
+            n.pkts.RemoveAt(position);
         }
-        n.pkts.RemoveAt(position);
     }
-    public int[] simulate_it(int iterations, double rate, int type, int seed)
+    public int[] simulate_it(int n_tx_frames, double rate, int type, int seed)
     {
-        List<int> l = new List<int>();
         foreach (Node n in nodes)
         {
-            if (type == 0) { n.discard_type = 0; }
-            else if (type == 1) { n.discard_type = 0; }
-            else if (type == 2) { n.discard_type = 1; }
-            else if (type == 3) { n.discard_type = 2; }
-            else if (type == 4)
+            n.pkts = new List<Packet>(n.size + 4);
+            if (type == 0) 
             {
-                double m = 1.0;
-                for (int i = 0; i < n.ancestors.Count - 1; i++)
-                {
-                    m = Math.Min(m, n.ancestors[i].ps);
-                }
-                if (rate < m) { n.discard_type = 0; }
-                else { n.discard_type = 1; }
-            }
-            else
-            {
-                throw new ArgumentException("Incorrect type");
-            }
-            if (type == 0)
-            {
+                n.discard_type = 0;
                 n.select_type = 0;
             }
-            else if (type == 1)
+            else if (type == 1) 
             {
+                n.discard_type = 0;
                 n.select_type = 1;
             }
-            else if (type == 2)
-            {
+            else if (type == 2) 
+            { 
+                n.discard_type = 1;
                 n.select_type = 1;
             }
-            else if (type == 3)
+            else if (type == 3) 
             {
+                n.discard_type = 2;
                 n.select_type = 2;
             }
             else if (type == 4)
             {
                 double m = 1.0;
-                for (int i = 0; i < n.ancestors.Count - 1; i++)
+                foreach (Node y in n.ancestors)
                 {
-                    m = Math.Min(m, n.ancestors[i].ps);
+                    m = Math.Min(m, y.ps);
                 }
-                if (rate < m)
+                if (rate < m) 
                 {
+                    n.discard_type = 0;
                     n.select_type = 0;
                 }
-                else
+                else 
                 {
+                    n.discard_type = 1;
                     n.select_type = 1;
                 }
             }
-            else if (type > 4)
+            else
             {
                 throw new ArgumentException("Incorrect type");
             }
         }
-        int[] results = new int[iterations];
-        Packet pkt;
-        int position = 0;
-        int maxcount;
-        double random_number;
-        int old = 0;
-        int select_type = 0;
-        Glb.rgen = new Random();
-        for (int frame = 0; frame < iterations; frame++)
+        Glb.rgen = new Random(seed);
+        int [] results = new int[(int) Math.Floor((n_tx_frames - 1) * rate + 1)];
+        int sensing_interval = 0;
+        for (int frame = 0; frame < n_tx_frames; frame++)
         {
             Glb.prnt("*** Simulating frame " + frame);
-            while (old <= frame * rate)
+            for (; sensing_interval <= frame * rate; sensing_interval++)
             {
-                for (int i = 1; i < nodes.Length; i++)
+                foreach (Node u in postorder)
                 {
-                    nodes[i].pkts.Add(new Packet(old, 1));
+                    u.pkts.Add(new Packet(sensing_interval, 1));
+                    discard(u);
                 }
-                old += 1;
             }
             foreach (Node n in postorder)
             {
                 Glb.prnt("Processing node " + n.ID);
-                random_number = Glb.rgen.NextDouble();
+                double random_number = Glb.rgen.NextDouble();
+                //Console.WriteLine(random_number);
                 if (n.pkts.Count == 0 || random_number >= n.ps)
                 {
                     continue;
                 }
-                if (select_type == 0)
+                int position = 0;
+                if (n.select_type == 0)
                 {
-                    position = 0;
                     for (int i = 0; i < n.pkts.Count; i++)
                     {
                         if (n.pkts[i].t < n.pkts[position].t)
@@ -393,14 +377,14 @@ class LossTree
                         }
                     }
                 }
-                else if (select_type == 1)
+                else if (n.select_type == 1)
                 {
-                    maxcount = 0;
+                    int maxcount = 0;
                     foreach (Packet p in n.pkts)
                     {
                         maxcount = Math.Max(maxcount, p.k);
                     }
-                    l.Clear();
+                    List<int> l = new List<int>();
                     for (int i = 0; i < n.pkts.Count; i++)
                     {
                         if (n.pkts[i].k == maxcount)
@@ -417,9 +401,9 @@ class LossTree
                         }
                     }
                 }
-                else if (select_type == 2)
+                else if (n.select_type == 2)
                 {
-                    l.Clear();
+                    List<int> l = new List<int>();
                     for (int i = 0; i < n.pkts.Count; i++)
                     {
                         if (n.gen.Contains(n.pkts[i].t % count.Count))
@@ -443,23 +427,31 @@ class LossTree
                         }
                     }
                 }
-                Glb.prnt("Frame " + frame + "; Node " + n.ID +
-                        " position = " + position);
-                pkt = n.pkts[position];
+                Glb.prnt("Frame " + frame + "; Node " + n.ID + " position = " + position);
+                Packet pkt = n.pkts[position];
                 n.pkts.RemoveAt(position);
-                Glb.prnt("Node " + n.ID + " tx: " + pkt.t + ", " + pkt.k);
-                bool added = false;
-                for (int i = 0; i < n.f.pkts.Count; i++)
+                //Console.WriteLine("Node {0:d}; tx: ({1:d}, {2:d})", n.ID, pkt.t, pkt.k);
+                if (n.f.ID == 0)
                 {
-                    if (n.f.pkts[i].t == pkt.t)
-                    {
-                        n.f.pkts[i].k += pkt.k;
-                        added = true;
-                    }
+                    results[pkt.t] += pkt.k;
                 }
-                if (added == false)
+                else
                 {
-                    n.f.pkts.Add(pkt);
+                    bool added = false;
+                    foreach (Packet j in n.f.pkts)
+                    {
+                        if (j.t == pkt.t)
+                        {
+                            j.k += pkt.k;
+                            added = true;
+                            break;
+                        }
+                    }
+                    if (added == false)
+                    {
+                        n.f.pkts.Add(pkt);
+                    }
+                    discard(n.f);
                 }
             }
         }
@@ -469,19 +461,19 @@ class LossTree
     {
         foreach (Node x in postorder)
         {
-            x.q = (int)(x.ps * frames);
+            x.q = (int) Math.Floor(x.ps * frames);
             foreach (Node y in x.ancestors)
             {
-                x.q = Math.Min(x.q, (int)(y.ps * frames));
+                x.q = Math.Min(x.q, (int) Math.Floor(y.ps * frames));
             }
         }
-        int max_frames = 9999;
+        int max_frames = 99999;
         for (int frame = 0; frame < max_frames; frame++)
         {
-            List<List<Node>> tree_list = new List<List<Node>>();
+            List<List<Node>> tree_list = new List<List<Node>>(nodes.Length);
             foreach (Node n in postorder)
             {
-                List<Node> tree = new List<Node>();
+                List<Node> tree = new List<Node>(nodes.Length);
                 tree.Add(n);
                 tree.AddRange(n.ancestors);
                 bool unsuitable = false;
@@ -509,7 +501,7 @@ class LossTree
                         tree.Add(y);
                         foreach (Node z in y.ch)
                         {
-                            tree.Add(z);
+                            stack.Push(z);
                         }
                     }
                 }
@@ -541,7 +533,7 @@ class LossTree
         {
             throw new Exception();
         }
-        else if (count.Count == 0)
+        if (count.Count == 0)
         {
             throw new Exception("source_min is too small");
         }
@@ -590,7 +582,7 @@ class LossTree
     }
     public void add_frame(Node n, int frame)
     {
-        if (n.q < 0)
+        if (n.q < 1)
         {
             throw new Exception();
         }
@@ -605,12 +597,12 @@ class LossTree
     }
     public void show_schedule()
     {
-        Glb.prnt("********Showing the computed schedule*******");
-        for (int i = 1; i < nodes.Length; i++)
+        if (Glb.VB)
         {
-            nodes[i].gen.Sort();
-            if (Glb.VB)
+            Console.WriteLine("********Showing the computed schedule*******");
+            for (int i = 1; i < nodes.Length; i++)
             {
+                nodes[i].gen.Sort();
                 Console.Write("Node " + i + "; ");
                 foreach (int j in nodes[i].gen)
                 {
@@ -690,38 +682,39 @@ class Glb
     }
     public static void graphRate1()
     {
-        int tst_nr = 0;
-        int repetitions = 2;
-        int action = 1;
-        int frames;
+        int tst_nr = 1;
+        int n_averages = 100;
+        //int action = 1;
+        int frames = 10;
         int plot = 2;
-        double[] ps;
-        double opt;
-        int[] fv;
+        double [] ps;
+        double opt = 0;
+        int [] fv;
         int source_min = 3;
         if (tst_nr == 0)
         {
             ps = new double[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 };
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            frames = 30;
+        }
+        else if (tst_nr == 1)
+        {
+            ps = new double[] {1, 0.4, 0.4, 0.4, 0.4, 0.4};
+            fv = new int[] {-1, 0, 1, 1, 1 , 1};
         }
         else
         {
             throw new ArgumentException("Inappropriate tst_nr");
         }
-        double[] rate_v = Glb.linspace(0.5, 1, 4);
-        foreach (double t in rate_v)
-        {
-            Console.WriteLine(t);
-        }
+        double[] rate_v = Glb.linspace(0.1, 1.5, 28);
         int size = 30;
-        int[] types = new int[] { 0, 1, 2, 3, 4 };
-        int iterations = 10;
+        //int[] types = new int[] { 0, 1, 2, 3, 4 };
+        int[] types = new int[] { 0 };
+        int n_tx_frames = 2000;
         double[,] sum = new double[rate_v.Length, types.Length];
         double[,] mean = new double[rate_v.Length, types.Length];
         double[,] pmin = new double[rate_v.Length, types.Length];
-        Glb.VB = true;
-        for (int k = 0; k < repetitions; k++)
+        Glb.VB = false;
+        for (int k = 0; k < n_averages; k++)
         {
             if (VB)
             {
@@ -741,16 +734,15 @@ class Glb
                             opt = ((double)t.count.Count / frames);
                         }
                     }
-                    int[] results = t.simulate_it(iterations, rate_v[j],
+                    int[] results = t.simulate_it(n_tx_frames, rate_v[j],
                             types[i], k);
                     foreach (int h in results)
                     {
-                        sum[j, i] += (double)h / repetitions;
-                        mean[j, i] += (double)h / iterations / repetitions;
-                        if (h < threshold)
+                        sum[j, i] += (double)h / n_averages / n_tx_frames;
+                        mean[j, i] += (double)h / n_averages / results.Length;
+                        if (h < source_min)
                         {
-                            pmin[j, i] += (double)1 / iterations /
-                                repetitions;
+                            pmin[j, i] += (double)1 / n_averages / results.Length;
                         }
                     }
                 }
@@ -766,13 +758,71 @@ class Glb
         g.add("rate", "pmin");
         g.mplot(rate_v, pmin, legv);
         string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
-                repetitions);
-        g.save("graphRate1_", plot);
+                n_averages);
+        g.save(filename, plot);
+    }
+    public static void tst_simulate_it1()
+    {
+        int frames;
+        int plot = 2;
+        double[] ps;
+        double opt = 0;
+        int[] fv;
+        int source_min = 3;
+        ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
+        fv = new int[] { -1, 0, 1, 1, 1, 1 };
+        frames = 30;
+        int size = 3;
+        //int[] types = new int[] { 0, 1, 2, 3, 4 };
+        int[] types = new int[] { 0 };
+        int n_tx_frames = 2000;
+        LossTree t = new LossTree(fv, ps, size);
+        foreach (double rate in new double [] {0.2, 0.4, 0.6, 1.0})
+        {
+            int[] results = t.simulate_it(n_tx_frames, rate, 0, 4);
+            int sum = 0;
+            foreach (int x in results)
+                sum += x;
+            Console.WriteLine("Rate {0}: sum = {1}", rate, sum);
+        }
+    }
+    public static void tst_simulate_it2()
+    {
+        int frames;
+        int plot = 2;
+        double[] ps;
+        double opt = 0;
+        int[] fv;
+        int source_min = 3;
+        ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
+        fv = new int[] { -1, 0, 1, 1, 1, 1 };
+        frames = 30;
+        int size = 20;
+        //int[] types = new int[] { 0, 1, 2, 3, 4 };
+        int[] types = new int[] { 0 };
+        int n_tx_frames = 10000;
+        LossTree t = new LossTree(fv, ps, size);
+        int averages = 10;
+        double[] rate_v = new double[] { 0.4, 0.8 };
+        foreach (double rate in rate_v)
+        {
+            double sum = 0.0;
+            for (int i = 0; i < averages; i++)
+            {
+                int[] results = t.simulate_it(n_tx_frames, rate, 0, i);
+                foreach (int x in results)
+                {
+                    sum += ((double) x) / ((double) n_tx_frames / averages);
+                }
+            }
+            Console.WriteLine("Rate {0}: sum = {1}", rate, sum);
+        }
     }
     public static void Main(string[] args)
     {
-        tst_Pgf1();
-        //graphRate1();
+        //tst_Pgf1();
+        tst_simulate_it2();
+        //Console.ReadLine();
     }
 }
 
