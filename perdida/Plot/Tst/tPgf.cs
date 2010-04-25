@@ -10,7 +10,7 @@ namespace Plot.Tst
         {
             int[] fv = new int[] { -1, 0, 1, 1 };
             double[] ps = new double[] { 1, 0.4, 0.3, 0.2 };
-            Glb.plot_logical3(fv, ps, 2);
+            PlgGlb.plot_logical3(fv, ps, 2);
         }
         public static void tst_plot()
         {

@@ -99,7 +99,7 @@ namespace perdida
                     List<int> l = new List<int>();
                     for (int i = 0; i < n.pkts.Count; i++)
                     {
-                        if (n.gen.Contains(n.pkts[i].t % count.Count))
+                        if (!n.gen.Contains(n.pkts[i].t % count.Count))
                         {
                             l.Add(i);
                         }
@@ -440,6 +440,7 @@ namespace perdida
                     {
                         Console.Write(j + ", ");
                     }
+                    Console.WriteLine();
                 }
             }
         }

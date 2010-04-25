@@ -52,9 +52,10 @@ namespace perdida
         {
             //tst_Pgf1();
             //tst_simulate_it2();
-            Prod.Glb.graphRate1();
+            Prod.ProdGlb.graphRate1();
             //tst_plot_logical3();
             //Console.ReadLine();
+            //Tst.tLossTree.tst_find_schedule();
         }
     }
 }

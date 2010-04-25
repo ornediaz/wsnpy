@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Linq;
 
 namespace perdida.Prod
 {
-    class Glb
+    class ProdGlb
     {
         public static void graphRate1()
         {
@@ -31,11 +32,65 @@ namespace perdida.Prod
                 ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
                 fv = new int[] { -1, 0, 1, 1, 1, 1 };
             }
+            else if (tst_nr == 2)
+            {
+                ps = new double[] { 1, 0.4, 0.8, 0.8, 0.8, 0.8 };
+                fv = new int[] { -1, 0, 1, 1, 1, 1 };
+            }
+            else if (tst_nr == 3)
+            {
+                ps = new double[] { 1, 0.6, 0.6, 0.6, 0.2, 0.2 };
+                fv = new int[] { -1, 0, 1, 1, 1, 1 };
+            }
+            else if (tst_nr == 4)
+            {
+                ps = new double[] { 1, 0.3, 0.6, 0.6, 0.2, 0.2 };
+                fv = new int[] { -1, 0, 1, 1, 1, 1 };
+            }
+            else if (tst_nr == 5)
+            {
+                ps = new double[] { -1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5 };
+                fv = new int[12];
+                for (int i = 0; i < fv.Length; i++)
+                {
+                    fv[i] = 0.3;
+                }
+            }
+            else if (tst_nr == 6)
+            {
+                ps = new double[] { };
+                fv = new int[] { };
+            }
+            else if (tst_nr == 7)
+            {
+                ps = new double[] { };
+                fv = new int[] { };
+            }
+            else if (tst_nr == 8)
+            {
+                ps = new double[] { };
+                fv = new int[] { };
+            }
+            else if (tst_nr == 9)
+            {
+                ps = new double[] { };
+                fv = new int[] { };
+            }
+            else if (tst_nr == 10)
+            {
+                ps = new double[] { };
+                fv = new int[] { };
+            }
+            else if (tst_nr == 11)
+            {
+                ps = new double[] { };
+                fv = new int[] { };
+            }
             else
             {
                 throw new ArgumentException("Inappropriate tst_nr");
             }
-            Plot.Glb.plot_logical3(fv, ps, plot);
+            Plot.PlgGlb.plot_logical3(fv, ps, plot);
             double[,] sum = new double[rate_v.Length, types.Length];
             double[,] mean = new double[rate_v.Length, types.Length];
             double[,] pmin = new double[rate_v.Length, types.Length];

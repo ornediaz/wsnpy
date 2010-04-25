@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.IO;
 namespace Plot
 {
-    class Glb
+    class PlgGlb
     {
         public static void plot_logical3(int[] fv, double[] ps, int plot)
         {
@@ -17,7 +17,7 @@ namespace Plot
             using (StreamWriter sw = File.CreateText(fname + ".dot"))
             {
                 sw.Write("digraph tree {\n");
-                for (int i = 0; i < fv.Length; i++)
+                for (int i = 1; i < fv.Length; i++)
                 {
                     sw.Write("{0:d} -> {1:d} [label = {2:f2}];\n", i, fv[i], ps[i]);
                 }
