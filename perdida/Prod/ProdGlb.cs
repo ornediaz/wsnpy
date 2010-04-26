@@ -1,90 +1,129 @@
 using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Linq;
 
 namespace perdida.Prod
 {
     class ProdGlb
     {
-        public static void graphRate1()
+        public static void graphRate1(int tst_nr, int n_averages, int plot)
         {
             int frames = 10;
             int[] fv;
-            int n_averages = 2;
             int n_tx_frames = 2000;
             double opt = 0;
-            int plot = 2;
             double[] ps;
             double[] rate_v = perdida.Principal.linspace(0.1, 1.5, 28);
             int source_min = 3;
             int size = 30;
-            int tst_nr = 0;
             int[] types = new int[] { 0, 1, 2, 3, 4 };
             perdida.Principal.VB = false;
             if (tst_nr == 0)
             {
-                ps = new double[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 };
                 fv = new int[] { -1, 0, 1, 1, 1, 1 };
+                ps = new double[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 };
             }
             else if (tst_nr == 1)
             {
-                ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
                 fv = new int[] { -1, 0, 1, 1, 1, 1 };
+                ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
             }
             else if (tst_nr == 2)
             {
-                ps = new double[] { 1, 0.4, 0.8, 0.8, 0.8, 0.8 };
                 fv = new int[] { -1, 0, 1, 1, 1, 1 };
+                ps = new double[] { 1, 0.4, 0.8, 0.8, 0.8, 0.8 };
             }
             else if (tst_nr == 3)
             {
-                ps = new double[] { 1, 0.6, 0.6, 0.6, 0.2, 0.2 };
                 fv = new int[] { -1, 0, 1, 1, 1, 1 };
+                ps = new double[] { 1, 0.6, 0.6, 0.6, 0.2, 0.2 };
             }
             else if (tst_nr == 4)
             {
-                ps = new double[] { 1, 0.3, 0.6, 0.6, 0.2, 0.2 };
                 fv = new int[] { -1, 0, 1, 1, 1, 1 };
+                ps = new double[] { 1, 0.3, 0.6, 0.6, 0.2, 0.2 };
             }
             else if (tst_nr == 5)
             {
-                ps = new double[] { -1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5 };
-                fv = new int[12];
+                fv = new int[] { -1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5 };
+                ps = new double[12];
                 for (int i = 0; i < fv.Length; i++)
                 {
-                    fv[i] = 0.3;
+                    ps[i] = 0.3;
                 }
             }
             else if (tst_nr == 6)
             {
-                ps = new double[] { };
-                fv = new int[] { };
+                fv = new int[] { -1, 0, 1, 2, 3, 4, 5 };
+                ps = new double[fv.Length];
+                for (int i = 0; i < ps.Length; i++)
+                {
+                    ps[i] = 0.3;
+                }
             }
             else if (tst_nr == 7)
             {
-                ps = new double[] { };
-                fv = new int[] { };
+                fv = new int[] {-1, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2};
+                ps = new double[fv.Length];
+                for (int i = 0; i < ps.Length; i++)
+                {
+                    ps[i] = 0.8;
+                }
             }
             else if (tst_nr == 8)
             {
-                ps = new double[] { };
-                fv = new int[] { };
+                fv = new int[] {-1, 0, 0, 1, 1, 1, 2, 2, 2};
+                ps = new double[fv.Length];
+                for (int i = 0; i < ps.Length; i++)
+                {
+                    ps[i] = 0.8;
+                }
             }
             else if (tst_nr == 9)
             {
-                ps = new double[] { };
-                fv = new int[] { };
+                fv = new int[] {-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12};
+                ps = new double[fv.Length];
+                for (int i = 0; i < ps.Length; i++)
+                {
+                    if (i < 9)
+                    {
+                        ps[i] = 0.8;
+                    }
+                    else
+                    {
+                        ps[i] = 0.4;
+                    }
+                }
             }
             else if (tst_nr == 10)
             {
-                ps = new double[] { };
-                fv = new int[] { };
+                fv = new int[] {-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12};
+                ps = new double[fv.Length];
+                for (int i = 0; i < ps.Length; i++)
+                {
+                    if (i < 9)
+                    {
+                        ps[i] = 0.4;
+                    }
+                    else
+                    {
+                        ps[i] = 0.8;
+                    }
+                }
             }
             else if (tst_nr == 11)
             {
-                ps = new double[] { };
-                fv = new int[] { };
+                fv = new int[] {-1, 0, 1, 1, 1, 0, 5, 6, 7, 8};
+                ps = new double[fv.Length];
+                for (int i = 0; i < ps.Length; i++)
+                {
+                    if (i < 5)
+                    {
+                        ps[i] = 0.4;
+                    }
+                    else
+                    {
+                        ps[i] = 0.8;
+                    }
+                }
             }
             else
             {
@@ -140,6 +179,16 @@ namespace perdida.Prod
             string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
                     n_averages);
             g.save(filename, plot);
+        }
+        public static void multiplot1()
+        {
+            int n_averages = 20;
+            for (int tst_nr = 0; tst_nr < 12; tst_nr++)
+            {
+                Console.WriteLine("Iteration {0} of multiplot", tst_nr);
+                ProdGlb.graphRate1(tst_nr, n_averages, 1);
+            }
+
         }
     }
 }

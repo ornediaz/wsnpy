@@ -24,7 +24,14 @@ namespace Plot
                 sw.Write("}\n");
                 sw.Close();
             }
-            Process p1 = Process.Start("dot", String.Format(" -Tpdf {0}.dot -o {0}.pdf", fname));
+
+            ProcessStartInfo pi = new ProcessStartInfo("dot", String.Format(" -Tpdf {0}.dot -o {0}.pdf", fname));
+            if (plot == 1)
+            {
+                pi.CreateNoWindow = true;
+                pi.WindowStyle = ProcessWindowStyle.Hidden;
+            }
+            Process p1 = Process.Start(pi);
             p1.WaitForExit();
             if (plot == 2)
             {

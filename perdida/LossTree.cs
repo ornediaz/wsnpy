@@ -7,7 +7,7 @@ namespace perdida
         public Node[] nodes;
         public List<Node> postorder = new List<Node>(); // does not include sink
         public List<int> count = new List<int>();
-        // How many measurements are provided for each sensing slot.
+        // count[i] indicates the number of measurements provided for sensing time i
         private void add_postorder(Node x)
         {
             foreach (Node n in x.ch)
@@ -192,10 +192,16 @@ namespace perdida
                 foreach (Node n in postorder)
                 {
                     Principal.prnt("Processing node " + n.ID);
+                    if (n.pkts.Count == 0)
+                    {
+                        Principal.prnt("Node " + n.ID + "has empty buffer");
+                        continue;
+                    }
                     double random_number = Principal.rgen.NextDouble();
                     //Console.WriteLine(random_number);
-                    if (n.pkts.Count == 0 || random_number >= n.ps)
+                    if (random_number >= n.ps)
                     {
+                        Principal.prnt("Packet transmission of node " + n.ID + "failed");
                         continue;
                     }
                     int position = 0;

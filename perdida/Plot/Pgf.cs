@@ -91,8 +91,14 @@ namespace Plot
             }
             if (plot > 0)
             {
-                Process p = Process.Start("pdflatex", filename);
-                p.WaitForExit();
+                ProcessStartInfo i = new ProcessStartInfo("pdflatex", filename);
+                if (plot == 1)
+                {
+                    i.CreateNoWindow = true;
+                    i.WindowStyle = ProcessWindowStyle.Hidden;
+                }
+                Process p1 = Process.Start(i);
+                p1.WaitForExit();
             }
             if (plot == 2)
             {

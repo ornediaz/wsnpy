@@ -34,7 +34,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Plot\PlotGlb.cs" />
-    <Compile Include="Glb.cs" />
+    <Compile Include="Principal.cs" />
     <Compile Include="LossTree.cs" />
     <Compile Include="net.cs" />
     <Compile Include="Plot\Pgf.cs" />
