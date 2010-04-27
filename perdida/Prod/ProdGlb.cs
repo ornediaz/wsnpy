@@ -182,13 +182,12 @@ namespace perdida.Prod
         }
         public static void multiplot1()
         {
-            int n_averages = 20;
+            int n_averages = 1000;
             for (int tst_nr = 0; tst_nr < 12; tst_nr++)
             {
                 Console.WriteLine("Iteration {0} of multiplot", tst_nr);
                 ProdGlb.graphRate1(tst_nr, n_averages, 1);
             }
-
         }
     }
 }

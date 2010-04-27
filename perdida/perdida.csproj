@@ -41,6 +41,7 @@
     <Compile Include="Plot\PgfAxis.cs" />
     <Compile Include="Prod\ProdGlb.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RandomTree.cs" />
     <Compile Include="Tst\tLossTree.cs" />
     <Compile Include="Plot\Tst\tPgf.cs" />
   </ItemGroup>

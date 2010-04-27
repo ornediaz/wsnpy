@@ -68,7 +68,6 @@ namespace perdida.Tst
             perdida.Principal.VB = false;
             int[] types = new int[] { 0, 2};
             int n_tx_frames = 10000;
-            int averages = 100;
             foreach (int type in types)
             {
                 int[] results = t.simulate_it(n_tx_frames, 0.6, type, 0);
