@@ -36,38 +36,56 @@ class RandomTree
         // n is  the number of nodes
         // x, y are the geographical area
         // tx_rg
-        if (n < 1)
+        if (n < 2)
         {
-            throw new Exception("Number of nodes must be positive");
+            throw new Exception("Number of nodes must exceed 2");
         }
         int[] fv = new int[n];
         double[,] xy = new double[n, 2];
         double[,] cost = new double[n, n];
-        for (int i = 1; i < n; i++)
-        {
-            xy[i, 0] = Principal.rgen.NextDouble() * x;
-            xy[i, 1] = Principal.rgen.NextDouble() * y;
-        }
-        //Console.WriteLine(n);
-        xy[0, 0] = 0;
-        xy[0, 1] = 0;
-        for (int i = 0; i < n; i++)
-        {
-            for (int j = 0; j < n; j++)
+        int MAX_TESTS = 15;
+        double MAX_DISCONNECTED = 0.1;
+        for (int h = 0; h < MAX_TESTS; h++)
+        { 
+            for (int i = 1; i < n; i++)
             {
-                double dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2) +
-                        Math.Pow(xy[i, 1] - xy[j, 1], 2));
-                if (dist < tx_rg)
+                xy[i, 0] = Principal.rgen.NextDouble() * x;
+                xy[i, 1] = Principal.rgen.NextDouble() * y;
+            }
+            //Console.WriteLine(n);
+            xy[0, 0] = 0;
+            xy[0, 1] = 0;
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
                 {
-                    cost[i,j] = dist;
-                }
-                else
-                {
-                    cost[i, j] = Principal.INF;
+                    double dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2) +
+                            Math.Pow(xy[i, 1] - xy[j, 1], 2));
+                    if (dist < tx_rg)
+                    {
+                        cost[i,j] = dist;
+                    }
+                    else
+                    {
+                        cost[i, j] = Principal.INF;
+                    }
                 }
             }
+            fv = dijkstra(cost);
+            int disconnected = 0;
+            foreach (int f in fv)
+            {
+                if (f == -1)
+                {
+                    disconnected++;
+                }
+            }
+            if ((double) disconnected / (n - 1) <= MAX_DISCONNECTED)
+            {
+                return fv;
+            }
         }
-        return dijkstra(cost);
+        throw new Exception("No sufficiently connected topology found");
     }
     public static int[] dijkstra(double[,] cost)
     {
@@ -288,14 +306,16 @@ class ProdGlb
                         mean[j, i] += (double)h / n_averages / results.Length;
                         if (h < source_min)
                         {
-                            pmin[j, i] += (double)1 / n_averages / results.Length;
+                            pmin[j, i] += (double)1 / n_averages /
+                                results.Length;
                         }
                     }
                 }
             }
         }
         Console.WriteLine("**** Printing results *****");
-        string[] legv = new string[] { "0", "1", "2", String.Format("3={0:F3}", opt), "4" };
+        string[] legv = new string[] { "0", "1", "2",
+            String.Format("3={0:F3}", opt), "4" };
         Pgf g = new Pgf();
         g.add("rate", "total");
         g.mplot(rate_v, sum, legv);
@@ -310,25 +330,19 @@ class ProdGlb
     }
     public static void graphRateRandom(int tst_nr, int n_averages, int plot)
     {
+        double tx_rg = 2;
+        double x = 3 * tx_rg;
+        double y = 3 * tx_rg;
+        double rho = 8;
+        int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
         int frames = 10;
-        int[] fv;
         int n_tx_frames = 2000;
         double opt = 0;
-        double[] ps;
         double[] rate_v = Principal.linspace(0.1, 1.5, 28);
         int source_min = 3;
         int size = 30;
         int[] types = new int[] { 0, 1, 2, 3, 4 };
         Principal.VB = false;
-        PlgGlb.plot_logical3(fv, ps, plot);
-        double tx_rg = 2;
-        double x = 10 * tx_rg;
-        double y = 4 * tx_rg;
-        double rho = 8;
-        int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
-        int[] fv = parents(n, x, y, tx_rg);
-        double[] ps = new double[n];
-        PlgGlb.plot_logical3(fv, ps, 2);
         double[,] sum = new double[rate_v.Length, types.Length];
         double[,] mean = new double[rate_v.Length, types.Length];
         double[,] pmin = new double[rate_v.Length, types.Length];
@@ -337,6 +351,13 @@ class ProdGlb
             if (Principal.VB)
             {
                 Console.WriteLine("Executing repetition " + k);
+            }
+            Principal.rgen = new Random(k);
+            int[] fv = RandomTree.parents(n, x, y, tx_rg);
+            double[] ps = new double[n];
+            for (int u = 0; u < n; u++)
+            {
+                ps[u] = 0.5 + Principal.rgen.NextDouble() / 2;
             }
             for (int j = 0; j < rate_v.Length; j++)
             {
@@ -359,14 +380,16 @@ class ProdGlb
                         mean[j, i] += (double)h / n_averages / results.Length;
                         if (h < source_min)
                         {
-                            pmin[j, i] += (double)1 / n_averages / results.Length;
+                            pmin[j, i] += (double)1 / n_averages /
+                                results.Length;
                         }
                     }
                 }
             }
         }
         Console.WriteLine("**** Printing results *****");
-        string[] legv = new string[] { "0", "1", "2", String.Format("3={0:F3}", opt), "4" };
+        string[] legv = new string[] { "0", "1", "2",
+            String.Format("3={0:F3}", opt), "4" };
         Pgf g = new Pgf();
         g.add("rate", "total");
         g.mplot(rate_v, sum, legv);
@@ -374,7 +397,99 @@ class ProdGlb
         g.mplot(rate_v, mean, legv);
         g.add("rate", "pmin");
         g.mplot(rate_v, pmin, legv);
-        g.extra_body.Add("\n\\includegraphics[scale=0.4]{ztree.pdf}\n");
+        string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
+                n_averages);
+        g.save(filename, plot);
+    }
+    public static void graphRateSize(int tst_nr, int n_averages, int plot)
+    {
+        double tx_rg = 2;
+        double[] xv;
+        double[] yv;
+        if (tst_nr == 0)
+        {
+            xv = Principal.linspace(tx_rg, 5 * tx_rg, 5);
+            yv = Principal.linspace(2 * tx_rg, 2.01 * tx_rg, 5);
+        }
+        int L = xv.GetLength(0);
+        double y = 3 * tx_rg;
+        double rho = 8;
+        int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
+        int frames = 10;
+        int n_tx_frames = 2000;
+        double opt = 0;
+        double[] rate_v = Principal.linspace(0.5, 3, 28);
+        int[] types = new int[] { 0, 1, 2, 3, 4 };
+        int S = xv.GetLength(0);
+        int R = rate_v.Length;
+        int T = types.Length;
+        int source_min = 3;
+        int size = 30;
+        Principal.VB = false;
+        double[] sum = new double[S, T];
+        double[] mean = new double[S, T];
+        double[] pmin = new double[S, T];
+        for (int k = 0; k < n_averages; k++)
+        {
+            if (Principal.VB)
+            {
+                Console.WriteLine("Executing repetition " + k);
+            }
+            Principal.rgen = new Random(k);
+            int[] fv = RandomTree.parents(n, x, y, tx_rg);
+            double[] ps = new double[n];
+            for (int u = 0; u < n; u++)
+            {
+                ps[u] = 0.5 + Principal.rgen.NextDouble() / 2;
+            }
+            for (int i = 0; i < T; i++)
+            {
+                double m_sum = 0;
+                double m_mean = 0;
+                double p_pmin = 0;
+                for (int j = 0; j < rate_v.Length; j++)
+                {
+                    LossTree t = new LossTree(fv, ps, size);
+                    if (types[i] == 3)
+                    {
+                        t.find_schedule(frames, source_min);
+                    }
+                    int[] results = t.simulate_it(n_tx_frames, rate_v[j],
+                            types[i], k);
+                    double a_sum = 0;
+                    double a_mean = 0;
+                    double a_pmin = 0;
+                    foreach (int h in results)
+                    {
+                        a_sum += (double) h / n_tx_frames;
+                        a_mean += (double)h / results.Length;
+                        if (h < source_min)
+                        {
+                            a_pmin += (double)1 / results.Length;
+                        }
+                    }
+                    if (a_sum > m_sum)
+                    {
+                        m_sum = a_sum;
+                        m_mean = a_mean;
+                        m_pmin = a_pmin;
+                    }
+                }
+                sum[i] += m_sum / n_averages;
+                mean[i] += m_mean / n_averages;
+                pmin[i] += m_pmin / n_averages;
+            }
+        }
+        Console.WriteLine("**** Printing results *****");
+        string[] legv = new string[] { "0", "1", "2",
+            String.Format("3={0:F3}", opt), "4" };
+        Pgf g = new Pgf();
+        g.add("rate", "total");
+        g.mplot(rate_v, sum, legv);
+        g.add("rate", "mean");
+        g.mplot(rate_v, mean, legv);
+        g.add("rate", "pmin");
+        g.mplot(rate_v, pmin, legv);
         string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
                 n_averages);
         g.save(filename, plot);
@@ -592,15 +707,20 @@ class LossTree
             nodes[i].ps = ps[i];
             nodes[i].size = size;
         }
-        for (int i = 1; i < fv.Length; i++)
+        for (int i = 0; i < fv.Length; i++)
         {
-            Node ancestor = nodes[fv[i]];
-            nodes[i].f = ancestor;
-            ancestor.ch.Add(nodes[i]);
-            while (ancestor != null && ancestor.ID != 0)
+            int ancestor_ID = fv[i];
+            if (ancestor_ID == -1)
             {
-                nodes[i].ancestors.Add(ancestor);
-                ancestor = nodes[fv[ancestor.ID]];
+                nodes[i].f = null;
+                continue;
+            }
+            nodes[i].f = nodes[ancestor_ID];
+            nodes[ancestor_ID].ch.Add(nodes[i]);
+            while (ancestor_ID != -1 && ancestor_ID != 0)
+            {
+                nodes[i].ancestors.Add(nodes[ancestor_ID]);
+                ancestor_ID = fv[ancestor_ID];
             }
         }
         foreach (Node n in nodes[0].ch)
@@ -768,7 +888,8 @@ class LossTree
                 //Console.WriteLine(random_number);
                 if (random_number >= n.ps)
                 {
-                    Principal.prnt("Packet transmission of node " + n.ID + "failed");
+                    Principal.prnt("Packet transmission of node " + n.ID +
+                            "failed");
                     continue;
                 }
                 int position = 0;
@@ -1176,13 +1297,25 @@ class Principal
 
     public static void Main(string[] args)
     {
+        Stopwatch stopwatch = new Stopwatch();
+        stopwatch.Start();
+
         //tst_Pgf1();
         //tst_simulate_it2();
         //ProdGlb.graphRate1(0, 2);
         //ProdGlb.multiplot1();
-        RandomTree.tst_parents();
+        //RandomTree.tst_parents();
+        ProdGlb.graphRateRandom(0, 2, 1);
+        //System.Threading.Thread.Sleep(1000);
         //tst_plot_logical3();
         //Console.ReadLine();
         //Tst.tLossTree.tst_find_schedule();
+
+        stopwatch.Stop();
+        TimeSpan ts = stopwatch.Elapsed;
+        // Format and display the TimeSpan value.
+        string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
+            ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
+        Console.WriteLine("Runtime = " + elapsedTime);
     }
 }
