@@ -33,17 +33,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Plot\PlotGlb.cs" />
-    <Compile Include="Principal.cs" />
-    <Compile Include="LossTree.cs" />
     <Compile Include="net.cs" />
-    <Compile Include="Plot\Pgf.cs" />
-    <Compile Include="Plot\PgfAxis.cs" />
-    <Compile Include="Prod\ProdGlb.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RandomTree.cs" />
-    <Compile Include="Tst\tLossTree.cs" />
-    <Compile Include="Plot\Tst\tPgf.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
