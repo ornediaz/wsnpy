@@ -64,14 +64,36 @@ class RandomTree
                     if (dist < tx_rg)
                     {
                         cost[i,j] = dist;
+                        cost[j,i] = dist;
                     }
                     else
                     {
                         cost[i, j] = Principal.INF;
+                        cost[j, i] = Principal.INF;
                     }
                 }
             }
+            if (Principal.VB)
+            {
+                Console.WriteLine("****Iteration {0}", h);
+                for (int i = 0; i < n; i++)
+                {
+                    for (int j = 0; j < n; j++)
+                    {
+                        Console.Write("{0:f3}, ", cost[i,j]);
+                    }
+                    Console.WriteLine();
+                }
+            }
             fv = dijkstra(cost);
+            if (Principal.VB)
+            {
+                for (int i = 0; i < n; i ++)
+                {
+                    Console.Write("{0:d}, ", fv[i]);
+
+                }
+            }
             int disconnected = 0;
             foreach (int f in fv)
             {
@@ -80,11 +102,15 @@ class RandomTree
                     disconnected++;
                 }
             }
-            if ((double) disconnected / (n - 1) <= MAX_DISCONNECTED)
+            if ((double) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
             {
                 return fv;
             }
         }
+        Console.WriteLine(n);
+        Console.WriteLine(x);
+        Console.WriteLine(y);
+        Console.WriteLine(tx_rg);
         throw new Exception("No sufficiently connected topology found");
     }
     public static int[] dijkstra(double[,] cost)
@@ -276,14 +302,14 @@ class ProdGlb
             throw new ArgumentException("Inappropriate tst_nr");
         }
         PlgGlb.plot_logical3(fv, ps, plot);
-        double[,] sum = new double[rate_v.Length, types.Length];
+        double[,] tota = new double[rate_v.Length, types.Length];
         double[,] mean = new double[rate_v.Length, types.Length];
         double[,] pmin = new double[rate_v.Length, types.Length];
         for (int k = 0; k < n_averages; k++)
         {
             if (Principal.VB)
             {
-                Console.WriteLine("Executing repetition " + k);
+                Console.WriteLine("Executing repetition {0,4:d}", k);
             }
             for (int j = 0; j < rate_v.Length; j++)
             {
@@ -302,7 +328,7 @@ class ProdGlb
                             types[i], k);
                     foreach (int h in results)
                     {
-                        sum[j, i] += (double)h / n_averages / n_tx_frames;
+                        tota[j, i] += (double)h / n_averages / n_tx_frames;
                         mean[j, i] += (double)h / n_averages / results.Length;
                         if (h < source_min)
                         {
@@ -318,15 +344,15 @@ class ProdGlb
             String.Format("3={0:F3}", opt), "4" };
         Pgf g = new Pgf();
         g.add("rate", "total");
-        g.mplot(rate_v, sum, legv);
+        g.mplot(rate_v, tota, legv);
         g.add("rate", "mean");
         g.mplot(rate_v, mean, legv);
         g.add("rate", "pmin");
         g.mplot(rate_v, pmin, legv);
         g.extra_body.Add("\n\\includegraphics[scale=0.4]{ztree.pdf}\n");
-        string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
-                n_averages);
-        g.save(filename, plot);
+        //string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
+        //        n_averages);
+        g.save(Principal.comando, plot);
     }
     public static void graphRateRandom(int tst_nr, int n_averages, int plot)
     {
@@ -343,7 +369,7 @@ class ProdGlb
         int size = 30;
         int[] types = new int[] { 0, 1, 2, 3, 4 };
         Principal.VB = false;
-        double[,] sum = new double[rate_v.Length, types.Length];
+        double[,] tota = new double[rate_v.Length, types.Length];
         double[,] mean = new double[rate_v.Length, types.Length];
         double[,] pmin = new double[rate_v.Length, types.Length];
         for (int k = 0; k < n_averages; k++)
@@ -376,7 +402,7 @@ class ProdGlb
                             types[i], k);
                     foreach (int h in results)
                     {
-                        sum[j, i] += (double)h / n_averages / n_tx_frames;
+                        tota[j, i] += (double)h / n_averages / n_tx_frames;
                         mean[j, i] += (double)h / n_averages / results.Length;
                         if (h < source_min)
                         {
@@ -392,7 +418,7 @@ class ProdGlb
             String.Format("3={0:F3}", opt), "4" };
         Pgf g = new Pgf();
         g.add("rate", "total");
-        g.mplot(rate_v, sum, legv);
+        g.mplot(rate_v, tota, legv);
         g.add("rate", "mean");
         g.mplot(rate_v, mean, legv);
         g.add("rate", "pmin");
@@ -404,92 +430,101 @@ class ProdGlb
     public static void graphRateSize(int tst_nr, int n_averages, int plot)
     {
         double tx_rg = 2;
-        double[] xv;
-        double[] yv;
+        double[] xv = null;
+        double[] yv = null;
         if (tst_nr == 0)
         {
             xv = Principal.linspace(tx_rg, 5 * tx_rg, 5);
             yv = Principal.linspace(2 * tx_rg, 2.01 * tx_rg, 5);
         }
-        int L = xv.GetLength(0);
-        double y = 3 * tx_rg;
-        double rho = 8;
-        int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
+        if (xv.GetLength(0) != yv.GetLength(0))
+        {
+            throw new Exception("xv and yv should have equal length");
+        }
+        double rho = 15;
         int frames = 10;
         int n_tx_frames = 2000;
         double opt = 0;
+        int[] types = new int[] {0, 1, 2, 3, 4};
         double[] rate_v = Principal.linspace(0.5, 3, 28);
-        int[] types = new int[] { 0, 1, 2, 3, 4 };
-        int S = xv.GetLength(0);
-        int R = rate_v.Length;
-        int T = types.Length;
         int source_min = 3;
         int size = 30;
         Principal.VB = false;
-        double[] sum = new double[S, T];
-        double[] mean = new double[S, T];
-        double[] pmin = new double[S, T];
+        double[,] tota = new double[xv.GetLength(0), types.Length];
+        double[,] mean = new double[xv.GetLength(0), types.Length];
+        double[,] pmin = new double[xv.GetLength(0), types.Length];
+        Console.WriteLine("Hello world");
         for (int k = 0; k < n_averages; k++)
         {
-            if (Principal.VB)
+            Console.WriteLine("Executing repetition {0,4:D}.  Total {1}",
+                        k, Principal.elapsed());
+            for (int s = 0; s < xv.GetLength(0); s++)
             {
-                Console.WriteLine("Executing repetition " + k);
-            }
-            Principal.rgen = new Random(k);
-            int[] fv = RandomTree.parents(n, x, y, tx_rg);
-            double[] ps = new double[n];
-            for (int u = 0; u < n; u++)
-            {
-                ps[u] = 0.5 + Principal.rgen.NextDouble() / 2;
-            }
-            for (int i = 0; i < T; i++)
-            {
-                double m_sum = 0;
-                double m_mean = 0;
-                double p_pmin = 0;
-                for (int j = 0; j < rate_v.Length; j++)
+                Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {1}", s, xv[s]
+                        / tx_rg, Principal.elapsed());
+                int n = (int)(rho * xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
+                Principal.rgen = new Random(k);
+                int[] fv = RandomTree.parents(n, xv[s], yv[s], tx_rg);
+                double[] ps = new double[n];
+                for (int u = 0; u < n; u++)
                 {
-                    LossTree t = new LossTree(fv, ps, size);
-                    if (types[i] == 3)
+                    ps[u] = 0.5 + Principal.rgen.NextDouble() / 2;
+                }
+                for (int i = 0; i < types.Length; i++)
+                {
+                    double m_tota = 0;
+                    double m_mean = 0;
+                    double m_pmin = 0;
+                    for (int j = 0; j < rate_v.Length; j++)
                     {
-                        t.find_schedule(frames, source_min);
-                    }
-                    int[] results = t.simulate_it(n_tx_frames, rate_v[j],
-                            types[i], k);
-                    double a_sum = 0;
-                    double a_mean = 0;
-                    double a_pmin = 0;
-                    foreach (int h in results)
-                    {
-                        a_sum += (double) h / n_tx_frames;
-                        a_mean += (double)h / results.Length;
-                        if (h < source_min)
+                        LossTree t = new LossTree(fv, ps, size);
+                        if (types[i] == 3)
                         {
-                            a_pmin += (double)1 / results.Length;
+                            t.find_schedule(frames, source_min);
+                        }
+                        int[] results = t.simulate_it(n_tx_frames, rate_v[j],
+                                types[i], k);
+                        double a_tota = 0;
+                        double a_mean = 0;
+                        double a_pmin = 0;
+                        foreach (int h in results)
+                        {
+                            a_tota += (double) h / n_tx_frames;
+                            a_mean += (double) h / results.Length;
+                            if (h < source_min)
+                            {
+                                a_pmin += (double)1 / results.Length;
+                            }
+                        }
+                        if (a_tota > m_tota)
+                        {
+                            m_tota = a_tota;
+                            m_mean = a_mean;
+                            m_pmin = a_pmin;
                         }
                     }
-                    if (a_sum > m_sum)
-                    {
-                        m_sum = a_sum;
-                        m_mean = a_mean;
-                        m_pmin = a_pmin;
-                    }
+                    tota[s, i] += m_tota / n_averages;
+                    mean[s, i] += m_mean / n_averages;
+                    pmin[s, i] += m_pmin / n_averages;
                 }
-                sum[i] += m_sum / n_averages;
-                mean[i] += m_mean / n_averages;
-                pmin[i] += m_pmin / n_averages;
             }
         }
         Console.WriteLine("**** Printing results *****");
         string[] legv = new string[] { "0", "1", "2",
             String.Format("3={0:F3}", opt), "4" };
         Pgf g = new Pgf();
-        g.add("rate", "total");
-        g.mplot(rate_v, sum, legv);
-        g.add("rate", "mean");
-        g.mplot(rate_v, mean, legv);
-        g.add("rate", "pmin");
-        g.mplot(rate_v, pmin, legv);
+        string xlab = "normalized x size";
+        double[] xn = new double[xv.Length];
+        for (int q = 0; q < xn.Length; q++)
+        {
+            xn[q] = xv[q] / tx_rg;
+        }
+        g.add(xlab, "total");
+        g.mplot(xn, tota, legv);
+        g.add(xlab, "mean");
+        g.mplot(xn, mean, legv);
+        g.add(xlab, "pmin");
+        g.mplot(xn, pmin, legv);
         string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
                 n_averages);
         g.save(filename, plot);
@@ -1097,13 +1132,6 @@ class LossTree
                 available.Remove(frm);
             }
         }
-        foreach (Node x in postorder)
-        {
-            if (x.q > 0)
-            {
-                throw new Exception();
-            }
-        }
         show_schedule();
     }
     public void add_frame(Node n, int frame)
@@ -1255,9 +1283,11 @@ class tPgf
 }
 class Principal
 {
-    public static double INF = 99999999;
+    public static Stopwatch stopwatch = new Stopwatch();
+    public static double INF = 99;
     public static Random rgen = new Random();
     public static bool VB = false;
+    public static string comando = "";
     public static void prnt(String s)
     {
         if (Principal.VB) { Console.WriteLine(s); }
@@ -1293,19 +1323,23 @@ class Principal
         }
         return x;
     }
-
-
+    public static string elapsed()
+    {
+        TimeSpan ts = stopwatch.Elapsed;
+        // Format and display the TimeSpan value.
+        Console.WriteLine(comando);
+        return String.Format("{0:00}D{1:00}:{2:00}:{3:00}.{4:00};{5:s}",
+                ts.Days, ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds /
+                10, comando);
+    }
     public static void Main(string[] args)
     {
-        Stopwatch stopwatch = new Stopwatch();
+        stopwatch = new Stopwatch();
         stopwatch.Start();
 
-        //tst_Pgf1();
-        //tst_simulate_it2();
-        //ProdGlb.graphRate1(0, 2);
-        //ProdGlb.multiplot1();
-        //RandomTree.tst_parents();
-        ProdGlb.graphRateRandom(0, 2, 1);
+        //TOREPLACE
+        //comando = "ProdGlb.graphRateSize(0, 1, 1);";
+        ProdGlb.graphRateSize(0, 1, 1); comando = "ProdGlb.graphRateSize(0, 1, 1);"; //TOREPLACE
         //System.Threading.Thread.Sleep(1000);
         //tst_plot_logical3();
         //Console.ReadLine();
@@ -1316,6 +1350,6 @@ class Principal
         // Format and display the TimeSpan value.
         string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
             ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
-        Console.WriteLine("Runtime = " + elapsedTime);
+        Console.WriteLine("Runtime = " + elapsed());
     }
 }
