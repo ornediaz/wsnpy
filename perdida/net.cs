@@ -309,7 +309,7 @@ class ProdGlb
         {
             if (Principal.VB)
             {
-                Console.WriteLine("Executing repetition {0,4:d}", k);
+                Console.WriteLine("Repetition {0,4:d}", k);
             }
             for (int j = 0; j < rate_v.Length; j++)
             {
@@ -376,7 +376,7 @@ class ProdGlb
         {
             if (Principal.VB)
             {
-                Console.WriteLine("Executing repetition " + k);
+                Console.WriteLine("Repetition " + k);
             }
             Principal.rgen = new Random(k);
             int[] fv = RandomTree.parents(n, x, y, tx_rg);
@@ -449,18 +449,16 @@ class ProdGlb
         double[] rate_v = Principal.linspace(0.5, 3, 28);
         int source_min = 3;
         int size = 30;
-        Principal.VB = false;
         double[,] tota = new double[xv.GetLength(0), types.Length];
         double[,] mean = new double[xv.GetLength(0), types.Length];
         double[,] pmin = new double[xv.GetLength(0), types.Length];
-        Console.WriteLine("Hello world");
         for (int k = 0; k < n_averages; k++)
         {
-            Console.WriteLine("Executing repetition {0,4:D}.  Total {1}",
+            Console.WriteLine("Repetition {0,4:D}.  Total {1}",
                         k, Principal.elapsed());
             for (int s = 0; s < xv.GetLength(0); s++)
             {
-                Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {1}", s, xv[s]
+                Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", s, xv[s]
                         / tx_rg, Principal.elapsed());
                 int n = (int)(rho * xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
                 Principal.rgen = new Random(k);
@@ -525,8 +523,8 @@ class ProdGlb
         g.mplot(xn, mean, legv);
         g.add(xlab, "pmin");
         g.mplot(xn, pmin, legv);
-        string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
-                n_averages);
+        string filename = String.Format("ProdGlb.graphRateSize_{0:d2}_{1:d6}",
+                tst_nr, n_averages);
         g.save(filename, plot);
     }
     public static void multiplot1()
@@ -1287,7 +1285,7 @@ class Principal
     public static double INF = 99;
     public static Random rgen = new Random();
     public static bool VB = false;
-    public static string comando = "";
+    public static string comando;
     public static void prnt(String s)
     {
         if (Principal.VB) { Console.WriteLine(s); }
@@ -1327,24 +1325,21 @@ class Principal
     {
         TimeSpan ts = stopwatch.Elapsed;
         // Format and display the TimeSpan value.
-        Console.WriteLine(comando);
-        return String.Format("{0:00}D{1:00}:{2:00}:{3:00}.{4:00};{5:s}",
-                ts.Days, ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds /
-                10, comando);
+        // Console.WriteLine(comando);
+        return String.Format("{0:00}D{1:00}:{2:00}:{3:00}.{4:00}; {5}", new
+                Object[] {ts.Days, ts.Hours, ts.Minutes, ts.Seconds,
+                ts.Milliseconds / 10, comando});
     }
     public static void Main(string[] args)
     {
         stopwatch = new Stopwatch();
         stopwatch.Start();
 
-        //TOREPLACE
-        //comando = "ProdGlb.graphRateSize(0, 1, 1);";
         ProdGlb.graphRateSize(0, 1, 1); comando = "ProdGlb.graphRateSize(0, 1, 1);"; //TOREPLACE
         //System.Threading.Thread.Sleep(1000);
         //tst_plot_logical3();
         //Console.ReadLine();
         //Tst.tLossTree.tst_find_schedule();
-
         stopwatch.Stop();
         TimeSpan ts = stopwatch.Elapsed;
         // Format and display the TimeSpan value.

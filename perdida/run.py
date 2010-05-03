@@ -17,17 +17,17 @@ with open('net.cs', 'r') as f1:
 with open(filename + '.cs', 'w') as f2:
     for i, line in enumerate(l1):
         if 'TOREPLACE' in line:
-            f2.write(command + ";\n")
             f2.write('comando = "{0}";\n'.format(command))
+            f2.write(command + ";\n")
         else:
             f2.write(line)
 if platform.system() == 'Windows':
-    compilar = ["csc", "/debug+", filename + ".cs"]
+    compilar = ["csc", "/debug+", "/warnaserror+", filename + ".cs"]
     print compilar
     subprocess.check_call(compilar)
     subprocess.check_call(['{0}.exe'.format(filename),])
 if platform.system() == "Linux":
-    compilar = ["gmcs", filename + ".cs"])
+    compilar = ["gmcs", filename + ".cs"]
     print compilar
     subprocess.check_call(compilar)
     subprocess.check_call(['mono', '{0}.exe'])
