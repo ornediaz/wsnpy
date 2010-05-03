@@ -423,12 +423,16 @@ class ProdGlb
         g.mplot(rate_v, mean, legv);
         g.add("rate", "pmin");
         g.mplot(rate_v, pmin, legv);
-        string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
-                n_averages);
+        string filename =
+            String.Format("ProdGlb.graphRateRandom_{0:d2}_{1:d6}", tst_nr,
+                    n_averages);
         g.save(filename, plot);
     }
     public static void graphRateSize(int tst_nr, int n_averages, int plot)
     {
+        // Compare sheduled vs unscheduled approaches operating at their
+        // optimal point as a function of the node density and for different
+        // topologies.
         double tx_rg = 2;
         double[] xv = null;
         double[] yv = null;
@@ -452,9 +456,9 @@ class ProdGlb
         double[,] tota = new double[xv.GetLength(0), types.Length];
         double[,] mean = new double[xv.GetLength(0), types.Length];
         double[,] pmin = new double[xv.GetLength(0), types.Length];
-        for (int k = 0; k < n_averages; k++)
+        for (int k = 73; k < n_averages; k++)
         {
-            Console.WriteLine("Repetition {0,4:D}.  Total {1}",
+            Console.WriteLine("Repetition {0,4:D}. Total {1}",
                         k, Principal.elapsed());
             for (int s = 0; s < xv.GetLength(0); s++)
             {
@@ -691,6 +695,7 @@ class Pgf
         {
             lst.Add(s);
         }
+        lst.Add("I hate you");
         lst.Add("\\end{document}");
         using (StreamWriter sw = File.CreateText(filename + ".tex"))
         {
@@ -700,22 +705,23 @@ class Pgf
             }
             sw.Close();
         }
+        Console.WriteLine("File {0}.tex written", filename);
         if (plot > 0)
         {
-            ProcessStartInfo i = new ProcessStartInfo("pdflatex", filename);
-            if (plot == 1)
-            {
-                i.CreateNoWindow = true;
-                i.WindowStyle = ProcessWindowStyle.Hidden;
-            }
+            Console.WriteLine("We are here");
+            ProcessStartInfo i = new ProcessStartInfo("pdflatex", filename +
+                    ".tex");
             Process p1 = Process.Start(i);
-            p1.WaitForExit();
+            if (plot == 2)
+            { 
+                p1.WaitForExit();
+                if (p1.ExitCode == 0)
+                {
+                    System.Diagnostics.Process.Start("acrord32", filename + ".pdf");
+                }
+            }
         }
-        if (plot == 2)
-        {
-            System.Diagnostics.Process.Start("acrord32", filename + ".pdf");
-        }
-    }
+   }
 }
 class LossTree
 {
@@ -986,10 +992,12 @@ class LossTree
                         }
                     }
                 }
-                Principal.prnt("Frame " + frame + "; Node " + n.ID + " position = " + position);
+                Principal.prnt("Frame " + frame + "; Node " + n.ID + "
+                        position = " + position);
                 Packet pkt = n.pkts[position];
                 n.pkts.RemoveAt(position);
-                //Console.WriteLine("Node {0:d}; tx: ({1:d}, {2:d})", n.ID, pkt.t, pkt.k);
+                //Console.WriteLine("Node {0:d}; tx: ({1:d}, {2:d})", n.ID,
+                //pkt.t, pkt.k);
                 if (n.f.ID == 0)
                 {
                     results[pkt.t] += pkt.k;
