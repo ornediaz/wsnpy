@@ -25,7 +25,8 @@ if platform.system() == 'Windows':
     compilar = ["csc", "/debug+", "/warnaserror+", filename + ".cs"]
     print compilar
     subprocess.check_call(compilar)
-    subprocess.check_call(['{0}.exe'.format(filename),])
+    # subprocess.check_call(['{0}.exe'.format(filename),])
+    subprocess.check_call(['mdbg', '{0}.exe'.format(filename)])
 if platform.system() == "Linux":
     compilar = ["gmcs", filename + ".cs"]
     print compilar
