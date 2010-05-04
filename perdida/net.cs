@@ -646,7 +646,6 @@ class Pgf
         {
             lst.Add(s);
         }
-        lst.Add("I hate you");
         lst.Add("\\end{document}");
         using (StreamWriter sw = File.CreateText(filename + ".tex"))
         {
@@ -856,6 +855,11 @@ class ProdGlb
     }
     public static void graphRateRandom(int tst_nr, int n_averages, int plot)
     {
+        // This function computes the average metrics at different rates for
+        // different topologies.  This is quite useless, because different
+        // metrics have different operation points.  It unfairly shows poor
+        // performance of the scheduled approach.  The only useful part may be
+        // comparing the unscheduled approaches.
         double tx_rg = 2;
         double x = 3 * tx_rg;
         double y = 3 * tx_rg;
@@ -874,10 +878,8 @@ class ProdGlb
         double[,] pmin = new double[rate_v.Length, types.Length];
         for (int k = 0; k < n_averages; k++)
         {
-            if (G.VB)
-            {
-                Console.WriteLine("Repetition " + k);
-            }
+            Console.WriteLine("Repetition {0,4:D}. Total {1}",
+                        k, G.elapsed());
             G.rgen = new Random(k);
             int[] fv = RandomTree.parents(n, x, y, tx_rg);
             double[] ps = new double[n];
