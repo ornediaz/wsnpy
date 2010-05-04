@@ -272,8 +272,11 @@ class LossTree
                         }
                     }
                 }
-                G.prnt("Frame " + frame + "; Node " + n.ID + "
-                        position = " + position);
+                if (G.VB)
+                {
+                    Console.WriteLine("Frame {0}; Node {1}; position {3}",
+                            frame, n.ID, position);
+                }
                 Packet pkt = n.pkts[position];
                 n.pkts.RemoveAt(position);
                 //Console.WriteLine("Node {0:d}; tx: ({1:d}, {2:d})", n.ID,
@@ -306,7 +309,7 @@ class LossTree
     }
     public void find_schedule(int frames, int source_min)
     {
-        foreach (Node x in postorder)
+        foreach (Node x in nodes)
         {
             if (x.ID == 0)
             {
@@ -669,7 +672,7 @@ class Pgf
                 }
             }
         }
-   }
+    }
 }
 class ProdGlb
 {
@@ -680,11 +683,11 @@ class ProdGlb
         int n_tx_frames = 2000;
         double opt = 0;
         double[] ps;
-        double[] rate_v = Principal.linspace(0.1, 1.5, 28);
+        double[] rate_v = G.linspace(0.1, 1.5, 28);
         int source_min = 3;
         int size = 30;
         int[] types = new int[] { 0, 1, 2, 3, 4 };
-        Principal.VB = false;
+        G.VB = false;
         if (tst_nr == 0)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
@@ -804,7 +807,7 @@ class ProdGlb
         double[,] pmin = new double[rate_v.Length, types.Length];
         for (int k = 0; k < n_averages; k++)
         {
-            if (Principal.VB)
+            if (G.VB)
             {
                 Console.WriteLine("Repetition {0,4:d}", k);
             }
@@ -849,7 +852,7 @@ class ProdGlb
         g.extra_body.Add("\n\\includegraphics[scale=0.4]{ztree.pdf}\n");
         //string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
         //        n_averages);
-        g.save(Principal.comando, plot);
+        g.save(G.comando, plot);
     }
     public static void graphRateRandom(int tst_nr, int n_averages, int plot)
     {
@@ -861,26 +864,26 @@ class ProdGlb
         int frames = 10;
         int n_tx_frames = 2000;
         double opt = 0;
-        double[] rate_v = Principal.linspace(0.1, 1.5, 28);
+        double[] rate_v = G.linspace(0.1, 1.5, 28);
         int source_min = 3;
         int size = 30;
         int[] types = new int[] { 0, 1, 2, 3, 4 };
-        Principal.VB = false;
+        G.VB = false;
         double[,] tota = new double[rate_v.Length, types.Length];
         double[,] mean = new double[rate_v.Length, types.Length];
         double[,] pmin = new double[rate_v.Length, types.Length];
         for (int k = 0; k < n_averages; k++)
         {
-            if (Principal.VB)
+            if (G.VB)
             {
                 Console.WriteLine("Repetition " + k);
             }
-            Principal.rgen = new Random(k);
+            G.rgen = new Random(k);
             int[] fv = RandomTree.parents(n, x, y, tx_rg);
             double[] ps = new double[n];
             for (int u = 0; u < n; u++)
             {
-                ps[u] = 0.5 + Principal.rgen.NextDouble() / 2;
+                ps[u] = 0.5 + G.rgen.NextDouble() / 2;
             }
             for (int j = 0; j < rate_v.Length; j++)
             {
@@ -935,8 +938,8 @@ class ProdGlb
         double[] yv = null;
         if (tst_nr == 0)
         {
-            xv = Principal.linspace(tx_rg, 5 * tx_rg, 5);
-            yv = Principal.linspace(2 * tx_rg, 2.01 * tx_rg, 5);
+            xv = G.linspace(tx_rg, 5 * tx_rg, 5);
+            yv = G.linspace(2 * tx_rg, 2.01 * tx_rg, 5);
         }
         if (xv.GetLength(0) != yv.GetLength(0))
         {
@@ -947,27 +950,27 @@ class ProdGlb
         int n_tx_frames = 2000;
         double opt = 0;
         int[] types = new int[] {0, 1, 2, 3, 4};
-        double[] rate_v = Principal.linspace(0.5, 3, 28);
+        double[] rate_v = G.linspace(0.5, 3, 28);
         int source_min = 3;
         int size = 30;
         double[,] tota = new double[xv.GetLength(0), types.Length];
         double[,] mean = new double[xv.GetLength(0), types.Length];
         double[,] pmin = new double[xv.GetLength(0), types.Length];
-        for (int k = 73; k < n_averages; k++)
+        for (int k = 0; k < n_averages; k++)
         {
             Console.WriteLine("Repetition {0,4:D}. Total {1}",
-                        k, Principal.elapsed());
+                        k, G.elapsed());
             for (int s = 0; s < xv.GetLength(0); s++)
             {
                 Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", s, xv[s]
-                        / tx_rg, Principal.elapsed());
+                        / tx_rg, G.elapsed());
                 int n = (int)(rho * xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
-                Principal.rgen = new Random(k);
+                G.rgen = new Random(k);
                 int[] fv = RandomTree.parents(n, xv[s], yv[s], tx_rg);
                 double[] ps = new double[n];
                 for (int u = 0; u < n; u++)
                 {
-                    ps[u] = 0.5 + Principal.rgen.NextDouble() / 2;
+                    ps[u] = 0.5 + G.rgen.NextDouble() / 2;
                 }
                 for (int i = 0; i < types.Length; i++)
                 {
