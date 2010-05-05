@@ -675,8 +675,12 @@ class Pgf
 }
 class ProdGlb
 {
+    // Simulate a deterministic topology for different rates.  This allows to
+    // see how the different methods work with different topologies. 
     public static void graphRate1(int tst_nr, int n_averages, int plot)
     {
+        Console.WriteLine("Executing {0}({1:d2},{2:d6},{3}). Total {4}",
+                G.current(), tst_nr, n_averages, plot, G.elapsed());
         int frames = 10;
         int[] fv;
         int n_tx_frames = 2000;
@@ -806,10 +810,9 @@ class ProdGlb
         double[,] pmin = new double[rate_v.Length, types.Length];
         for (int k = 0; k < n_averages; k++)
         {
-            if (G.VB)
-            {
-                Console.WriteLine("Repetition {0,4:d}", k);
-            }
+
+            Console.WriteLine("Repetition {0} of {1}({2:d2},{3:d6},{4}) {5}",
+                    k, G.current(), tst_nr, n_averages, plot, G.elapsed());
             for (int j = 0; j < rate_v.Length; j++)
             {
                 for (int i = 0; i < types.Length; i++)
@@ -849,17 +852,19 @@ class ProdGlb
         g.add("rate", "pmin");
         g.mplot(rate_v, pmin, legv);
         g.extra_body.Add("\n\\includegraphics[scale=0.4]{ztree.pdf}\n");
-        //string filename = String.Format("graphRate1_{0:d2}_{1:d6}", tst_nr,
-        //        n_averages);
-        g.save(G.comando, plot);
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                tst_nr, n_averages);
+        g.save(filename, plot);
     }
+    // This function computes the average metrics at different rates for
+    // different topologies.  This is quite useless, because different metrics
+    // have different operation points.  It unfairly shows poor performance of
+    // the scheduled approach.  The only useful part may be comparing the
+    // unscheduled approaches.
     public static void graphRateRandom(int tst_nr, int n_averages, int plot)
     {
-        // This function computes the average metrics at different rates for
-        // different topologies.  This is quite useless, because different
-        // metrics have different operation points.  It unfairly shows poor
-        // performance of the scheduled approach.  The only useful part may be
-        // comparing the unscheduled approaches.
+        Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
+                tst_nr, n_averages, plot);
         double tx_rg = 2;
         double x = 3 * tx_rg;
         double y = 3 * tx_rg;
@@ -925,16 +930,16 @@ class ProdGlb
         g.mplot(rate_v, mean, legv);
         g.add("rate", "pmin");
         g.mplot(rate_v, pmin, legv);
-        string filename =
-            String.Format("ProdGlb.graphRateRandom_{0:d2}_{1:d6}", tst_nr,
-                    n_averages);
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                tst_nr, n_averages);
         g.save(filename, plot);
     }
+    // Compare sheduled vs unscheduled approaches operating at their optimal
+    // point as a function of the node density and for different topologies.
     public static void graphRateSize(int tst_nr, int n_averages, int plot)
     {
-        // Compare sheduled vs unscheduled approaches operating at their
-        // optimal point as a function of the node density and for different
-        // topologies.
+        Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
+                tst_nr, n_averages, plot);
         double tx_rg = 2;
         double[] xv = null;
         double[] yv = null;
@@ -1029,13 +1034,12 @@ class ProdGlb
         g.mplot(xn, mean, legv);
         g.add(xlab, "pmin");
         g.mplot(xn, pmin, legv);
-        string filename = String.Format("ProdGlb.graphRateSize_{0:d2}_{1:d6}",
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
                 tst_nr, n_averages);
         g.save(filename, plot);
     }
-    public static void multiplot1()
+    public static void multiplot1(int n_averages)
     {
-        int n_averages = 1000;
         for (int tst_nr = 0; tst_nr < 12; tst_nr++)
         {
             Console.WriteLine("Iteration {0} of multiplot", tst_nr);
@@ -1312,6 +1316,16 @@ class G
     public static void prnt(String s)
     {
         if (G.VB) { Console.WriteLine(s); }
+    }
+    // get current method name
+    public static string current()
+    {
+        System.Diagnostics.StackFrame stackframe = 
+            new System.Diagnostics.StackFrame(1, true);
+        
+        return stackframe.GetMethod().ReflectedType.Name 
+            + "."
+            + stackframe.GetMethod().Name ;
     }
     public static void tst_1()
     {
