@@ -857,10 +857,10 @@ class ProdGlb
         g.save(filename, plot);
     }
     // This function computes the average metrics at different rates for
-    // different topologies.  This is quite useless, because different metrics
-    // have different operation points.  It unfairly shows poor performance of
-    // the scheduled approach.  The only useful part may be comparing the
-    // unscheduled approaches.
+    // different topologies.  This is quite useless, because different
+    // metrics have different operation points.  It unfairly shows poor
+    // performance of the scheduled approach.  The only useful part may be
+    // comparing the unscheduled approaches.
     public static void graphRateRandom(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
@@ -945,6 +945,11 @@ class ProdGlb
         double[] yv = null;
         if (tst_nr == 0)
         {
+            xv = new double[] {tx_rg, 2 * tx_rg};
+            yv = new double[] {tx_rg,     tx_rg};
+        }
+        else if (tst_nr == 1)
+        {
             xv = G.linspace(tx_rg, 5 * tx_rg, 5);
             yv = G.linspace(2 * tx_rg, 2.01 * tx_rg, 5);
         }
@@ -963,15 +968,16 @@ class ProdGlb
         double[,] tota = new double[xv.GetLength(0), types.Length];
         double[,] mean = new double[xv.GetLength(0), types.Length];
         double[,] pmin = new double[xv.GetLength(0), types.Length];
+        double[,] ropt = new double[xv.GetLength(0), types.Length];
         for (int k = 0; k < n_averages; k++)
         {
             Console.WriteLine("Repetition {0,4:D}. Total {1}",
                         k, G.elapsed());
             for (int s = 0; s < xv.GetLength(0); s++)
             {
-                Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", s, xv[s]
-                        / tx_rg, G.elapsed());
-                int n = (int)(rho * xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
+                Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", s,
+				  xv[s] / tx_rg, G.elapsed());
+                int n = (int)(rho* xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
                 G.rgen = new Random(k);
                 int[] fv = RandomTree.parents(n, xv[s], yv[s], tx_rg);
                 double[] ps = new double[n];
@@ -984,6 +990,7 @@ class ProdGlb
                     double m_tota = 0;
                     double m_mean = 0;
                     double m_pmin = 0;
+                    double m_ropt = rate_v[0];
                     for (int j = 0; j < rate_v.Length; j++)
                     {
                         LossTree t = new LossTree(fv, ps, size);
@@ -991,8 +998,8 @@ class ProdGlb
                         {
                             t.find_schedule(frames, source_min);
                         }
-                        int[] results = t.simulate_it(n_tx_frames, rate_v[j],
-                                types[i], k);
+                        int[] results = t.simulate_it(n_tx_frames, 
+                                            rate_v[j], types[i], k);
                         double a_tota = 0;
                         double a_mean = 0;
                         double a_pmin = 0;
@@ -1010,11 +1017,13 @@ class ProdGlb
                             m_tota = a_tota;
                             m_mean = a_mean;
                             m_pmin = a_pmin;
+                            m_ropt = rate_v[j];
                         }
                     }
                     tota[s, i] += m_tota / n_averages;
                     mean[s, i] += m_mean / n_averages;
                     pmin[s, i] += m_pmin / n_averages;
+                    ropt[s, i] += m_ropt / n_averages;
                 }
             }
         }
@@ -1034,6 +1043,8 @@ class ProdGlb
         g.mplot(xn, mean, legv);
         g.add(xlab, "pmin");
         g.mplot(xn, pmin, legv);
+        g.add(xlab, "ropt");
+        g.mplot(xn, ropt, legv);
         string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
                 tst_nr, n_averages);
         g.save(filename, plot);
@@ -1077,8 +1088,8 @@ class RandomTree
             {
                 for (int j = 0; j < n; j++)
                 {
-                    double dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2) +
-                            Math.Pow(xy[i, 1] - xy[j, 1], 2));
+                    double dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2)
+                           + Math.Pow(xy[i, 1] - xy[j, 1], 2));
                     if (dist < tx_rg)
                     {
                         cost[i,j] = dist;
