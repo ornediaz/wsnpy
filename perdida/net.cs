@@ -309,16 +309,10 @@ class LossTree
     }
     public void find_schedule(int frames, int source_min)
     {
+        this.nodes[0].ps = 1.0;
         foreach (Node x in nodes)
         {
-            if (x.ID == 0)
-            {
-                x.q = frames;
-            }
-            else
-            {
-                x.q = (int)Math.Floor(x.ps * frames);
-            }
+            x.q = (int)Math.Floor(x.ps * frames);
             foreach (Node y in x.ancestors)
             {
                 x.q = Math.Min(x.q, (int)Math.Floor(y.ps * frames));
@@ -463,6 +457,29 @@ class LossTree
                 }
                 Console.WriteLine();
             }
+        }
+    }
+    public static void tst_find_schedule()
+    {
+	    int[] fv = new int[] {-1, 0, 1, 1, 1, 0, 5, 6, 7, 8};
+	    double[] ps = new double[fv.Length];
+	    for (int i = 0; i < ps.Length; i++)
+	    {
+            if (i < 5)
+            {
+                ps[i] = 0.4;
+            }
+            else
+            {
+                ps[i] = 0.8;
+            }
+        }
+        LossTree t = new LossTree(fv, ps, 8);
+        G.VB = true;
+        t.find_schedule(5, 2);
+        foreach (Node n in t.nodes)
+        {
+            Console.WriteLine("Node {0}: q = {1}", n.ID, n.q);
         }
     }
 }
