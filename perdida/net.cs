@@ -827,7 +827,6 @@ class ProdGlb
         double[,] pmin = new double[rate_v.Length, types.Length];
         for (int k = 0; k < n_averages; k++)
         {
-
             Console.WriteLine("Repetition {0} of {1}({2:d2},{3:d6},{4}) {5}",
                     k, G.current(), tst_nr, n_averages, plot, G.elapsed());
             for (int j = 0; j < rate_v.Length; j++)
