@@ -482,6 +482,18 @@ class LossTree
             Console.WriteLine("Node {0}: q = {1}", n.ID, n.q);
         }
     }
+    public static void tst_find_schedule2()
+    {
+	    int[] fv = new int[] {-1, 0, 1, 1, 0};
+	    double[] ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
+        LossTree t = new LossTree(fv, ps, 8);
+        G.VB = true;
+        t.find_schedule(5, 3);
+        foreach (Node n in t.nodes)
+        {
+            Console.WriteLine("Node {0}: q = {1}", n.ID, n.q);
+        }
+    }
 }
 class Node
 {
@@ -552,7 +564,7 @@ class PgfAxis
         }
     }
 }
-class PlgGlb
+class PltGlb
 {
     public static void plot_logical3(int[] fv, double[] ps, int plot)
     {
@@ -817,11 +829,36 @@ class ProdGlb
                 }
             }
         }
+        // These parameters were chosen to show that the optimal rate is hard
+        // to determine.  In this case, the total is higher for 0.83, despite
+        // the fact that it means that node 1 has spare capacity that it could
+        // be using to transmit more packets.
+		else if (tst_nr == 12)
+		{
+			fv = new int[] {-1, 0, 1, 1, 1, 1, 1};
+			ps = new double[] {1, 0.88, 0.83, 0.83, 0.83, 0.83, 0.83};
+		}
+        // These parameters were chosen to show the usefulness of the
+        // scheduling algorithm in a small network.
+        else if (tst_nr == 13)
+        {
+            fv = new int[] {-1, 0, 1, 1, 0};
+            ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
+        }
+        else if (tst_nr == 14)
+        {
+            fv = new int[] {-1, 0, 1, 2, 3, 4, 5};
+            ps = new double[fv.Length];
+            for (int i = 0; i < fv.Length; i++)
+            {
+                ps[i] = 0.5;
+            }
+        }
         else
         {
             throw new ArgumentException("Inappropriate tst_nr");
         }
-        PlgGlb.plot_logical3(fv, ps, plot);
+        PltGlb.plot_logical3(fv, ps, plot);
         double[,] tota = new double[rate_v.Length, types.Length];
         double[,] mean = new double[rate_v.Length, types.Length];
         double[,] pmin = new double[rate_v.Length, types.Length];
@@ -1216,7 +1253,7 @@ class RandomTree
         int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
         int[] fv = parents(n, x, y, tx_rg);
         double[] ps = new double[n];
-        PlgGlb.plot_logical3(fv, ps, 2);
+        PltGlb.plot_logical3(fv, ps, 2);
     }
 }
 class tLossTree
@@ -1301,7 +1338,7 @@ class tPgf
     {
         int[] fv = new int[] { -1, 0, 1, 1 };
         double[] ps = new double[] { 1, 0.4, 0.3, 0.2 };
-        PlgGlb.plot_logical3(fv, ps, 2);
+        PltGlb.plot_logical3(fv, ps, 2);
     }
     public static void tst_plot()
     {
@@ -1393,6 +1430,7 @@ class G
     }
     public static void Main(string[] args)
     {
+        Console.WriteLine("Execution started on {0}", DateTime.Now.ToString("u"));
         stopwatch = new Stopwatch();
         stopwatch.Start();
 
@@ -1407,5 +1445,6 @@ class G
         string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
             ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
         Console.WriteLine("Runtime = " + elapsed());
+        Console.WriteLine("Execution terminated on {0}", DateTime.Now.ToString("u"));
     }
 }
