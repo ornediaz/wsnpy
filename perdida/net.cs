@@ -1104,7 +1104,7 @@ class ProdGlb
     }
     public static void multiplot1(int n_averages)
     {
-        for (int tst_nr = 0; tst_nr < 12; tst_nr++)
+        for (int tst_nr = 0; tst_nr < 15; tst_nr++)
         {
             Console.WriteLine("Iteration {0} of multiplot", tst_nr);
             ProdGlb.graphRate1(tst_nr, n_averages, 1);
