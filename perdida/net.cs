@@ -344,6 +344,10 @@ class LossTree
                 {
                     stack.Push(x);
                 }
+                // In the following lines the <= in "tree.Count<=source_min"
+                // is correct because tree includes ancestors, which in turn
+                // includes the data sink.  The sink should not be counted
+                // in source_min.
                 while (stack.Count > 0 && tree.Count <= source_min)
                 {
                     Node y = stack.Pop();
@@ -461,10 +465,10 @@ class LossTree
     }
     public static void tst_find_schedule()
     {
-	    int[] fv = new int[] {-1, 0, 1, 1, 1, 0, 5, 6, 7, 8};
-	    double[] ps = new double[fv.Length];
-	    for (int i = 0; i < ps.Length; i++)
-	    {
+        int[] fv = new int[] {-1, 0, 1, 1, 1, 0, 5, 6, 7, 8};
+        double[] ps = new double[fv.Length];
+        for (int i = 0; i < ps.Length; i++)
+        {
             if (i < 5)
             {
                 ps[i] = 0.4;
@@ -484,8 +488,8 @@ class LossTree
     }
     public static void tst_find_schedule2()
     {
-	    int[] fv = new int[] {-1, 0, 1, 1, 0};
-	    double[] ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
+        int[] fv = new int[] {-1, 0, 1, 1, 0};
+        double[] ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
         LossTree t = new LossTree(fv, ps, 8);
         G.VB = true;
         t.find_schedule(5, 3);
@@ -563,6 +567,20 @@ class PgfAxis
             plot(xv, yv, legv[j]);
         }
     }
+    // Inverse multiplot.  It is inverse in the sense that I swap the x and
+    // y axis.  It is multi in the sense that
+    public void implot(double[] xv, double[,] ym, string[] legv)
+    {
+        for (int j = 0; j < ym.GetLength(1); j++)
+        {
+            double[] yv = new double[ym.GetLength(0)];
+            for (int i = 0; i < ym.GetLength(0); i++)
+            {
+                yv[i] = ym[i, j];
+            }
+            plot(yv, xv, legv[j]);
+        }
+    }
 }
 class PltGlb
 {
@@ -620,6 +638,10 @@ class Pgf
     public void mplot(double[] xv, double[,] ym, string[] legv)
     {
         body[body.Count - 1].mplot(xv, ym, legv);
+    }
+    public void implot(double[] xv, double[,] ym, string[] legv)
+    {
+        body[body.Count - 1].implot(xv, ym, legv);
     }
     public void save(string filename, int plot)
     {
@@ -720,31 +742,41 @@ class ProdGlb
         int size = 30;
         int[] types = new int[] { 0, 1, 2, 3, 4 };
         G.VB = false;
+        // Shows the advantage of the scheduled approach, particularly in
+        // terms of 
         if (tst_nr == 0)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
             ps = new double[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 };
         }
+        // No advantage in the scheduled approach
         else if (tst_nr == 1)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
             ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
         }
+        // No advantage in scheduled approach
         else if (tst_nr == 2)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
             ps = new double[] { 1, 0.4, 0.8, 0.8, 0.8, 0.8 };
         }
+        // Slight advantage of scheduled approach, all select/discard
+        // policies are similar.
         else if (tst_nr == 3)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
             ps = new double[] { 1, 0.6, 0.6, 0.6, 0.2, 0.2 };
         }
+        // Advantage of scheduled approach for low rate, great variety
+        // between select/discard policies, but 0 is overall the best.
         else if (tst_nr == 4)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
             ps = new double[] { 1, 0.3, 0.6, 0.6, 0.2, 0.2 };
         }
+        // No schedule advantage and moderate advantage of packet
+        // selection.  Strong peak at the optimal.
         else if (tst_nr == 5)
         {
             fv = new int[] { -1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5 };
@@ -754,6 +786,7 @@ class ProdGlb
                 ps[i] = 0.3;
             }
         }
+        // No schedule advantage and moderate advantage of packet selection.
         else if (tst_nr == 6)
         {
             fv = new int[] { -1, 0, 1, 2, 3, 4, 5 };
@@ -763,6 +796,8 @@ class ProdGlb
                 ps[i] = 0.3;
             }
         }
+        // Unsuccessful attempt to make the hybrid select/discard topology
+        // work.
         else if (tst_nr == 7)
         {
             fv = new int[] {-1, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2};
@@ -797,6 +832,8 @@ class ProdGlb
                 }
             }
         }
+        // These parameters are chosen to show the advantage of the
+        // scheduled approach vs the unscheduled approach.
         else if (tst_nr == 10)
         {
             fv = new int[] {-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12};
@@ -829,15 +866,15 @@ class ProdGlb
                 }
             }
         }
-        // These parameters were chosen to show that the optimal rate is hard
-        // to determine.  In this case, the total is higher for 0.83, despite
-        // the fact that it means that node 1 has spare capacity that it could
-        // be using to transmit more packets.
-		else if (tst_nr == 12)
-		{
-			fv = new int[] {-1, 0, 1, 1, 1, 1, 1};
-			ps = new double[] {1, 0.88, 0.83, 0.83, 0.83, 0.83, 0.83};
-		}
+        // These parameters were chosen to show that the optimal rate is
+        // hard to determine.  In this case, the total is higher for 0.83,
+        // despite the fact that it means that node 1 has spare capacity
+        // that it could be using to transmit more packets.
+        else if (tst_nr == 12)
+        {
+            fv = new int[] {-1, 0, 1, 1, 1, 1, 1};
+            ps = new double[] {1, 0.88, 0.83, 0.83, 0.83, 0.83, 0.83};
+        }
         // These parameters were chosen to show the usefulness of the
         // scheduling algorithm in a small network.
         else if (tst_nr == 13)
@@ -845,6 +882,8 @@ class ProdGlb
             fv = new int[] {-1, 0, 1, 1, 0};
             ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
         }
+        // These parameters show that under a linear topology with all links
+        // equally good, all select/discard policies perform very similarly.
         else if (tst_nr == 14)
         {
             fv = new int[] {-1, 0, 1, 2, 3, 4, 5};
@@ -853,6 +892,51 @@ class ProdGlb
             {
                 ps[i] = 0.5;
             }
+        }
+        // These parameters show a linear topology whose last node has many
+        // children.  This is a good example of a situation in which the
+        // select/discard type 2 performs much better than the other types.
+        else if (tst_nr == 15)
+        {
+            fv = new int[] { -1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5 };
+            ps = new double[12];
+            for (int i = 0; i < fv.Length; i++)
+            {
+                if (i < 6)
+                {
+                    ps[i] = 0.3;
+                }
+                else
+                {
+                    ps[i] = 1;
+                }
+            }
+        }
+        // These parameters show that under a linear topology with unequal
+        // link qualities, the priority traffic may perform best.
+        else if (tst_nr == 16)
+        {
+            fv = new int[] {-1, 0, 1, 2, 3, 4, 5, 6, 7};
+            ps = new double[fv.Length];
+            for (int i = 0; i < fv.Length; i++)
+            {
+                if (i < 4)
+                    ps[i] = 0.4;
+                else
+                    ps[i] = 1;
+            }
+        }
+        else if (tst_nr == 17)
+        {
+            fv = new int[] {-1, 0, 1, 1};
+            ps = new double[] {1, 0.8, 0.4, 0.4};
+            source_min = 2;
+        }
+        else if (tst_nr == 18)
+        {
+            fv = new int[] {-1, 0, 1, 1, 0};
+            ps = new double[] {1, 0.8, 0.6, 0.4, 0.2};
+            source_min = 2;
         }
         else
         {
@@ -904,6 +988,8 @@ class ProdGlb
         g.mplot(rate_v, mean, legv);
         g.add("rate", "pmin");
         g.mplot(rate_v, pmin, legv);
+        g.add("missing data tolerance", "rate efficiency");
+        g.implot(rate_v, pmin, legv);
         g.extra_body.Add("\n\\includegraphics[scale=0.4]{ztree.pdf}\n");
         string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
                 tst_nr, n_averages);
@@ -919,9 +1005,9 @@ class ProdGlb
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
         double tx_rg = 2;
-        double x = 3 * tx_rg;
-        double y = 3 * tx_rg;
-        double rho = 8;
+        double x = 5 * tx_rg;
+        double y = 5 * tx_rg;
+        double rho = 9;
         int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
         int frames = 10;
         int n_tx_frames = 2000;
@@ -929,7 +1015,7 @@ class ProdGlb
         double[] rate_v = G.linspace(0.1, 1.5, 28);
         int source_min = 3;
         int size = 30;
-        int[] types = new int[] { 0, 1, 2, 3, 4 };
+        int[] types = new int[] {0, 1, 2, 3, 4};
         G.VB = false;
         double[,] tota = new double[rate_v.Length, types.Length];
         double[,] mean = new double[rate_v.Length, types.Length];
