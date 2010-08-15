@@ -1,3 +1,11 @@
+// python run.py ProdGlb.graphRate1 15 1 1
+// ProdGlb is the class with the main functions
+//
+// The functions have to be run with:
+
+
+
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -67,6 +75,7 @@ class LossTree
             int position = 0;
             if (n.discard_type == 0)
             {
+                // Discard the oldest packet
                 position = 0;
                 for (int i = 0; i < n.pkts.Count; i++)
                 {
@@ -78,6 +87,7 @@ class LossTree
             }
             else if (n.discard_type == 1)
             {
+                // Discard the packet with the minimum node count k
                 int kmin = 999999;
                 foreach (Packet p in n.pkts)
                 {
@@ -102,6 +112,11 @@ class LossTree
             }
             else if (n.discard_type == 2)
             {
+                // Discard the oldest high-priority packet
+
+                // High priority packets are in the n.gen list
+                //
+                // The list l contains all the high priority ppackets.
                 List<int> l = new List<int>();
                 for (int i = 0; i < n.pkts.Count; i++)
                 {
@@ -112,6 +127,8 @@ class LossTree
                 }
                 if (l.Count == 0)
                 {
+                    // If there are no high-priority packets, treat all
+                    // nodes as high priority.
                     for (int i = 0; i < n.pkts.Count; i++)
                     {
                         l.Add(i);
@@ -214,6 +231,7 @@ class LossTree
                 int position = 0;
                 if (n.select_type == 0)
                 {
+                    // Select the oldest packet.
                     for (int i = 0; i < n.pkts.Count; i++)
                     {
                         if (n.pkts[i].t < n.pkts[position].t)
@@ -224,6 +242,8 @@ class LossTree
                 }
                 else if (n.select_type == 1)
                 {
+                    // Among all the packets with the biggest node count k,
+                    // select the oldest packet.
                     int maxcount = 0;
                     foreach (Packet p in n.pkts)
                     {
@@ -248,6 +268,9 @@ class LossTree
                 }
                 else if (n.select_type == 2)
                 {
+                    // Among all the packets with a high priority, select
+                    // the oldest.  If no packets have high priority, select
+                    // the oldest packet.
                     List<int> l = new List<int>();
                     for (int i = 0; i < n.pkts.Count; i++)
                     {
@@ -258,6 +281,8 @@ class LossTree
                     }
                     if (l.Count == 0)
                     {
+                        // If there are no high-priority packets, consider
+                        // them equally.
                         for (int i = 0; i < n.pkts.Count; i++)
                         {
                             l.Add(i);
@@ -618,6 +643,7 @@ class PltGlb
         }
     }
 }
+//  Main plotting interface
 class Pgf
 {
     public List<PgfAxis> body = new List<PgfAxis>();
@@ -726,8 +752,12 @@ class Pgf
 }
 class ProdGlb
 {
-    // Simulate a deterministic topology for different rates.  This allows to
-    // see how the different methods work with different topologies. 
+    // Simulate a deterministic topology for different rates.  
+    //
+    // The topology depends on parameter tst_nr
+    //
+    // The goal is to see how the different methods work with different
+    // topologies. 
     public static void graphRate1(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3}). Total {4}",
@@ -740,7 +770,7 @@ class ProdGlb
         double[] rate_v = G.linspace(0.1, 1.5, 28);
         int source_min = 3;
         int size = 30;
-        int[] types = new int[] { 0, 1, 2, 3, 4 };
+        int[] types = new int[] {0, 1, 2, 3, 4};
         G.VB = false;
         // Shows the advantage of the scheduled approach, particularly in
         // terms of 
@@ -935,8 +965,15 @@ class ProdGlb
         else if (tst_nr == 18)
         {
             fv = new int[] {-1, 0, 1, 1, 0};
-            ps = new double[] {1, 0.8, 0.6, 0.4, 0.2};
+            ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
             source_min = 2;
+        }
+        else if (tst_nr == 19)
+        {
+            fv = new int[] {-1, 0, 1, 1, 0};
+            ps = new double[] {1, 0.66, 0.49, 0.16, 0.16};
+            source_min = 2;
+            frames = 5;
         }
         else
         {

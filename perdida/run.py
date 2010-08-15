@@ -1,3 +1,5 @@
+# Syntax:
+# python run.py ProdGlb.graphRate1 15 1 1
 import sys
 import pdb
 import subprocess
