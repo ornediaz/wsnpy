@@ -1790,6 +1790,28 @@ class FlexiTPNet(ACSPNet):
                         .format(node.f, node.id))
         z.statis_adapt()
         z.simulate_net()
+class FlexiTPNet2(FlexiTPNet):
+    """Simulator of FlexiTP without packet losses."""
+    def __init__(z, wsn, cont_f=10, Q=0.1, slot_t=2, n_exch=70, nm=1000, 
+                 fr=2, pause=3, VB=False, until=1e8):
+        """Run the initial scheduling phase of FlexiTP.
+
+        Construct a network and simulate it.
+
+
+        Keyword parameters:
+        wsn 
+        cont_f    -- number of Q's in contention
+        Q=0.1,    -- time before transmitting
+        slot_t    -- duration of a transmission slot
+        n_exch    -- number of slots for schedule exchange phase
+        nm        -- maximum number of slots to be allocated
+        fr        -- number of times to forward a packet
+        pause     -- 3,
+        VB        --
+        until
+        """
+        queue = 0
 def test_manually_defined_network():
     '''Create simple network calling ManuallyDefinedNetwork.'''
     np.random.seed(3)
@@ -2539,6 +2561,8 @@ def graphRandSched4(tst_nr=1, action=1, plot=0):
     g.add("number of node in the network $M$", "$M/N$")
     g.plot(n_nodes, norm)
     g.save(plot=action)
+def tst_FlexiTP2():
+    wsn = PhyNet(c=8,x=3*tx_rg1, y=1*tx_rg1, **net_par1)
 def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     """Dependence on the node density.
 
@@ -2550,11 +2574,12 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     nnew = 2 # number of nodes that are replaced in each channel change
     print('Number of nodes to be tested: {0}'.format(n_nodes))
     n_slots_su  = np.zeros((repetitions, n_nodes.size, 3))
-    n_dismissed = np.zeros((repetitions, n_nodes.size, 2))
+    n_dismissed = np.zeros((repetitions, n_nodes.size, 4))
     # Number of slots per FTS used in the initialization phase of FlexiTP
     nadve1 = np.zeros((repetitions, n_nodes.size, 2))
     # Number of slots per FTS used in the transmission phase of FlexiTP
     nadve2 = np.zeros((repetitions, n_nodes.size, 2))
+    # Number of packets lost per incorporation in ACSP with fr=3
     losse = np.zeros((repetitions, n_nodes.size))
     # n_slots_tx stores the number of slots used by the protocol.  It cares
     # about the bandwidth used rather than the energy.  It is the number of
@@ -2568,16 +2593,21 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k+1)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
+                wsn2 = copy.deepcopy(wsn)
+                wsn2.snr = 0.00001
                 nets = []
-                for j in xrange(3):
+                for j in xrange(5):
                     np.random.seed(k)
                     print("Constructing net {0}".format(j))
-                    if j < 2:
+                    if j in (0, 1):
                         nets.append(FlexiTPNet(wsn, fr=j + 1, n_exch=70)) 
-                    else:
+                    elif j == 2:
                         nets.append(ACSPNet(wsn, cont_f=100, pairs=40))
-                n_slots_su[k, i, :] = [n.n_slots() for n in nets]
-                n_dismissed[k, i, :] = [n.dismissed() for n in nets[:2]]
+                    else:
+                        nets.append(FlexiTPNet(wsn2, fr=j - 2, n_exch=70)) 
+                n_slots_su[k, i, :] = [n.n_slots() for n in nets[:3]]
+                n_dismissed[k, i, :] = [n.dismissed() for n in (nets[0],
+                    nets[1], nets[3],nets[4])]
                 nadve1[k, i, :] = [n.nadve for n in nets[:2]]
                 print("Replacing the last {0} nodes".format(nnew))
                 np.random.seed(k)
@@ -2593,7 +2623,7 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
                 losse[k, i] = nets[2].record['losse'] * nets[2].mult_fact
                 n_slots_tx[k, i, :] = [c * n.n_frames() * n.nadve if j < 2 
                     else (c * n.nsds * n.n_frames()) + 2 * n.record['losse']
-                    for j, n in enumerate(nets)]
+                    for j, n in enumerate(nets[:3])]
         save_npz('n_slots_su', 'n_dismissed', 'nadve1', 'nadve2', 'losse',
                  'n_slots_tx')
     # Plot schedule sizes
@@ -2606,7 +2636,7 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
     # Plot dismissal probability. 
     g.add(x_t, r'fraction of unduly dismissed $p_d$')
-    g.mplot(rho_v, r['n_dismissed'], leg[:3])
+    g.mplot(rho_v, r['n_dismissed'], leg[:2]+ ["2-hop", "3-hop"])
     # Plot number of slots necessary to communicate schedule
     g.add(x_t, r"slots per exchange in FlexiTP's init")
     g.mplot(rho_v, r['nadve2'], leg[:3])
