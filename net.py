@@ -328,6 +328,7 @@ class Tree(object):
         # 'sort' arranges smallest first.
     def bf_schedule(z, hops=2, sort=False):
         '''Return tree schedule computed in breadth first order.
+
         Parameters:
         z.p       -- vector of coordinates; necessary if sort==True 
         z.f       -- vector of parents
@@ -338,7 +339,14 @@ class Tree(object):
                    so I recommend passing p=None.
 
         In the coloring process, no color within 'hops' hops away in the
-        graph defined by 'tx_l' is used.'''
+        graph defined by 'tx_l' is used.
+        
+        The output is slot_v which is a vector that in position $i$
+        indicates the slot assigned to node $i$.  In other words, every node
+        is only assigned one slot, which means that the schedule is for data
+        aggregation.
+        
+        '''
         c = len(z.f)
         # Initialize the color of all the nodes to -1
         slot_v = np.zeros(c, dtype=int)
@@ -367,6 +375,7 @@ class Tree(object):
             while clr in usedColors:
                 clr += 1
             slot_v[current_node] = clr
+        # Invert the schedule
         m = max(slot_v)
         i = slot_v.nonzero()[0]
         slot_v[i] = m + 1 - slot_v[i]
@@ -1695,9 +1704,16 @@ class ACSPNet(RandSchedNet):
             raise Error('We should not reach this point')
         return unconnected_l
     def complete_convergecast(z):
-        """Raise an error if obtained schedule is incomplete.  If the
-        caller intentionally did not want to give enough time (z.until is
-        small), then nothing else is executed."""
+        """Raise an error if schedule is incomplete.  
+
+        The schedule is for uncompressed data gathering, which means that
+        the number of transmission slots of every node should be its number
+        of descendants plus one.
+        
+        If the caller intentionally did not want to give enough
+        time (z.until is small), then nothing else is executed.
+        
+        """
         if z.until < 1e4:
             return
         to_schedule = [n.id for n in z if n.f >= 0]
@@ -1792,26 +1808,42 @@ class FlexiTPNet(ACSPNet):
         z.simulate_net()
 class FlexiTPNet2(FlexiTPNet):
     """Simulator of FlexiTP without packet losses."""
-    def __init__(z, wsn, cont_f=10, Q=0.1, slot_t=2, n_exch=70, nm=1000, 
-                 fr=2, pause=3, VB=False, until=1e8):
+    def __init__(z, wsn, fr=2, VB=False):
         """Run the initial scheduling phase of FlexiTP.
 
-        Construct a network and simulate it.
-
-
-        Keyword parameters:
-        wsn 
-        cont_f    -- number of Q's in contention
-        Q=0.1,    -- time before transmitting
-        slot_t    -- duration of a transmission slot
-        n_exch    -- number of slots for schedule exchange phase
-        nm        -- maximum number of slots to be allocated
-        fr        -- number of times to forward a packet
-        pause     -- 3,
-        VB        --
-        until
+        the output are the lists: z[i].tx_d{slot: source}, where i is the
+        index of each node.
         """
-        queue = 0
+        z.wsn = wsn
+        z.until = 1e5
+        z[:] = [Node(id=i, sim=z) for i in xrange(len(wsn.f))]
+        for node in z:
+            node.children = [x for x in z if x.f == node.id]
+        # queue = [(source, relay, slot)]
+        queue = [(i, i, 0) for i in (z[0].children)] 
+        while queue:
+            source, relay, slot = queue.pop(0) 
+            if VB is True:
+                print("Processing source={0}, relay={1}, slot={2}".
+                        format(source, relay, slot))
+            # Compute the set of nodes s whose color I cannot use. Two parts:
+            # 1) Nodes that interfere with my parent's reception
+            interferers = k_neigh(node_set=z[relay].f, hops=fr, tx_l=wsn.tx_l)
+            # 2) Nodes whose parents can interfere with me
+            for q in k_neigh(node_set=relay, hops=fr, tx_l=wsn.tx_l):
+                interferers.update(z[q].children) # Their parents
+            # Start testing the next color to the one of the parent. 
+            usedColors = set(z[relay].tx_d.keys())
+            for interferer in interferers:
+                usedColors.update(z[interferer].tx_d.keys())
+            while slot in usedColors:
+                slot += 1
+            z[relay].tx_d[slot] = source 
+            z[z[relay].f].rx_d[slot] = (relay, source)
+            if z[relay].f > 0:
+                queue.insert(0, (source, z[relay].f, slot+1)) 
+            if source == relay:
+                queue.extend((i, i, 0) for i in z[relay].children)
 def test_manually_defined_network():
     '''Create simple network calling ManuallyDefinedNetwork.'''
     np.random.seed(3)
@@ -2562,7 +2594,13 @@ def graphRandSched4(tst_nr=1, action=1, plot=0):
     g.plot(n_nodes, norm)
     g.save(plot=action)
 def tst_FlexiTP2():
+    np.random.seed(0)
     wsn = PhyNet(c=8,x=3*tx_rg1, y=1*tx_rg1, **net_par1)
+    print("The tree is {0}".format(wsn.f))
+    n1 = FlexiTPNet2(wsn, VB=True)
+    n1.complete_convergecast()
+    n1.print_dicts()
+    print(n1.dismissed())
 def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     """Dependence on the node density.
 
