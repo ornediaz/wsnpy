@@ -2631,7 +2631,7 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
         for k in xrange(repetitions):
             print_iter(k, repetitions)
             for i, c in enumerate(n_nodes):
-                print_nodes(c, k+1)
+                print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
                 nets = []
                 for j in xrange(6):
