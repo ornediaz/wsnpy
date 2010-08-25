@@ -2604,7 +2604,9 @@ def tst_FlexiTP2():
 def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     """Dependence on the node density.
 
-    tsn_nr:seconds per iteration, 2:983@ee-moda2
+    tsn_nr:seconds per iteration:
+    ee-moda2: 2:1235
+    ee-moda:  2:623
     """
     x, y = np.array(((3,3), (3,3), (3,3))[tst_nr]) * tx_rg1
     rho_v = np.array(((7,10), (7,11,15), (7,11,15,19,22)) [tst_nr])
@@ -2612,7 +2614,7 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     nnew = 2 # number of nodes that are replaced in each channel change
     print('Number of nodes to be tested: {0}'.format(n_nodes))
     n_slots_su  = np.zeros((repetitions, n_nodes.size, 3))
-    n_dismissed = np.zeros((repetitions, n_nodes.size, 4))
+    n_dismissed = np.zeros((repetitions, n_nodes.size, 5))
     # Number of slots per FTS used in the initialization phase of FlexiTP
     nadve1 = np.zeros((repetitions, n_nodes.size, 2))
     # Number of slots per FTS used in the transmission phase of FlexiTP
@@ -2631,10 +2633,8 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k+1)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
-                wsn2 = copy.deepcopy(wsn)
-                wsn2.snr = 0.00001
                 nets = []
-                for j in xrange(5):
+                for j in xrange(6):
                     np.random.seed(k)
                     print("Constructing net {0}".format(j))
                     if j in (0, 1):
@@ -2642,10 +2642,10 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
                     elif j == 2:
                         nets.append(ACSPNet(wsn, cont_f=100, pairs=40))
                     else:
-                        nets.append(FlexiTPNet(wsn2, fr=j - 2, n_exch=70)) 
+                        nets.append(FlexiTPNet2(wsn, fr=j - 2)) 
                 n_slots_su[k, i, :] = [n.n_slots() for n in nets[:3]]
                 n_dismissed[k, i, :] = [n.dismissed() for n in (nets[0],
-                    nets[1], nets[3],nets[4])]
+                    nets[1], nets[3],nets[4], nets[5])]
                 nadve1[k, i, :] = [n.nadve for n in nets[:2]]
                 print("Replacing the last {0} nodes".format(nnew))
                 np.random.seed(k)
@@ -2674,7 +2674,7 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
     # Plot dismissal probability. 
     g.add(x_t, r'fraction of unduly dismissed $p_d$')
-    g.mplot(rho_v, r['n_dismissed'], leg[:2]+ ["2-hop", "3-hop"])
+    g.mplot(rho_v, r['n_dismissed'], leg[:2]+ ["fr=1", "fr=2", "fr=3"])
     # Plot number of slots necessary to communicate schedule
     g.add(x_t, r"slots per exchange in FlexiTP's init")
     g.mplot(rho_v, r['nadve2'], leg[:3])
@@ -2687,6 +2687,19 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     g.add(x_t, 'overhead in slots')
     g.mplot(rho_v, r['n_slots_tx'], leg)
     g.save(plot=plot)
+def debgraphFlexiDensity():
+    """Dependence on the node density.
+    """
+    tst_nr=2
+    repetitions=1
+    action=1
+    plot=1
+    x, y = np.array(((3,3), (3,3), (3,3))[tst_nr]) * tx_rg1
+    c = 63
+    print_nodes(c, 9)
+    wsn = PhyNet(c=c, x=x, y=y, **net_par1)
+    np.random.seed(8)
+    n1 = FlexiTPNet(wsn, fr=2, n_exch=70)
 def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     """Dependence on the number of SDS tones. 
 
