@@ -15,6 +15,7 @@
 *.css 
 *.doc 
 *.dvi 
+*.exe
 *.htm
 *.html 
 *.idv 
