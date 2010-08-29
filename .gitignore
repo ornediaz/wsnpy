@@ -38,6 +38,7 @@
 *.xref
 *_000001*
 /#*
+perdida/obj/*
 z*
 *~
 *~  
@@ -47,3 +48,4 @@ z*
 .libs 
 _region_*
 graph*_00_*.npz  
+tags
