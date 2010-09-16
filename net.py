@@ -2744,84 +2744,84 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                 wsn.generate(c - nnew, nnew)
                 for q, nsds in enumerate(sds):
                     np.random.seed(k)
-#                    netc = copy.deepcopy(net1)
-#                    print("Updating with SDS = {0}".format(nsds))
-#                    netc.update_schedule(nsds=nsds, sglt=sglt, cap=1,
-#                            mult=8)
-#                    # if q == 0:
-#                    #     incor[k, i] = netc.to_repair
-#                    laten[k, i, q] = netc.record['laten'] * netc.mult_fact
-#                    attem[k, i, q] = netc.record['attem'] * netc.mult_fact
-#                    expel[k, i, q] = netc.record['expel'] * netc.mult_fact
-#                    energ[k, i, q] = netc.incorp_ener()
-#                np.random.seed(k)
-#                net2.update_schedule()
-#                nadve2[k, i] = net2.nadve 
-#                lat_flexi[k, i] = net2.record['laten'] / net2.to_repair
-#         # wsn.plot_tree()
-#        save_npz('laten', 'attem', 'expel', 'energ', 'nadve2', 'lat_flexi')
-#    r = load_npz()
-#    # Plot schedule length. Takeaway: FlexiTP requires more slots when the
-#    # network changes.
-#    x_t = r'node density $\bar{\rho}$'
-#    leg = ['SDS = {0}'.format(i) for i in sds]
-#    g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
-#    g.add(x_t, r'latency in frames per incorporation') ###############
-#    g.mplot(rho_v, r['laten'], leg)
-#    g.plot(rho_v, r['lat_flexi'], 'FlexiTP')
-#    g.add(x_t, r'attempts per incorporation') ###############
-#    g.mplot(rho_v, r['attem'], leg)
-#    g.add(x_t, r'expelled nodes per incorporation')###################
-#    g.mplot(rho_v, r['expel'], leg)
-#    g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
-#    g.opt(r'ylabel style={yshift = 3mm}')
-#    g.add(x_t, r'energy per incorporation (mJ)') ##########################
-#    g.mplot(rho_v, r['energ'] * 1e3, leg)
-#    ############## New graph
-#    E_f_flexi = np.array([STATES['tx'] * 1000 * (r['nadve2'][i]) * slot_t
-#        for i in xrange(len(rho_v))])
-#    print("Hello idiot")
-#    print(E_f_flexi)
-#    E_f_sutp =  STATES['rx'] * 1000 * sglt * 1
-#    E_v_sutp_0 = [r['energ'][i,0] * 1000. for i in xrange(len(rho_v))]
-#    Ts = np.arange(5, 20, 2)
-#    Gbar = np.zeros((len(Ts), len(ind_rho_table)))
-#    for j, i in enumerate(ind_rho_table):
-#        E_t_sutp = (E_f_sutp + E_v_sutp_0[i] / Ts / n_nodes[i])
-#        print(E_t_sutp)
-#        Gbar[:,j] = E_f_flexi[i] /  E_t_sutp / r['laten'][i,0]
-#    print(Gbar)
-#    g.add('Period between changes $T_s$', 'normalized gain $\\bar{G}$')
-#    leg2 = ['$\\rho = {0}$'.format(rho_v[i]) for i in ind_rho_table]
-#    #pdb.set_trace()
-#    g.mplot(Ts, Gbar, leg2)
-#    #################
-#    g.extra_body.append(r"""
-#\begin{verbatim}
-#""")
-#    # E_f is the fixed energy consumption, i.e. the energy consumed even
-#    # when no node has the need to obtain a slot.  E_f is the fixed energy
-#    # per node.
-#    g.extra_body.append("|%15s|%6s|%15s|%15s|\n" %("Protocol", "rho",
-#          "E_f", "E_g"))
-#    for i in ind_rho_table:#index of node density
-#        g.extra_body.append("|%15s|%6d|%15f|%15f|\n" % \
-#            (("", "$FlexiTP$")[not i],
-#             rho_v[i], 
-#             STATES['tx'] * 1000 * (r['nadve2'][i]) * slot_t,
-#             0))
-#    for nsds in (0, 2):
-#        for i in ind_rho_table:#index of node density
-#            g.extra_body.append("|%15s|%6d|%15f|%15f|\n" % \
-#             (("", "SDS=%d$" % nsds)[not i],
-#              rho_v[i],
-#              STATES['rx'] * 1000 * sglt * (nsds+1),
-#              r['energ'][i,nsds] * 1000.))
-#    g.extra_body.append(r"""
-#\end{verbatim}
-#""")
-#    g.save(plot=plot)
-#    #nw.update_schedule(until=200)
+                    netc = copy.deepcopy(net1)
+                    print("Updating with SDS = {0}".format(nsds))
+                    netc.update_schedule(nsds=nsds, sglt=sglt, cap=1,
+                            mult=8)
+                    # if q == 0:
+                    #     incor[k, i] = netc.to_repair
+                    laten[k, i, q] = netc.record['laten'] * netc.mult_fact
+                    attem[k, i, q] = netc.record['attem'] * netc.mult_fact
+                    expel[k, i, q] = netc.record['expel'] * netc.mult_fact
+                    energ[k, i, q] = netc.incorp_ener()
+                np.random.seed(k)
+                net2.update_schedule()
+                nadve2[k, i] = net2.nadve 
+                lat_flexi[k, i] = net2.record['laten'] / net2.to_repair
+         # wsn.plot_tree()
+        save_npz('laten', 'attem', 'expel', 'energ', 'nadve2', 'lat_flexi')
+    r = load_npz()
+    # Plot schedule length. Takeaway: FlexiTP requires more slots when the
+    # network changes.
+    x_t = r'node density $\bar{\rho}$'
+    leg = ['SDS = {0}'.format(i) for i in sds]
+    g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
+    g.add(x_t, r'latency in frames per incorporation') ###############
+    g.mplot(rho_v, r['laten'], leg)
+    g.plot(rho_v, r['lat_flexi'], 'FlexiTP')
+    g.add(x_t, r'attempts per incorporation') ###############
+    g.mplot(rho_v, r['attem'], leg)
+    g.add(x_t, r'expelled nodes per incorporation')###################
+    g.mplot(rho_v, r['expel'], leg)
+    g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
+    g.opt(r'ylabel style={yshift = 3mm}')
+    g.add(x_t, r'energy per incorporation (mJ)') ##########################
+    g.mplot(rho_v, r['energ'] * 1e3, leg)
+    ############## New graph
+    E_f_flexi = np.array([STATES['tx'] * 1000 * (r['nadve2'][i]) * slot_t
+        for i in xrange(len(rho_v))])
+    print("Hello idiot")
+    print(E_f_flexi)
+    E_f_sutp =  STATES['rx'] * 1000 * sglt * 1
+    E_v_sutp_0 = [r['energ'][i,0] * 1000. for i in xrange(len(rho_v))]
+    Ts = np.arange(5, 20, 2)
+    Gbar = np.zeros((len(Ts), len(ind_rho_table)))
+    for j, i in enumerate(ind_rho_table):
+        E_t_sutp = (E_f_sutp + E_v_sutp_0[i] / Ts / n_nodes[i])
+        print(E_t_sutp)
+        Gbar[:,j] = E_f_flexi[i] /  E_t_sutp / r['laten'][i,0]
+    print(Gbar)
+    g.add('Period between changes $T_s$', 'normalized gain $\\bar{G}$')
+    leg2 = ['$\\rho = {0}$'.format(rho_v[i]) for i in ind_rho_table]
+    #pdb.set_trace()
+    g.mplot(Ts, Gbar, leg2)
+    #################
+    g.extra_body.append(r"""
+\begin{verbatim}
+""")
+    # E_f is the fixed energy consumption, i.e. the energy consumed even
+    # when no node has the need to obtain a slot.  E_f is the fixed energy
+    # per node.
+    g.extra_body.append("|%15s|%6s|%15s|%15s|\n" %("Protocol", "rho",
+          "E_f", "E_g"))
+    for i in ind_rho_table:#index of node density
+        g.extra_body.append("|%15s|%6d|%15f|%15f|\n" % \
+            (("", "$FlexiTP$")[not i],
+             rho_v[i], 
+             STATES['tx'] * 1000 * (r['nadve2'][i]) * slot_t,
+             0))
+    for nsds in (0, 2):
+        for i in ind_rho_table:#index of node density
+            g.extra_body.append("|%15s|%6d|%15f|%15f|\n" % \
+             (("", "SDS=%d$" % nsds)[not i],
+              rho_v[i],
+              STATES['rx'] * 1000 * sglt * (nsds+1),
+              r['energ'][i,nsds] * 1000.))
+    g.extra_body.append(r"""
+\end{verbatim}
+""")
+    g.save(plot=plot)
+    #nw.update_schedule(until=200)
 def debugGraphFlexiSds():
     """Dependence on the number of SDS tones. 
     tsn_nr:seconds per iteration, 1:2700@ee-modalap
