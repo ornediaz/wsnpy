@@ -1622,7 +1622,7 @@ class ACSPNet(RandSchedNet):
                         # were expelled
         z.print('*****Start computing the schedule*******')
     def incorp_ener(z):
-        """Return energy consumed per incorporation.
+        """Return energy consumed per incorporation in ACSP.
 
         This only includes the variable energy.  That is, it does not
         include the amount of energy.
@@ -2116,7 +2116,8 @@ def test_ACSPNet_regen():
     # w.generate(6, 2)
     # w.plot_tree()
 def name_npz():
-    """
+    """Return string with function and parameters of grandparent funtion.
+
     Each frame_record is a tuple consisting of the frame object, the
     filename, the line number of the current line, the function name, a
     list of lines of context from the source code, and the index of the
@@ -2134,6 +2135,9 @@ def save_npz(*args):
     to_save = {}
     for variable in args:
         to_save[variable] = variables[variable].mean(axis=0)
+    np.savez(name_npz() + '.npz', **to_save)
+def savedict(**out):
+    to_save = dict((k, v.mean(axis=0)) for k,v in out.iteritems())
     np.savez(name_npz() + '.npz', **to_save)
 def load_npz():
     npz = np.load(name_npz() + '.npz')
@@ -2628,22 +2632,16 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     x, y = np.array(((3,3), (3,3), (3,3))[tst_nr]) * tx_rg1
     rho_v = np.array(((7,10), (7,11,15), (7,11,15,19,22)) [tst_nr])
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
-    nnew = 2 # number of nodes that are replaced in each channel change
     print('Number of nodes to be tested: {0}'.format(n_nodes))
-    n_slots_su  = np.zeros((repetitions, n_nodes.size, 3))
-    n_dismissed = np.zeros((repetitions, n_nodes.size, 4))
-    # Number of slots per FTS used in the initialization phase of FlexiTP
-    nadv1 = np.zeros((repetitions, n_nodes.size, 2))
+    o = dict(
+        # number of nodes unduly dismissed as unreachable
+        dismi = np.zeros((repetitions, n_nodes.size, 4)),
+        #  slots per FTS used in the initialization phase of FlexiTP
+        nadv1 = np.zeros((repetitions, n_nodes.size, 2)),
+        # number of slots used in FlexiTP's setup to propagate schedule
+        slosu=np.zeros((repetitions, n_nodes.size, 3)),
+        )
     # Number of slots per FTS used in the transmission phase of FlexiTP
-    nadv2 = np.zeros((repetitions, n_nodes.size, 2))
-    # Number of packets lost per incorporation in ACSP with fw=3
-    losse = np.zeros((repetitions, n_nodes.size))
-    # n_slots_tx stores the number of slots used by the protocol.  It cares
-    # about the bandwidth used rather than the energy.  It is the number of
-    # slots in which each node cannot transmit because of the overhead
-    # incurred by the protocol in order to support the incorporation of new
-    # nodes.
-    n_slots_tx  = np.zeros((repetitions, n_nodes.size, 3))
     if action == 1:
         for k in xrange(repetitions):
             print_iter(k, repetitions)
@@ -2660,49 +2658,24 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
                         nets.append(ACSPNet(wsn, cont_f=100, pairs=40))
                     else:
                         nets.append(FlexiTPNet2(wsn, fw=j - 1)) 
-                n_slots_su[k, i, :] = [n.n_slots() for n in nets[:3]]
-                n_dismissed[k, i, :] = [n.dismissed() for n in (nets[0],
-                    nets[1], nets[3],nets[4], nets[5])]
-                nadv1[k, i, :] = [n.nadve for n in nets[:2]]
-                print("Replacing the last {0} nodes".format(nnew))
-                np.random.seed(k)
-                wsn.generate(c - nnew, nnew)
-                for j in xrange(3):
-                    np.random.seed(k)
-                    print("Updating net {0}".format(j))
-                    if j < 2:
-                        nets[j].update_schedule()
-                    else:
-                        nets[j].update_schedule(cap=1, mult=8)
-                nadv2[k, i, :] = [n.nadve for n in nets[:2]]
-                losse[k, i] = nets[2].record['losse'] * nets[2].mult_fact
-                n_slots_tx[k, i, :] = [c * n.n_frames() * n.nadve if j < 2 
-                    else (c * n.nsds * n.n_frames()) + 2 * n.record['losse']
-                    for j, n in enumerate(nets[:3])]
-        save_npz('n_slots_su', 'n_dismissed', 'nadv1', 'nadv2', 'losse',
-                 'n_slots_tx')
+                o['slosu'][k,i,:] = [n.n_slots() for n in nets[:3]]
+                o['dismi'][k,i,:] = [nets[h].dismissed() for h in (0,1,3,4)]
+                o['nadv1'][k,i,:] = [n.nadve for n in nets[:2]]
+        savedict(**o)
     # Plot schedule sizes
     r = load_npz()
     x_t = r'node density $\bar{\rho}$'
     leg = ['FlexiTP2', 'FlexiTP3', 'ACSPNet']
     g = Pgf()
     g.add(x_t, r'number of slots $M$')
-    g.mplot(rho_v, r['n_slots_su'], leg)
+    g.mplot(rho_v, r['slosu'], leg)
     g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
     # Plot dismissal probability. 
     g.add(x_t, r'fraction of unduly dismissed $p_d$')
-    g.mplot(rho_v, r['n_dismissed'], leg[:2]+ ["fw=2", "fw=3"])
+    g.mplot(rho_v, r['dismi'], leg[:2]+ ["fw=2", "fw=3"])
     # Plot number of slots necessary to communicate schedule
     g.add(x_t, r"slots per exchange in FlexiTP's init")
     g.mplot(rho_v, r['nadv1'], leg[:3])
-    g.add(x_t, r"nadv2: slots per exchange in FlexiTP's tx")
-    g.mplot(rho_v, r['nadv2'], leg[:3])
-    # Plot the packets destroyed by incorporations in ACSP
-    g.add(x_t, r'packets ruined per incorporation in ACSP')
-    g.plot(rho_v, r['losse'])
-    # Plot slots employed to reconstruct the schedule
-    g.add(x_t, 'overhead in slots')
-    g.mplot(rho_v, r['n_slots_tx'], leg)
     g.save(plot=plot)
 def debgraphFlexiDensity():
     """Dependence on the node density.
@@ -2739,16 +2712,22 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     # minimum number of repetitions should be 200.
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
     sds = ((0,1,2), (0,1,2))[tst_nr]
+    fltfw = (2, 3) # values of fw used in FlexiTP
     nnew = 2 # Number of new nodes to add 
-    attem = np.zeros((repetitions, len(rho_v), len(sds)))
-    energ = np.zeros((repetitions, len(rho_v), len(sds)))
-    expe1 = np.zeros((repetitions, len(rho_v), len(sds)))
-    expe2 = np.zeros((repetitions, len(rho_v), len(sds)))
-    laten = np.zeros((repetitions, len(rho_v), len(sds)))
-    latfl = np.zeros((repetitions, len(rho_v))) # latency of FlexiTP
-    losse = np.zeros((repetitions, len(rho_v), len(sds)))
-    nadv2 = np.zeros((repetitions, len(rho_v)))#slots to advertise sched
-    natre = np.zeros((repetitions, len(rho_v), len(sds)))
+    o = dict(
+        attem=np.zeros((repetitions, len(rho_v), len(sds))),
+        dismi=np.zeros((repetitions, len(rho_v), 1+len(fltfw))),
+        energ=np.zeros((repetitions, len(rho_v), len(sds))),
+        expe1=np.zeros((repetitions, len(rho_v), len(sds))),
+        expe2=np.zeros((repetitions, len(rho_v), len(sds))),
+        laten=np.zeros((repetitions, len(rho_v), len(sds)+len(fltfw))),
+        losse=np.zeros((repetitions, len(rho_v), len(sds))),
+        nadv1=np.zeros((repetitions, len(rho_v), len(fltfw))),
+        nadv2=np.zeros((repetitions, len(rho_v), len(fltfw))),
+        natre=np.zeros((repetitions, len(rho_v))),
+        sloov=np.zeros((repetitions, len(rho_v), len(sds) + len(fltfw))),
+        slosu=np.zeros((repetitions, len(rho_v), 1+len(fltfw))),
+        )
     print(n_nodes)
     if action == 1:
         for k in xrange(repetitions):
@@ -2756,55 +2735,79 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
-                net1 = ACSPNet(wsn, cont_f=100., Q=1/bitrate, slot_t=slot_t,
-                        pairs=40, VB=0)
-                net2 = FlexiTPNet(wsn, fw=2, n_exch=70)
+                nt = [ACSPNet(wsn, cont_f=100., Q=1/bitrate, slot_t=slot_t,
+                        pairs=40, VB=0)]
+                for fw in fltfw:
+                    nt.append(FlexiTPNet(wsn, fw=fw, n_exch=70))
+                for r, n in enumerate(nt):
+                    o['slosu'][k, i, r] = n.n_slots()
+                    o['dismi'][k, i, r] = n.dismissed()
+                    if r > 0:
+                        o['nadv1'][k,i,r-1] = n.nadve
                 wsn.generate(c - nnew, nnew)
                 for q, nsds in enumerate(sds):
                     np.random.seed(k)
-                    netc = copy.deepcopy(net1)
+                    netc = copy.deepcopy(nt[0])
                     print("Updating with SDS = {0}".format(nsds))
-                    netc.update_schedule(nsds=nsds, sglt=sglt, cap=1,
-                            mult=8)
+                    netc.update_schedule(nsds=nsds,sglt=sglt,cap=1,mult=8)
                     if q == 0:
-                        natre[k, i] = netc.natre
-                    attem[k, i, q] = netc.record['attem'] 
-                    energ[k, i, q] = netc.incorp_ener()
-                    expe1[k, i, q] = netc.record['expe1'] 
-                    expe2[k, i, q] = netc.record['expe2']
-                    laten[k, i, q] = netc.record['laten'] 
-                    losse[k, i, q] = netc.record['losse']
-                np.random.seed(k)
-                net2.update_schedule()
-                nadv2[k, i] = net2.nadve 
-                latfl[k, i] = net2.record['laten'] / net2.natre
+                        o['natre'][k, i] = netc.natre
+                    for va in ('attem', 'expe1', 'expe2', 'laten', 'losse'):
+                        o[va][k,i,q] = netc.record[va]
+                    o['energ'][k, i, q] = netc.incorp_ener()
+                    o['sloov'][k, i, q] = (c * netc.nsds * netc.n_frames()
+                                           + 2 * netc.record['losse'])
+                for (u, nx) in enumerate(nt[1:]):
+                    np.random.seed(k)
+                    nx.update_schedule()
+                    o['nadv2'][k,i,u] = nx.nadve 
+                    o['laten'][k,i,len(sds)+u] = (nx.record['laten']/nx.natre)
+                    o['sloov'][k,i,len(sds)+u] = c*nx.n_frames() * nx.nadve  
          # wsn.plot_tree()
-        save_npz('attem', 'energ', 'expe1', 'expe2', 'laten', 'latfl', 
-                 'losse', 'natre', 'nadv2')
+        savedict(**o)
     r = load_npz()
     # Plot schedule length. Takeaway: FlexiTP requires more slots when the
     # network changes.
     x_t = r'node density $\bar{\rho}$'
-    leg = ['SDS = {0}'.format(i) for i in sds]
+    legsu = ['ACSP', 'Flt fr=2', 'Flt fr=3']
+    legsds = ['SDS = {0}'.format(i) for i in sds]
+    legflt = ["Flt fltfw = {0}".format(f) for f in fltfw]
     g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
-    g.add(x_t, r'latency in frames per incorporation') ###############
-    g.mplot(rho_v, r['laten'], leg)
-    g.plot(rho_v, r['latfl'], 'FlexiTP')
-    g.add(x_t, r'attempts per incorporation') ###############
-    g.mplot(rho_v, r['attem'], leg)
-    g.add(x_t, r'expelled nodes per incorporation')###################
-    g.mplot(rho_v, r['expe1'], leg)
-    g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
+    # Plot the packets destroyed by incorporations in ACSP
+    g.add(x_t, r'attempts per naturally required slots')
+    g.mplot(rho_v, r['attem'], legsds)
+    g.add(x_t, r'dismi')
+    g.mplot(rho_v, r['attem'], legsu)
+    g.add(x_t, r'energy per incorporation (mJ)')
+    g.mplot(rho_v, r['energ'] * 1e3, legsds)
+    g.add(x_t, r'expelled nodes per incorporation')
+    g.mplot(rho_v, r['expe1'], legsds)
+    g.add(x_t, r'expe1 + expe2')
+    g.mplot(rho_v, r['expe1'] + r['expe2'], legsds)
+    g.add(x_t, r'expe2/expe1')
+    g.mplot(rho_v, r['expe1'] / r['expe2'], legsds)
+    #g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
+    g.add(x_t, r'latency in frames per incorporation') 
+    g.mplot(rho_v, r['laten'], legsds + legflt)
+    g.add(x_t, r'losse: packets ruined per incorporation in ACSP')
+    g.mplot(rho_v, r['losse'])
     g.opt(r'ylabel style={yshift = 3mm}')
-    g.add(x_t, r'expe1 + expe2')###################
-    g.mplot(rho_v, r['expe1'] + r['expe2'], leg)
-    g.add(x_t, r'energy per incorporation (mJ)') ##########################
-    g.mplot(rho_v, r['energ'] * 1e3, leg)
+    g.add(x_t, r"nadv1: slots per exchange in FlexiTP's setup")
+    g.mplot(rho_v, r['nadv1'], legflt)
+    g.add(x_t, r"nadv2: slots per exchange in FlexiTP's tx")
+    g.mplot(rho_v, r['nadv2'], legflt)
+    g.add(x_t, "natre: naturally required slots")
+    g.plot(rho_v, r['natre'])
+    g.add(x_t, "sloov: overhead in slots")
+    g.mplot(rho_v, r['sloov'], legsds + legflt)
+    g.add(x_t, "slosu: number of slot in the setup phase")
+    g.mplot(rho_v, r['slosu'], legsu)
     ############## Normalized gain as a function of the T_s
-    E_f_flexi = np.array([STATES['tx'] * 1000 * (r['nadv2'][i]) * slot_t
+    # Energy consumed by FlexiTP
+    eflex = np.array([STATES['tx'] * 1000 * (r['nadv2'][i,0]) * slot_t
         for i in xrange(len(rho_v))])
-    print("Hello idiot")
-    print(E_f_flexi)
+    print("eflex")
+    print(eflex)
     E_f_sutp =  STATES['rx'] * 1000 * sglt * 1
     E_v_sutp_0 = [r['energ'][i,0] * 1000. for i in xrange(len(rho_v))]
     Ts = np.arange(5, 20, 2)
@@ -2812,7 +2815,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     for j, i in enumerate(ind_rho_table):
         E_t_sutp = (E_f_sutp + E_v_sutp_0[i] / Ts / n_nodes[i])
         print(E_t_sutp)
-        Gbar[:,j] = E_f_flexi[i] /  E_t_sutp / r['laten'][i,0]
+        Gbar[:,j] = eflex[i] /  E_t_sutp / r['laten'][i,0]
     print(Gbar)
     g.add('Period between changes $T_s$', 'normalized gain $\\bar{G}$')
     leg2 = ['$\\rho = {0}$'.format(rho_v[i]) for i in ind_rho_table]
@@ -2831,7 +2834,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
         g.extra_body.append("|%15s|%6d|%15f|%15f|\n" % \
             (("", "$FlexiTP$")[not i],
              rho_v[i], 
-             STATES['tx'] * 1000 * (r['nadv2'][i]) * slot_t,
+             STATES['tx'] * 1000 * (r['nadv2'][i,0]) * slot_t,
              0))
     for nsds in (0, 2):
         for i in ind_rho_table:#index of node density
