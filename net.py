@@ -28,6 +28,7 @@ import platform
 import SimPy.Simulation as simpy
 import subprocess
 import sys
+sys.setrecursionlimit(2000) # otherwise copy.deepcopy raises a RuntimeError
 import time as time_module
 KBOL = 1.38e-23 # Boltzman constant
 T0 = 290 # Room temperature in Kelvin (=17C)
@@ -822,7 +823,6 @@ class DiskModelNetwork(Tree):
         for i in xrange(len(z.f)):
             for k, h in rx_slot[i].iteritems():
                 if collided[h]:
-
                     continue # I failed to receive packet
                 for n in z.xL[i]:
                     if z.f[n] == i: # Do not ruin my child's transmission
@@ -986,7 +986,7 @@ class FlexiTPNode(Node):
         parent sc_d.
 
         In my implementation, the length of the FTS (z.nexch) should be set
-        to a sufficiently large value.  The variable z.sim.nadve keeps track
+        to a sufficiently large value.  The variable z.sim.nadv1 keeps track
         of the minimum number that we need in order to make the protocol
         work as if z.nexch were infinite. 
 
@@ -995,8 +995,8 @@ class FlexiTPNode(Node):
         -------------------------
         Output of the routine (it is not returned, it is stamped)
 
-        +  z.sim.adve is a measure of the latency, but a bad one because since
-        each node only claims a slot at the beginning.
+        + z.sim.adve is a measure of the latency, but a bad one because
+        since each node only claims a slot at the beginning.
 
         + z.sim.record['laten']: I increment each time that I try to claim a
         slot in the current frame but I fail.
@@ -1031,7 +1031,7 @@ class FlexiTPNode(Node):
                         else:
                             raise Error('No available slots remain')
                         rel, src = z.packet_l.pop(0)
-                        pkt = Packet(p='claim', r=rel, s=src, n=slot, f=z.fr)
+                        pkt = Packet(p='claim',r=rel,s=src,n=slot,f=z.fw-1)
                         z.print('Transmits advertisement')
                         for i in z.broadcast(pkt=pkt, t=z.slot_t): yield i
                         z.rx_d[slot] = rel, src
@@ -1296,11 +1296,12 @@ class ACSPNode(RandSchedNode):
             if z.id not in z.wsn.correct_bi(concurrent):
                 z.print('was expelled in slot %d.  The victim is %d'
                         %(slot, source))
-                z.sim.record['expel'] += 1
+                z.sim.record['expe1'] += 1
                 node = z
                 while node.id > 0:
                     for slt2, src2 in copy.copy(node.tx_d).iteritems():
                         if src2 == source:
+                            z.sim.record['expe2'] += 1
                             del node.tx_d[slt2]
                             del z.sim[node.f].rx_d[slt2]
                     if source in node.b:
@@ -1382,7 +1383,8 @@ class ACSPNode(RandSchedNode):
                     # Increase the variable sensea that keeps track of the
                     # number of channel check operations.
                     z.sim.record['sensea'] += 1
-                    conc1 = [node for node in z.sim if z.target_slot in node.tx_d]
+                    conc1 = [node for node in z.sim 
+                             if z.target_slot in node.tx_d]
                     conc2 = [z.sim[node.f] for node in conc1]
                     max_sig  = 0.0
                     for sources in conc1, conc2:
@@ -1577,8 +1579,9 @@ class ACSPNet(RandSchedNet):
         z.statis_adapt()
         z.simulate_net(routine='run_tx')
         z.print("{0} frames ellapsed".format(z.n_frames()))
-        z.tot_repair = z.to_repair + z.record['expel']
-        z.mult_fact = z.tot_repair / z.to_repair 
+        z.tot_repair = (z.natre + z.record['expe1'] +
+                z.record['expe2'])
+        z.mult_fact = z.tot_repair / z.natre 
         # This function leaves the parameters in z.record normalized by the
         # total number of node acquisitions (z.tot_repair).  If in the graph
         # generating routines it is desired to have the parameters
@@ -1586,7 +1589,7 @@ class ACSPNet(RandSchedNet):
         # (tot_repair), then in the graph generating routine we have to
         # multiply the parameters by z.mult_fact.
         for k, v in z.record.iteritems():
-            z.record[k] = v / z.tot_repair
+            z.record[k] = v / z.natre
             if z.VB:
                 print("Record:{0} = {1}".format(k, z.record[k]))
         if z.VB: 
@@ -1594,13 +1597,14 @@ class ACSPNet(RandSchedNet):
             z.print_dicts()
     def statis_adapt(z):
         """Compute some statistics about the adaptation process. """
-        z.to_repair = float(sum(n.tier for n in z 
-                                if n.id not in n.tx_d.values()))
+        # Number of naturally required slots
+        z.natre = float(sum(n.tier for n in z if n.id not in 
+                            n.tx_d.values()))
         z.record = dict(
             laten  = 0., # Frames from attempt to success
-            activ  = 0., # Time that a node listens immediately after
-                         # the contention window for a packet indicating
-                         # which node should be active and in which slot.
+            activ  = 0., # Time that a node listens immediately after the
+                         # contention window for a packet indicating which
+                         # node should be active and in which slot.
             sensea = 0., # number of channel check measurements by an
                          # aspirant trying to decide the slot that it will
                          # seek to gain until it finds a slot in which there
@@ -1609,10 +1613,13 @@ class ACSPNet(RandSchedNet):
             losse = 0., # Number of packets lost by the nodes that already
                         # possessed a slot because of the interference of
                         # the nodes seeking to obtain a slot.
-            expel = 0.) # Number of nodes that possessed a slot but were
+            expe1 = 0., # Number of nodes that possessed a slot but were
                         # forced to find a new one because other nodes
                         # generating intolerable interference decided to use
                         # the slot.
+            expe2 = 0.) # Number of times a node had to find a new
+                        # transmission slot because some of its descendants
+                        # were expelled
         z.print('*****Start computing the schedule*******')
     def incorp_ener(z):
         """Return energy consumed per incorporation.
@@ -1750,7 +1757,7 @@ class FlexiTPNet(ACSPNet):
     """
     AlNode = FlexiTPNode
     def __init__(z, wsn, cont_f=10, Q=0.1, slot_t=2, n_exch=70, nm=1000, 
-                 fr=2, pause=3, VB=False, until=1e8):
+                 fw=2, pause=3, VB=False, until=1e8):
         """Run the initial scheduling phase of FlexiTP.
 
         Construct a network and simulate it.
@@ -1763,7 +1770,7 @@ class FlexiTPNet(ACSPNet):
         slot_t    -- duration of a transmission slot
         n_exch    -- number of slots for schedule exchange phase
         nm        -- maximum number of slots to be allocated
-        fr        -- number of times to forward a packet
+        fw        -- how many hops information to use
         pause     -- 3,
         VB        --
         until
@@ -1807,30 +1814,39 @@ class FlexiTPNet(ACSPNet):
         z.statis_adapt()
         z.simulate_net()
 class FlexiTPNet2(FlexiTPNet):
-    """Simulator of FlexiTP without packet losses."""
-    def __init__(z, wsn, fr=2, VB=False):
+    """Simulator of FlexiTP without packet losses.
+
+    This is useful in order to determine how many unfeasible allocations
+    there are if no packet losses are lost propagating.
+
+    """
+    def __init__(z, wsn, fw=2, VB=False):
         """Run the initial scheduling phase of FlexiTP.
+
+        fw : how many hops information to use
 
         the output are the lists: z[i].tx_d{slot: source}, where i is the
         index of each node.
+
         """
         z.wsn = wsn
         z.until = 1e5
         z[:] = [Node(id=i, sim=z) for i in xrange(len(wsn.f))]
         for node in z:
             node.children = [x for x in z if x.f == node.id]
-        # queue = [(source, relay, slot)]
+        # queue = [(source, relay, slot)] used to process all the source
+        # nodes in
         queue = [(i, i, 0) for i in (z[0].children)] 
         while queue:
             source, relay, slot = queue.pop(0) 
             if VB is True:
                 print("Processing source={0}, relay={1}, slot={2}".
                         format(source, relay, slot))
-            # Compute the set of nodes s whose color I cannot use. Two parts:
+            # Compute the set of nodes whose color I cannot use. Two parts:
             # 1) Nodes that interfere with my parent's reception
-            interferers = k_neigh(node_set=z[relay].f, hops=fr, tx_l=wsn.tx_l)
+            interferers = k_neigh(node_set=z[relay].f, hops=fw, tx_l=wsn.tx_l)
             # 2) Nodes whose parents can interfere with me
-            for q in k_neigh(node_set=relay, hops=fr, tx_l=wsn.tx_l):
+            for q in k_neigh(node_set=relay, hops=fw, tx_l=wsn.tx_l):
                 interferers.update(z[q].children) # Their parents
             # Start testing the next color to the one of the parent. 
             usedColors = set(z[relay].tx_d.keys())
@@ -1840,10 +1856,11 @@ class FlexiTPNet2(FlexiTPNet):
                 slot += 1
             z[relay].tx_d[slot] = source 
             z[z[relay].f].rx_d[slot] = (relay, source)
+            if source == relay:
+                for j, ch in enumerate(z[relay].children):
+                    queue.insert(j, (ch, ch, 0))
             if z[relay].f > 0:
                 queue.insert(0, (source, z[relay].f, slot+1)) 
-            if source == relay:
-                queue.extend((i, i, 0) for i in z[relay].children)
 def test_manually_defined_network():
     '''Create simple network calling ManuallyDefinedNetwork.'''
     np.random.seed(3)
@@ -2215,8 +2232,8 @@ def graphFlexiCycles(tst_nr=0, repetitions=1, action=0, plot=False):
         for k in xrange(repetitions):
             print_iter(k,repetitions)
             wsn = PhyNet(c=c, x=x, y=y, **net_par1)
-            nets = [FlexiTPNet(wsn, fr=1, n_exch=80), 
-                    FlexiTPNet(wsn, fr=2, n_exch=80),
+            nets = [FlexiTPNet(wsn, fw=2, n_exch=80), 
+                    FlexiTPNet(wsn, fw=3, n_exch=80),
                     ACSPNet(wsn, cont_f=100, pairs=40)]
             n_slots_tx[k, 0, :] = [n.n_slots() for n in nets]
             n_dismissed[k, 0, :] = [n.dismissed() for n in nets[:2]]
@@ -2277,7 +2294,7 @@ def graphFlexiLength(tst_nr=0, repetitions=1, action=0, plot=0):
                     np.random.seed(k)
                     print("Constructing net {0}".format(j))
                     if j < 2:
-                        nets.append(FlexiTPNet(wsn, fr=j+1))
+                        nets.append(FlexiTPNet(wsn, fw=j+2))
                     else:
                         nets.append(ACSPNet(wsn, cont_f=100, pairs=40))
                 n_slots[k, i, :] = [n.n_slots() for n in nets]
@@ -2614,12 +2631,12 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     nnew = 2 # number of nodes that are replaced in each channel change
     print('Number of nodes to be tested: {0}'.format(n_nodes))
     n_slots_su  = np.zeros((repetitions, n_nodes.size, 3))
-    n_dismissed = np.zeros((repetitions, n_nodes.size, 5))
+    n_dismissed = np.zeros((repetitions, n_nodes.size, 4))
     # Number of slots per FTS used in the initialization phase of FlexiTP
-    nadve1 = np.zeros((repetitions, n_nodes.size, 2))
+    nadv1 = np.zeros((repetitions, n_nodes.size, 2))
     # Number of slots per FTS used in the transmission phase of FlexiTP
-    nadve2 = np.zeros((repetitions, n_nodes.size, 2))
-    # Number of packets lost per incorporation in ACSP with fr=3
+    nadv2 = np.zeros((repetitions, n_nodes.size, 2))
+    # Number of packets lost per incorporation in ACSP with fw=3
     losse = np.zeros((repetitions, n_nodes.size))
     # n_slots_tx stores the number of slots used by the protocol.  It cares
     # about the bandwidth used rather than the energy.  It is the number of
@@ -2634,19 +2651,19 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
                 nets = []
-                for j in xrange(6):
+                for j in xrange(5):
                     np.random.seed(k)
                     print("Constructing net {0}".format(j))
                     if j in (0, 1):
-                        nets.append(FlexiTPNet(wsn, fr=j + 1, n_exch=70)) 
+                        nets.append(FlexiTPNet(wsn, fw=j + 2, n_exch=70)) 
                     elif j == 2:
                         nets.append(ACSPNet(wsn, cont_f=100, pairs=40))
                     else:
-                        nets.append(FlexiTPNet2(wsn, fr=j - 2)) 
+                        nets.append(FlexiTPNet2(wsn, fw=j - 1)) 
                 n_slots_su[k, i, :] = [n.n_slots() for n in nets[:3]]
                 n_dismissed[k, i, :] = [n.dismissed() for n in (nets[0],
                     nets[1], nets[3],nets[4], nets[5])]
-                nadve1[k, i, :] = [n.nadve for n in nets[:2]]
+                nadv1[k, i, :] = [n.nadve for n in nets[:2]]
                 print("Replacing the last {0} nodes".format(nnew))
                 np.random.seed(k)
                 wsn.generate(c - nnew, nnew)
@@ -2657,12 +2674,12 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
                         nets[j].update_schedule()
                     else:
                         nets[j].update_schedule(cap=1, mult=8)
-                nadve2[k, i, :] = [n.nadve for n in nets[:2]]
+                nadv2[k, i, :] = [n.nadve for n in nets[:2]]
                 losse[k, i] = nets[2].record['losse'] * nets[2].mult_fact
                 n_slots_tx[k, i, :] = [c * n.n_frames() * n.nadve if j < 2 
                     else (c * n.nsds * n.n_frames()) + 2 * n.record['losse']
                     for j, n in enumerate(nets[:3])]
-        save_npz('n_slots_su', 'n_dismissed', 'nadve1', 'nadve2', 'losse',
+        save_npz('n_slots_su', 'n_dismissed', 'nadv1', 'nadv2', 'losse',
                  'n_slots_tx')
     # Plot schedule sizes
     r = load_npz()
@@ -2674,12 +2691,12 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
     # Plot dismissal probability. 
     g.add(x_t, r'fraction of unduly dismissed $p_d$')
-    g.mplot(rho_v, r['n_dismissed'], leg[:2]+ ["fr=1", "fr=2", "fr=3"])
+    g.mplot(rho_v, r['n_dismissed'], leg[:2]+ ["fw=2", "fw=3"])
     # Plot number of slots necessary to communicate schedule
     g.add(x_t, r"slots per exchange in FlexiTP's init")
-    g.mplot(rho_v, r['nadve2'], leg[:3])
-    g.add(x_t, r"slots per exchange in FlexiTP's tx")
-    g.mplot(rho_v, r['nadve2'], leg[:3])
+    g.mplot(rho_v, r['nadv1'], leg[:3])
+    g.add(x_t, r"nadv2: slots per exchange in FlexiTP's tx")
+    g.mplot(rho_v, r['nadv2'], leg[:3])
     # Plot the packets destroyed by incorporations in ACSP
     g.add(x_t, r'packets ruined per incorporation in ACSP')
     g.plot(rho_v, r['losse'])
@@ -2699,7 +2716,7 @@ def debgraphFlexiDensity():
     print_nodes(c, 9)
     wsn = PhyNet(c=c, x=x, y=y, **net_par1)
     np.random.seed(8)
-    n1 = FlexiTPNet(wsn, fr=2, n_exch=70)
+    n1 = FlexiTPNet(wsn, fw=2, n_exch=70)
 def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     """Dependence on the number of SDS tones. 
 
@@ -2723,14 +2740,15 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
     sds = ((0,1,2), (0,1,2))[tst_nr]
     nnew = 2 # Number of new nodes to add 
-    laten = np.zeros((repetitions, len(rho_v), len(sds)))
     attem = np.zeros((repetitions, len(rho_v), len(sds)))
-    expel = np.zeros((repetitions, len(rho_v), len(sds)))
     energ = np.zeros((repetitions, len(rho_v), len(sds)))
-    incor = np.zeros((repetitions, len(rho_v)))
-    lat_flexi = np.zeros((repetitions, len(rho_v)))
-    # Number of slots to advertise one slot
-    nadve2 = np.zeros((repetitions, len(rho_v)))
+    expe1 = np.zeros((repetitions, len(rho_v), len(sds)))
+    expe2 = np.zeros((repetitions, len(rho_v), len(sds)))
+    laten = np.zeros((repetitions, len(rho_v), len(sds)))
+    latfl = np.zeros((repetitions, len(rho_v))) # latency of FlexiTP
+    losse = np.zeros((repetitions, len(rho_v), len(sds)))
+    nadv2 = np.zeros((repetitions, len(rho_v)))#slots to advertise sched
+    natre = np.zeros((repetitions, len(rho_v), len(sds)))
     print(n_nodes)
     if action == 1:
         for k in xrange(repetitions):
@@ -2740,7 +2758,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
                 net1 = ACSPNet(wsn, cont_f=100., Q=1/bitrate, slot_t=slot_t,
                         pairs=40, VB=0)
-                net2 = FlexiTPNet(wsn, fr=2, n_exch=70)
+                net2 = FlexiTPNet(wsn, fw=2, n_exch=70)
                 wsn.generate(c - nnew, nnew)
                 for q, nsds in enumerate(sds):
                     np.random.seed(k)
@@ -2748,18 +2766,21 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     print("Updating with SDS = {0}".format(nsds))
                     netc.update_schedule(nsds=nsds, sglt=sglt, cap=1,
                             mult=8)
-                    # if q == 0:
-                    #     incor[k, i] = netc.to_repair
-                    laten[k, i, q] = netc.record['laten'] * netc.mult_fact
-                    attem[k, i, q] = netc.record['attem'] * netc.mult_fact
-                    expel[k, i, q] = netc.record['expel'] * netc.mult_fact
+                    if q == 0:
+                        natre[k, i] = netc.natre
+                    attem[k, i, q] = netc.record['attem'] 
                     energ[k, i, q] = netc.incorp_ener()
+                    expe1[k, i, q] = netc.record['expe1'] 
+                    expe2[k, i, q] = netc.record['expe2']
+                    laten[k, i, q] = netc.record['laten'] 
+                    losse[k, i, q] = netc.record['losse']
                 np.random.seed(k)
                 net2.update_schedule()
-                nadve2[k, i] = net2.nadve 
-                lat_flexi[k, i] = net2.record['laten'] / net2.to_repair
+                nadv2[k, i] = net2.nadve 
+                latfl[k, i] = net2.record['laten'] / net2.natre
          # wsn.plot_tree()
-        save_npz('laten', 'attem', 'expel', 'energ', 'nadve2', 'lat_flexi')
+        save_npz('attem', 'energ', 'expe1', 'expe2', 'laten', 'latfl', 
+                 'losse', 'natre', 'nadv2')
     r = load_npz()
     # Plot schedule length. Takeaway: FlexiTP requires more slots when the
     # network changes.
@@ -2768,17 +2789,19 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
     g.add(x_t, r'latency in frames per incorporation') ###############
     g.mplot(rho_v, r['laten'], leg)
-    g.plot(rho_v, r['lat_flexi'], 'FlexiTP')
+    g.plot(rho_v, r['latfl'], 'FlexiTP')
     g.add(x_t, r'attempts per incorporation') ###############
     g.mplot(rho_v, r['attem'], leg)
     g.add(x_t, r'expelled nodes per incorporation')###################
-    g.mplot(rho_v, r['expel'], leg)
+    g.mplot(rho_v, r['expe1'], leg)
     g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
     g.opt(r'ylabel style={yshift = 3mm}')
+    g.add(x_t, r'expe1 + expe2')###################
+    g.mplot(rho_v, r['expe1'] + r['expe2'], leg)
     g.add(x_t, r'energy per incorporation (mJ)') ##########################
     g.mplot(rho_v, r['energ'] * 1e3, leg)
-    ############## New graph
-    E_f_flexi = np.array([STATES['tx'] * 1000 * (r['nadve2'][i]) * slot_t
+    ############## Normalized gain as a function of the T_s
+    E_f_flexi = np.array([STATES['tx'] * 1000 * (r['nadv2'][i]) * slot_t
         for i in xrange(len(rho_v))])
     print("Hello idiot")
     print(E_f_flexi)
@@ -2808,7 +2831,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
         g.extra_body.append("|%15s|%6d|%15f|%15f|\n" % \
             (("", "$FlexiTP$")[not i],
              rho_v[i], 
-             STATES['tx'] * 1000 * (r['nadve2'][i]) * slot_t,
+             STATES['tx'] * 1000 * (r['nadv2'][i]) * slot_t,
              0))
     for nsds in (0, 2):
         for i in ind_rho_table:#index of node density
@@ -2838,7 +2861,7 @@ def debugGraphFlexiSds():
     wsn = PhyNet(c=c, x=x, y=x, **net_par1)
     net1 = ACSPNet(wsn, cont_f=100., Q=1/bitrate, slot_t=slot_t,
             pairs=40, VB=0)
-    net2 = FlexiTPNet(wsn, fr=2, n_exch=70)
+    net2 = FlexiTPNet(wsn, fw=2, n_exch=70)
     wsn.generate(c - nnew, nnew)
     np.random.seed(k)
     print("*******Beginning schedule update*************")
