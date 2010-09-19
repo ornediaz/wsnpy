@@ -2761,7 +2761,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     np.random.seed(k)
                     nx.update_schedule()
                     o['nadv2'][k,i,u] = nx.nadve 
-                    o['laten'][k,i,len(sds)+u] = (nx.record['laten']/nx.natre)
+                    o['laten'][k,i,len(sds)+u] = nx.record['laten']/nx.natre
                     o['sloov'][k,i,len(sds)+u] = c*nx.n_frames() * nx.nadve  
          # wsn.plot_tree()
         savedict(**o)
