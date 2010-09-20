@@ -627,8 +627,8 @@ class PhyNet(Tree):
         z.att_m = np.ones((1, 1))
         z.p = np.array([[0, z.y / 2.0]])
         z.f = np.array([-1])
-        z.generate(1, c-1)
-    def generate(z, old, new):
+        z.mutate_network(1, c-1)
+    def mutate_network(z, old, new):
         """Keep the first 'old' nodes and add 'new' new nodes.
 
         The routine keeps track of the previous state:
@@ -1043,7 +1043,7 @@ class FlexiTPNode(Node):
                                 slot, src))
                         continue
                 elif to_advertise_l: 
-                    """I have to relay schedule updates from other nodes."""
+                    """I have to relay schedule updtaes from other nodes."""
                     # I update nadve (the maximum number of slots used per
                     # frame) if the current value of slot (n_exch) is bigger
                     # than the current maximum.
@@ -1327,11 +1327,12 @@ class ACSPNode(RandSchedNode):
     def run_tx(z):
         """Run the data transmission phase of an ACSPNode.
 
-        z.b contains the list of nodes for which I have to claim a slot.
-        Initially z.b contains only my identity because the execution of
-        RandSchedNet.update_net() removes the slots of the full path from
-        the data sources to the data sink if any of the nodes of that path
-        belongs to the nodes that were just added.
+        z.b contains the list of nodes for which I have to claim a
+        slot.  Initially z.b contains only my identity because the
+        execution of RandSchedNet.init_adaptation_statistics() removes
+        the slots of the full path from the data sources to the data
+        sink if any of the nodes of that path belongs to the nodes
+        that were just added.
 
         """
         z.b = [z.id] if z.f >=0 and z.id not in z.tx_d.values() else []
@@ -1499,7 +1500,7 @@ class ACSPNet(RandSchedNet):
             z[i].b.remove(j)
     def n_slots(z):
         return max(z[0].rx_d.keys())
-    def update_net(z):
+    def purge_old_slots(z):
         """Remove outdated slots from the schedule of all the nodes in the
         network.  This routine is used after making topology changes.
 
@@ -1531,8 +1532,8 @@ class ACSPNet(RandSchedNet):
                 i = z.wsn.f[i]
     def n_frames(z):
         return int(np.ceil((z.now() - z.ft / 2) / z.ft))
-    def update_schedule(z, nsds=2, sglt=1, cap=1, mult=2, max_slots=None,
-                        pause=3, until=None):
+    def adjust_schedule_in_tx_phase(z, nsds=2, sglt=1, cap=1, mult=2,
+                                    max_slots=None, pause=3, until=None):
         """
         Execute the data transmission phase of ACSP.
 
@@ -1572,11 +1573,11 @@ class ACSPNet(RandSchedNet):
         ft = z.t_w + 2 * z.slot_t * max_slots + nsds * sglt + pause
         print("Frame time = {0}s".format(ft))
         stamp(z, locals())
-        z.update_net()
+        z.purge_old_slots()
         if z.VB:
             print("======Schedule before the update is executed======")
             z.print_dicts()
-        z.statis_adapt()
+        z.init_adaptation_statistics()
         z.simulate_net(routine='run_tx')
         z.print("{0} frames ellapsed".format(z.n_frames()))
         z.tot_repair = (z.natre + z.record['expe1'] +
@@ -1595,7 +1596,7 @@ class ACSPNet(RandSchedNet):
         if z.VB: 
             print("======Schedule after the execution of the update=====")
             z.print_dicts()
-    def statis_adapt(z):
+    def init_adaptation_statistics(z):
         """Compute some statistics about the adaptation process. """
         # Number of naturally required slots
         z.natre = float(sum(n.tier for n in z if n.id not in 
@@ -1799,11 +1800,11 @@ class FlexiTPNet(ACSPNet):
                     .format(f_id, node_id, frame_number))
             z[f_id].sc_d[frame_number] = node_id
             frame_number += z.wsn.tier(node_id)
-        z.statis_adapt()
+        z.init_adaptation_statistics()
         z.simulate_net()
         z.complete_convergecast()
-    def update_schedule(z):
-        z.update_net()
+    def adjust_schedule_in_tx_phase(z):
+        z.purge_old_slots()
         for node in z:
             if hasattr(node, 'sc_d') and node.sc_d:
                 raise Error("This should not happen!")
@@ -1811,7 +1812,7 @@ class FlexiTPNet(ACSPNet):
                 z[node.f].packet_l.append((node.id, node.id))
                 z.print('Node {0} to contend for {1} in frame 0.'
                         .format(node.f, node.id))
-        z.statis_adapt()
+        z.init_adaptation_statistics()
         z.simulate_net()
 class FlexiTPNet2(FlexiTPNet):
     """Simulator of FlexiTP without packet losses.
@@ -2108,12 +2109,12 @@ def test_ACSPNet_regen():
     w = test_net3()
     print(w.f)
     nw = ACSPNet(w, VB=False, until=1000)
-    w.generate(2, 2)
+    w.mutate_network(2, 2)
     nw.VB = True
-    nw.update_schedule(until=200)
+    nw.adjust_schedule_in_tx_phase(until=200)
     print(nw.n_frames())
     # nw.print_dicts()
-    # w.generate(6, 2)
+    # w.mutate_network(6, 2)
     # w.plot_tree()
 def name_npz():
     """Return string with function and parameters of grandparent funtion.
@@ -2243,15 +2244,15 @@ def graphFlexiCycles(tst_nr=0, repetitions=1, action=0, plot=False):
             n_dismissed[k, 0, :] = [n.dismissed() for n in nets[:2]]
             for q in xrange(1, cycles + 1):
                 np.random.seed(q)
-                wsn.generate(c - nnew, nnew)
+                wsn.mutate_network(c - nnew, nnew)
                 print("Cycle number {0}/{1}".format(q, cycles))
                 for j in xrange(3):
                     np.random.seed(k)
                     print("Updating net {0}".format(j))
                     if j < 2:
-                        nets[j].update_schedule()
+                        nets[j].adjust_schedule_in_tx_phase()
                     else:
-                        nets[j].update_schedule(cap=2, mult=16)
+                        nets[j].adjust_schedule_in_tx_phase(cap=2, mult=16)
                 n_slots_tx[k, q, :] = [n.n_slots() for n in nets]
                 n_dismissed[k, q, :] = [n.dismissed() for n in nets[:2]]
          # wsn.plot_tree()
@@ -2274,7 +2275,7 @@ def graphFlexiCycles(tst_nr=0, repetitions=1, action=0, plot=False):
 #     w = test_net3()
 #     print(w.f)
 #     nw = ACSPNet(w, VB=False, until=1000)
-#     w.generate(2, 2)
+#     w.mutate_network(2, 2)
 #     nw.VB = True
 def graphFlexiLength(tst_nr=0, repetitions=1, action=0, plot=0):
     """Dependence on the normalized network length in a square network.
@@ -2744,12 +2745,13 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     o['dismi'][k, i, r] = n.dismissed()
                     if r > 0:
                         o['nadv1'][k,i,r-1] = n.nadve
-                wsn.generate(c - nnew, nnew)
+                wsn.mutate_network(c - nnew, nnew)
                 for q, nsds in enumerate(sds):
                     np.random.seed(k)
                     netc = copy.deepcopy(nt[0])
                     print("Updating with SDS = {0}".format(nsds))
-                    netc.update_schedule(nsds=nsds,sglt=sglt,cap=1,mult=8)
+                    netc.adjust_schedule_in_tx_phase(nsds=nsds,sglt=sglt,
+                                                     cap=1,mult=8)
                     if q == 0:
                         o['natre'][k, i] = netc.natre
                     for va in ('attem', 'expe1', 'expe2', 'laten', 'losse'):
@@ -2759,10 +2761,10 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                                            + 2 * netc.record['losse'])
                 for (u, nx) in enumerate(nt[1:]):
                     np.random.seed(k)
-                    nx.update_schedule()
+                    nx.adjust_schedule_in_tx_phase()
                     o['nadv2'][k,i,u] = nx.nadve 
                     o['laten'][k,i,len(sds)+u] = nx.record['laten']/nx.natre
-                    o['sloov'][k,i,len(sds)+u] = c*nx.n_frames() * nx.nadve  
+                    o['sloov'][k,i,len(sds)+u] = c*nx.n_frames() * nx.nadve
          # wsn.plot_tree()
         savedict(**o)
     r = load_npz()
@@ -2847,7 +2849,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
 \end{verbatim}
 """)
     g.save(plot=plot)
-    #nw.update_schedule(until=200)
+    #nw.adjust_schedule_in_tx_phase(until=200)
 def debugGraphFlexiSds():
     """Dependence on the number of SDS tones. 
     tsn_nr:seconds per iteration, 1:2700@ee-modalap
@@ -2865,11 +2867,11 @@ def debugGraphFlexiSds():
     net1 = ACSPNet(wsn, cont_f=100., Q=1/bitrate, slot_t=slot_t,
             pairs=40, VB=0)
     net2 = FlexiTPNet(wsn, fw=2, n_exch=70)
-    wsn.generate(c - nnew, nnew)
+    wsn.mutate(c - nnew, nnew)
     np.random.seed(k)
     print("*******Beginning schedule update*************")
     # net1.VB = 1
-    net1.update_schedule(nsds=0, sglt=sglt, cap=1, mult=8)
+    net1.adjust_schedule_in_tx_phase(nsds=0, sglt=sglt, cap=1, mult=8)
 def testFlexiSds():
     """Dependence on the number of channel change cycles. """
     x, y = np.array([3,3]) * tx_rg1
@@ -2879,18 +2881,18 @@ def testFlexiSds():
     print_nodes(c, 7)
     wsn = PhyNet(c=c, x=x, y=y, **net_par1)
     net = ACSPNet(wsn, Q=0.01, cont_f=100, pairs=40, VB=0)
-    wsn.generate(c - nnew, nnew)
+    wsn.mutate(c - nnew, nnew)
     np.random.seed(7)
     netc = copy.deepcopy(net)
     print("Updating with SDS = {0}".format(0))
-    netc.update_schedule(nsds=0, cap=1, mult=8)
+    netc.adjust_schedule_in_tx_phase(nsds=0, cap=1, mult=8)
 def test_flexitp_update():
     nw = test_net3()
     print(nw.f)
     f = FlexiTPNet(nw, VB=True, until=500)
-    nw.generate(2, 1)
+    nw.mutate(2, 1)
     print(nw.f)
-    f.update_schedule()
+    f.adjust_schedule_in_tx_phase()
     f.print_dicts()
 def test_pgf2():
     x = np.arange(0, 2 * np.pi)
