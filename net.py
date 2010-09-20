@@ -1583,12 +1583,7 @@ class ACSPNet(RandSchedNet):
         z.tot_repair = (z.natre + z.record['expe1'] +
                 z.record['expe2'])
         z.mult_fact = z.tot_repair / z.natre 
-        # This function leaves the parameters in z.record normalized by the
-        # total number of node acquisitions (z.tot_repair).  If in the graph
-        # generating routines it is desired to have the parameters
-        # normalized by the initial number of desired acquisitions
-        # (tot_repair), then in the graph generating routine we have to
-        # multiply the parameters by z.mult_fact.
+        # Normalize parameters in z.record
         for k, v in z.record.iteritems():
             z.record[k] = v / z.natre
             if z.VB:
@@ -1598,7 +1593,9 @@ class ACSPNet(RandSchedNet):
             z.print_dicts()
     def init_adaptation_statistics(z):
         """Compute some statistics about the adaptation process. """
-        # Number of naturally required slots
+        # Number of naturally required slots (slots that have to be
+        # obtained because of the network mutation, excluding those
+        # that have to be obtained because of expulsions).
         z.natre = float(sum(n.tier for n in z if n.id not in 
                             n.tx_d.values()))
         z.record = dict(
@@ -2776,7 +2773,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     legflt = ["Flt fltfw = {0}".format(f) for f in fltfw]
     g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
     # Plot the packets destroyed by incorporations in ACSP
-    g.add(x_t, r'attempts per naturally required slots')
+    g.add(x_t, r'attempts per natre')
     g.mplot(rho_v, r['attem'], legsds)
     g.add(x_t, r'dismi')
     g.mplot(rho_v, r['attem'], legsu)
