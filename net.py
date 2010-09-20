@@ -990,7 +990,9 @@ class FlexiTPNode(Node):
         of the minimum number that we need in order to make the protocol
         work as if z.nexch were infinite. 
 
-        z.packet_l: list of sources for which I need to claim a slot
+        z.packet_l: list (rel, src), where "rel" is the node that contends
+        on behalf of its child node and "src" is the source of the packet
+        for whom the slot is claimed.
         
         -------------------------
         Output of the routine (it is not returned, it is stamped)
@@ -1070,6 +1072,15 @@ class FlexiTPNode(Node):
                         p = Packet(p='claim', r=z.i.r, s=z.i.s, f=z.i.f-1, 
                                    n=z.i.n)
                         to_advertise_l.append(p)
+            # Remove unsuitably scheduled nodes.
+            for slot, source in copy.copy(z.tx_d).iteritems():
+                concurrent = [i for i, j in enumerate(z.sim) 
+                              if slot in j.tx_d]
+                if z.id not in z.wsn.correct_bi(concurrent):
+                    z.print('was expelled in slot %d.  The pkt source is %d'
+                            %(slot, source))
+                    z.sim.record['expe1'] += 1
+                    z.sim.record['expe2'] += z.tier - 1
             if to_advertise_l:
                 raise AdvertTError
             for node in z.sim:
@@ -1294,7 +1305,7 @@ class ACSPNode(RandSchedNode):
         for slot, source in copy.copy(z.tx_d).iteritems():
             concurrent = [i for i, j in enumerate(z.sim) if slot in j.tx_d]
             if z.id not in z.wsn.correct_bi(concurrent):
-                z.print('was expelled in slot %d.  The victim is %d'
+                z.print('was expelled in slot %d.  The pkt source is %d'
                         %(slot, source))
                 z.sim.record['expe1'] += 1
                 node = z
@@ -1811,6 +1822,13 @@ class FlexiTPNet(ACSPNet):
                         .format(node.f, node.id))
         z.init_adaptation_statistics()
         z.simulate_net()
+        for k, v in z.record.iteritems():
+            z.record[k] = v / z.natre
+            if z.VB:
+                print("Record:{0} = {1}".format(k, z.record[k]))
+        if z.VB: 
+            print("======Schedule after the execution of the update=====")
+            z.print_dicts()
 class FlexiTPNet2(FlexiTPNet):
     """Simulator of FlexiTP without packet losses.
 
@@ -2716,8 +2734,8 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
         attem=np.zeros((repetitions, len(rho_v), len(sds))),
         dismi=np.zeros((repetitions, len(rho_v), 1+len(fltfw))),
         energ=np.zeros((repetitions, len(rho_v), len(sds))),
-        expe1=np.zeros((repetitions, len(rho_v), len(sds))),
-        expe2=np.zeros((repetitions, len(rho_v), len(sds))),
+        expe1=np.zeros((repetitions, len(rho_v), len(sds)+len(fltfw))),
+        expe2=np.zeros((repetitions, len(rho_v), len(sds)+len(fltfw))),
         laten=np.zeros((repetitions, len(rho_v), len(sds)+len(fltfw))),
         losse=np.zeros((repetitions, len(rho_v), len(sds))),
         nadv1=np.zeros((repetitions, len(rho_v), len(fltfw))),
@@ -2743,6 +2761,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     if r > 0:
                         o['nadv1'][k,i,r-1] = n.nadve
                 wsn.mutate_network(c - nnew, nnew)
+                var = ('attem', 'expe1', 'expe2', 'laten', 'losse')
                 for q, nsds in enumerate(sds):
                     np.random.seed(k)
                     netc = copy.deepcopy(nt[0])
@@ -2751,7 +2770,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                                                      cap=1,mult=8)
                     if q == 0:
                         o['natre'][k, i] = netc.natre
-                    for va in ('attem', 'expe1', 'expe2', 'laten', 'losse'):
+                    for va in var:
                         o[va][k,i,q] = netc.record[va]
                     o['energ'][k, i, q] = netc.incorp_ener()
                     o['sloov'][k, i, q] = (c * netc.nsds * netc.n_frames()
@@ -2760,8 +2779,10 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     np.random.seed(k)
                     nx.adjust_schedule_in_tx_phase()
                     o['nadv2'][k,i,u] = nx.nadve 
-                    o['laten'][k,i,len(sds)+u] = nx.record['laten']/nx.natre
                     o['sloov'][k,i,len(sds)+u] = c*nx.n_frames() * nx.nadve
+                    o['expe1'][k,i,len(sds)+u] = nx.record['expe1']
+                    o['expe2'][k,i,len(sds)+u] = nx.record['expe2']
+                    o['laten'][k,i,len(sds)+u] = nx.record['laten']
          # wsn.plot_tree()
         savedict(**o)
     r = load_npz()
@@ -2780,11 +2801,13 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     g.add(x_t, r'energy per incorporation (mJ)')
     g.mplot(rho_v, r['energ'] * 1e3, legsds)
     g.add(x_t, r'expelled nodes per incorporation')
-    g.mplot(rho_v, r['expe1'], legsds)
-    g.add(x_t, r'expe1 + expe2')
-    g.mplot(rho_v, r['expe1'] + r['expe2'], legsds)
+    g.mplot(rho_v, r['expe1'], legsds + legflt)
+    g.add(x_t, 'expe1 + expe2')
+    g.mplot(rho_v, r['expe1'] + r['expe2'], legsds + legflt)
     g.add(x_t, r'expe2/expe1')
-    g.mplot(rho_v, r['expe1'] / r['expe2'], legsds)
+    quot = r['expe2'] / r['expe1'] # some elements may be NaN (divide by 0)
+    quot = np.where(np.isnan(quot), 0, quot) # Replace NaN by 0
+    g.mplot(rho_v, quot, legsds + legflt)
     #g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
     g.add(x_t, r'latency in frames per incorporation') 
     g.mplot(rho_v, r['laten'], legsds + legflt)
