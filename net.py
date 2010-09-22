@@ -1073,14 +1073,6 @@ class FlexiTPNode(Node):
                                    n=z.i.n)
                         to_advertise_l.append(p)
             # Remove unsuitably scheduled nodes.
-            for slot, source in copy.copy(z.tx_d).iteritems():
-                concurrent = [i for i, j in enumerate(z.sim) 
-                              if slot in j.tx_d]
-                if z.id not in z.wsn.correct_bi(concurrent):
-                    z.print('was expelled in slot %d.  The pkt source is %d'
-                            %(slot, source))
-                    z.sim.record['expe1'] += 1
-                    z.sim.record['expe2'] += z.tier - 1
             if to_advertise_l:
                 raise AdvertTError
             for node in z.sim:
@@ -1308,6 +1300,7 @@ class ACSPNode(RandSchedNode):
                 z.print('was expelled in slot %d.  The pkt source is %d'
                         %(slot, source))
                 z.sim.record['expe1'] += 1
+                z.sim.record['expe2'] -= 1 # avoid double counting
                 node = z
                 while node.id > 0:
                     for slt2, src2 in copy.copy(node.tx_d).iteritems():
@@ -1719,6 +1712,31 @@ class ACSPNet(RandSchedNet):
         else:
             raise Error('We should not reach this point')
         return unconnected_l
+    def expe12(z):
+        """Return number of expelled nodes type 1 and type 2.
+        
+        Type one are those nodes that have an infeasible slot.
+
+        Type two are the those nodes that lie before the tree.
+        
+        """
+        expe1 = 0
+        expe2 = 0
+        last_used = -1
+        for slot in xrange(9999):
+            src = [i for i, j in enumerate(z) if slot in j.tx_d]
+            if src:
+                last_used = slot
+                suc = z.wsn.correct_bi(src)
+                unsuc = set(src).difference(suc)
+                for node in unsuc:
+                    expe1 += 1
+                    expe2 += node.tier - 1
+            elif slot - last_used > 15:
+                break
+        else:
+            raise Error('We should not reach this point')
+        return expe1, expe2
     def complete_convergecast(z):
         """Raise an error if schedule is incomplete.  
 
@@ -2727,21 +2745,21 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     # Since the number of expelled nodes per incorporation is 0.05, the
     # minimum number of repetitions should be 200.
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
-    sds = ((0,1,2), (0,1,2))[tst_nr]
+    sdsl = ((0,1,2), (0,1,2))[tst_nr]
     fltfw = (2, 3) # values of fw used in FlexiTP
     nnew = 2 # Number of new nodes to add 
     o = dict(
-        attem=np.zeros((repetitions, len(rho_v), len(sds))),
+        attem=np.zeros((repetitions, len(rho_v), len(sdsl))),
         dismi=np.zeros((repetitions, len(rho_v), 1+len(fltfw))),
-        energ=np.zeros((repetitions, len(rho_v), len(sds))),
-        expe1=np.zeros((repetitions, len(rho_v), len(sds)+len(fltfw))),
-        expe2=np.zeros((repetitions, len(rho_v), len(sds)+len(fltfw))),
-        laten=np.zeros((repetitions, len(rho_v), len(sds)+len(fltfw))),
-        losse=np.zeros((repetitions, len(rho_v), len(sds))),
+        energ=np.zeros((repetitions, len(rho_v), len(sdsl))),
+        expe1=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
+        expe2=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
+        laten=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
+        losse=np.zeros((repetitions, len(rho_v), len(sdsl))),
         nadv1=np.zeros((repetitions, len(rho_v), len(fltfw))),
         nadv2=np.zeros((repetitions, len(rho_v), len(fltfw))),
         natre=np.zeros((repetitions, len(rho_v))),
-        sloov=np.zeros((repetitions, len(rho_v), len(sds) + len(fltfw))),
+        sloov=np.zeros((repetitions, len(rho_v), len(sdsl) + len(fltfw))),
         slosu=np.zeros((repetitions, len(rho_v), 1+len(fltfw))),
         )
     print(n_nodes)
@@ -2757,12 +2775,15 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     nt.append(FlexiTPNet(wsn, fw=fw, n_exch=70))
                 for r, n in enumerate(nt):
                     o['slosu'][k, i, r] = n.n_slots()
-                    o['dismi'][k, i, r] = n.dismissed()
+                    x = n.dismissed()
+                    if x > 0:
+                        pdb.set_trace()
+                    o['dismi'][k, i, r] = x
                     if r > 0:
                         o['nadv1'][k,i,r-1] = n.nadve
                 wsn.mutate_network(c - nnew, nnew)
                 var = ('attem', 'expe1', 'expe2', 'laten', 'losse')
-                for q, nsds in enumerate(sds):
+                for q, nsds in enumerate(sdsl):
                     np.random.seed(k)
                     netc = copy.deepcopy(nt[0])
                     print("Updating with SDS = {0}".format(nsds))
@@ -2779,10 +2800,11 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     np.random.seed(k)
                     nx.adjust_schedule_in_tx_phase()
                     o['nadv2'][k,i,u] = nx.nadve 
-                    o['sloov'][k,i,len(sds)+u] = c*nx.n_frames() * nx.nadve
-                    o['expe1'][k,i,len(sds)+u] = nx.record['expe1']
-                    o['expe2'][k,i,len(sds)+u] = nx.record['expe2']
-                    o['laten'][k,i,len(sds)+u] = nx.record['laten']
+                    o['sloov'][k,i,len(sdsl)+u] = c*nx.n_frames() * nx.nadve
+                    o['laten'][k,i,len(sdsl)+u] = nx.record['laten']
+                    expe12 = nx.expe12()[0]
+                    o['expe1'][k,i,len(sdsl)+u] = expe12[0]
+                    o['expe2'][k,i,len(sdsl)+u] = expe12[1]
          # wsn.plot_tree()
         savedict(**o)
     r = load_npz()
@@ -2790,17 +2812,18 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     # network changes.
     x_t = r'node density $\bar{\rho}$'
     legsu = ['ACSP', 'Flt fr=2', 'Flt fr=3']
-    legsds = ['SDS = {0}'.format(i) for i in sds]
+    legsds = ['SDS = {0}'.format(i) for i in sdsl]
+    leg2 = ['$\\rho = {0}$'.format(rho_v[i]) for i in ind_rho_table]
     legflt = ["Flt fltfw = {0}".format(f) for f in fltfw]
     g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
     # Plot the packets destroyed by incorporations in ACSP
-    g.add(x_t, r'attempts per natre')
+    g.add(x_t, r'attem: attempts per natre')
     g.mplot(rho_v, r['attem'], legsds)
     g.add(x_t, r'dismi')
-    g.mplot(rho_v, r['attem'], legsu)
-    g.add(x_t, r'energy per incorporation (mJ)')
+    g.mplot(rho_v, r['dismi'], legsu)
+    g.add(x_t, r'energ: per natreq (mJ)')
     g.mplot(rho_v, r['energ'] * 1e3, legsds)
-    g.add(x_t, r'expelled nodes per incorporation')
+    g.add(x_t, r'expe1: expelled  per natreq')
     g.mplot(rho_v, r['expe1'], legsds + legflt)
     g.add(x_t, 'expe1 + expe2')
     g.mplot(rho_v, r['expe1'] + r['expe2'], legsds + legflt)
@@ -2809,10 +2832,11 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     quot = np.where(np.isnan(quot), 0, quot) # Replace NaN by 0
     g.mplot(rho_v, quot, legsds + legflt)
     #g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
-    g.add(x_t, r'latency in frames per incorporation') 
+    g.add(x_t, r'laten: per natreq') 
     g.mplot(rho_v, r['laten'], legsds + legflt)
     g.add(x_t, r'losse: packets ruined per incorporation in ACSP')
-    g.mplot(rho_v, r['losse'])
+    g.mplot(rho_v, r['losse'], legsds)
+    g.plot(rho_v, np.zeros(len(rho_v)), 'FlexiTP')
     g.opt(r'ylabel style={yshift = 3mm}')
     g.add(x_t, r"nadv1: slots per exchange in FlexiTP's setup")
     g.mplot(rho_v, r['nadv1'], legflt)
@@ -2826,23 +2850,32 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     g.mplot(rho_v, r['slosu'], legsu)
     ############## Normalized gain as a function of the T_s
     # Energy consumed by FlexiTP
-    eflex = np.array([STATES['tx'] * 1000 * (r['nadv2'][i,0]) * slot_t
-        for i in xrange(len(rho_v))])
-    print("eflex")
-    print(eflex)
+    eflex = np.zeros((len(rho_v), len(fltfw)))
+    E_v_sutp_0 = np.zeros((len(rho_v), len(sdsl)))
+    for i in xrange(len(rho_v)):
+        for j in xrange(len(fltfw)):
+            eflex[i, j] = STATES['tx'] * 1000 * r['nadv2'][i,j] * slot_t
+        for j in xrange(len(sdsl)):
+            E_v_sutp_0[i, j] = r['energ'][i,j] * 1000.
+    print("eflex = {0}".format(eflex))
     E_f_sutp =  STATES['rx'] * 1000 * sglt * 1
-    E_v_sutp_0 = [r['energ'][i,0] * 1000. for i in xrange(len(rho_v))]
-    Ts = np.arange(5, 20, 2)
-    Gbar = np.zeros((len(Ts), len(ind_rho_table)))
-    for j, i in enumerate(ind_rho_table):
-        E_t_sutp = (E_f_sutp + E_v_sutp_0[i] / Ts / n_nodes[i])
-        print(E_t_sutp)
-        Gbar[:,j] = eflex[i] /  E_t_sutp / r['laten'][i,0]
-    print(Gbar)
-    g.add('Period between changes $T_s$', 'normalized gain $\\bar{G}$')
-    leg2 = ['$\\rho = {0}$'.format(rho_v[i]) for i in ind_rho_table]
-    #pdb.set_trace()
-    g.mplot(Ts, Gbar, leg2)
+    Ts = np.arange(5, 20, 2) # frames between natreq slots
+    Gbar = np.zeros((len(Ts), len(rho_v), len(sdsl), len(fltfw)))
+    for s, sds in enumerate(sdsl):
+        for i, rho in enumerate(rho_v):
+            E_t_sutp = (E_f_sutp + E_v_sutp_0[i, s] / Ts / n_nodes[i])
+            print("E_t_sutp = {0}".format(E_t_sutp))
+            for h, fw in enumerate(fltfw):
+                x = (eflex[i,h] / r['laten'][i,s]
+                     * r['laten'][i,len(sdsl) + h])
+                if x < 0.1:
+                    pdb.set_trace()
+                Gbar[:, i, s, h] = x / E_t_sutp
+    fwi = 0
+    sdsi = 0
+    g.add('Period between changes $T_s$', 
+          'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
+    g.mplot(Ts, Gbar[:,ind_rho_table,0,0], leg2)
     #################
     g.extra_body.append(r"""
 \begin{verbatim}
@@ -2852,15 +2885,14 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     # per node.
     g.extra_body.append("|%15s|%6s|%15s|%15s|\n" %("Protocol", "rho",
           "E_f", "E_g"))
-    for i in ind_rho_table:#index of node density
-        g.extra_body.append("|%15s|%6d|%15f|%15f|\n" % \
-            (("", "$FlexiTP$")[not i],
-             rho_v[i], 
-             STATES['tx'] * 1000 * (r['nadv2'][i,0]) * slot_t,
-             0))
-    for nsds in (0, 2):
+    for j, fw in enumerate(fltfw):
         for i in ind_rho_table:#index of node density
-            g.extra_body.append("|%15s|%6d|%15f|%15f|\n" % \
+            g.extra_body.append("|%15s|%6d|%15f|%15f|\n" %
+                                (("", "FlexiTP{0}".format(fw))[not i], 
+                                 rho_v[i], eflex[i, j], 0))
+    for nsds in sdsl:
+        for i, j in enumerate(rho_v):#index of node density
+            g.extra_body.append("|%15s|%6d|%15f|%15f|\n" %
              (("", "SDS=%d$" % nsds)[not i],
               rho_v[i],
               STATES['rx'] * 1000 * sglt * (nsds+1),
