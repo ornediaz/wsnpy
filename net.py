@@ -2802,7 +2802,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     o['nadv2'][k,i,u] = nx.nadve 
                     o['sloov'][k,i,len(sdsl)+u] = c*nx.n_frames() * nx.nadve
                     o['laten'][k,i,len(sdsl)+u] = nx.record['laten']
-                    expe12 = nx.expe12()[0]
+                    expe12 = nx.expe12()
                     o['expe1'][k,i,len(sdsl)+u] = expe12[0]
                     o['expe2'][k,i,len(sdsl)+u] = expe12[1]
          # wsn.plot_tree()
