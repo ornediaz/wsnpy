@@ -2775,10 +2775,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     nt.append(FlexiTPNet(wsn, fw=fw, n_exch=70))
                 for r, n in enumerate(nt):
                     o['slosu'][k, i, r] = n.n_slots()
-                    x = n.dismissed()
-                    if x > 0:
-                        pdb.set_trace()
-                    o['dismi'][k, i, r] = x
+                    o['dismi'][k, i, r] = n.dismissed()
                     if r > 0:
                         o['nadv1'][k,i,r-1] = n.nadve
                 wsn.mutate_network(c - nnew, nnew)
