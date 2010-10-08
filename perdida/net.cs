@@ -1225,6 +1225,119 @@ class ProdGlb
                 tst_nr, n_averages);
         g.save(filename, plot);
     }
+    public static void graphRateSize2(int tst_nr, int n_averages, int plot)
+    {
+        Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
+                tst_nr, n_averages, plot);
+        double tx_rg = 2;
+        double[] xv = null;
+        double[] yv = null;
+        if (tst_nr == 0)
+        {
+            xv = new double[] {tx_rg, 2 * tx_rg};
+            yv = new double[] {tx_rg,     tx_rg};
+        }
+        else if (tst_nr == 1)
+        {
+            xv = G.linspace(tx_rg, 5 * tx_rg, 5);
+            yv = G.linspace(2 * tx_rg, 2.01 * tx_rg, 5);
+        }
+        if (xv.GetLength(0) != yv.GetLength(0))
+        {
+            throw new Exception("xv and yv should have equal length");
+        }
+        double rho = 15;
+        int frames = 10;
+        int n_tx_frames = 2000;
+        double opt = 0;
+        int[] types = new int[] {0, 1, 2, 3, 4};
+        double[] rate_v = G.linspace(0.5, 3, 28);
+        int size = 30;
+        double[,] tota = new double[xv.GetLength(0), types.Length];
+        double[,] mean = new double[xv.GetLength(0), types.Length];
+        double[,] pmin = new double[xv.GetLength(0), types.Length];
+        double[,] ropt = new double[xv.GetLength(0), types.Length];
+        for (int k = 0; k < n_averages; k++)
+        {
+            Console.WriteLine("Repetition {0,4:D}. Total {1}",
+                        k, G.elapsed());
+            for (int s = 0; s < xv.GetLength(0); s++)
+            {
+                Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", s,
+				  xv[s] / tx_rg, G.elapsed());
+                int n = (int)(rho* xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
+                int source_min = (int) (0.8 * n);
+                G.rgen = new Random(k);
+                int[] fv = RandomTree.parents(n, xv[s], yv[s], tx_rg);
+                double[] ps = new double[n];
+                for (int u = 0; u < n; u++)
+                {
+                    ps[u] = 0.5 + G.rgen.NextDouble() / 2;
+                }
+                for (int i = 0; i < types.Length; i++)
+                {
+                    double m_tota = 0;
+                    double m_mean = 0;
+                    double m_pmin = 0;
+                    double m_ropt = rate_v[0];
+                    for (int j = 0; j < rate_v.Length; j++)
+                    {
+                        LossTree t = new LossTree(fv, ps, size);
+                        if (types[i] == 3)
+                        {
+                            t.find_schedule(frames, source_min);
+                        }
+                        int[] results = t.simulate_it(n_tx_frames, 
+                                            rate_v[j], types[i], k);
+                        double a_tota = 0;
+                        double a_mean = 0;
+                        double a_pmin = 0;
+                        foreach (int h in results)
+                        {
+                            a_tota += (double) h / n_tx_frames;
+                            a_mean += (double) h / results.Length;
+                            if (h < source_min)
+                            {
+                                a_pmin += (double)1 / results.Length;
+                            }
+                        }
+                        if (a_tota > m_tota)
+                        {
+                            m_tota = a_tota;
+                            m_mean = a_mean;
+                            m_pmin = a_pmin;
+                            m_ropt = rate_v[j];
+                        }
+                    }
+                    tota[s, i] += m_tota / n_averages;
+                    mean[s, i] += m_mean / n_averages;
+                    pmin[s, i] += m_pmin / n_averages;
+                    ropt[s, i] += m_ropt / n_averages;
+                }
+            }
+        }
+        Console.WriteLine("**** Printing results *****");
+        string[] legv = new string[] { "0", "1", "2",
+            String.Format("3={0:F3}", opt), "4" };
+        Pgf g = new Pgf();
+        string xlab = "normalized x size";
+        double[] xn = new double[xv.Length];
+        for (int q = 0; q < xn.Length; q++)
+        {
+            xn[q] = xv[q] / tx_rg;
+        }
+        g.add(xlab, "total");
+        g.mplot(xn, tota, legv);
+        g.add(xlab, "mean");
+        g.mplot(xn, mean, legv);
+        g.add(xlab, "pmin");
+        g.mplot(xn, pmin, legv);
+        g.add(xlab, "ropt");
+        g.mplot(xn, ropt, legv);
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                tst_nr, n_averages);
+        g.save(filename, plot);
+    }
     public static void multiplot1(int n_averages)
     {
         for (int tst_nr = 0; tst_nr < 15; tst_nr++)
