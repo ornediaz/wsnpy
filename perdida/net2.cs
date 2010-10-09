@@ -758,6 +758,30 @@ class ProdGlb
     //
     // The goal is to see how the different methods work with different
     // topologies. 
+    public static void averRate(int tst_nr, int_average, int plot)
+    {
+        Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
+                tst_nr, n_averages, plot);
+        double tx_rg = 2;
+        double x = 5 * tx_rg;
+        double y = 5 * tx_rg;
+        double rho = 9;
+        int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
+        int frames = 10;
+        int n_tx_frames = 2000;
+        double opt = 0;
+        double[] rate_v = G.linspace(0.1, 1.5, 28);
+        int source_min = 3;
+        int size = 30;
+        int[] types = new int[] {0, 1, 2, 3, 4};
+        G.VB = false;
+        for (int k = 0; k < n_averages; k++)
+        {
+            G.rgen = new Random(k);
+            AverTree at = new AverTree(n, x, y, tx_rt);
+            LossTree t = new LossTree(at.fv, at.ps, size);
+        }
+    }
     public static void graphRate1(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3}). Total {4}",
@@ -1353,8 +1377,256 @@ class ProdGlb
         }
     }
 }
+class AverTree
+{
+    public double [,] cost;
+    public double [,] suc_prob;
+    public double [] ps;
+    public int [,] fv;
+    public int[] tier;
+    public int n;
+    public List<int>[] neigh_upp; // Neighbors in an upper tier
+    public AverTree(int n, double x, double y, double tx_rg)
+    {
+        this.n = n;
+        if (n < 2)
+        {
+            throw new Exception("Number of nodes must exceed 2");
+        }
+        int[] fv = new int[n];
+        double[,] xy = new double[n, 2];
+        double[,] cost = new double[n, n];
+        int MAX_TESTS = 15;
+        double MAX_DISCONNECTED = 0.1;
+        for (int h = 0; h < MAX_TESTS; h++)
+        { 
+            for (int i = 1; i < n; i++)
+            {
+                xy[i, 0] = G.rgen.NextDouble() * x;
+                xy[i, 1] = G.rgen.NextDouble() * y;
+            }
+            //Console.WriteLine(n);
+            xy[0, 0] = 0;
+            xy[0, 1] = 0;
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    double dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2)
+                           + Math.Pow(xy[i, 1] - xy[j, 1], 2));
+                    if (dist < tx_rg)
+                    {
+                        cost[i,j] = 1;
+                        cost[j,i] = 1;
+                    }
+                    else
+                    {
+                        cost[i, j] = G.INF;
+                        cost[j, i] = G.INF;
+                    }
+                    suc_prob[i, j] = 0.5 + G.rgen.NextDouble() / 2;
+                }
+            }
+            if (G.VB)
+            {
+                Console.WriteLine("****Iteration {0}", h);
+                for (int i = 0; i < n; i++)
+                {
+                    for (int j = 0; j < n; j++)
+                    {
+                        Console.Write("{0:f3}, ", cost[i,j]);
+                    }
+                    Console.WriteLine();
+                }
+            }
+            tier = new double[n];
+            for (int i = 1; i < n; i++)
+            {
+                tier[i] = G.INF;
+            }
+            tier[0] = 0; // The source is at distance 0 from itz
+            fv = new int[n];
+            List<int> unprocessed = new List<int>();
+            for (int i = 0; i < n; i++)
+            {
+                fv[i] = -1;
+                unprocessed.Add(i);
+            }
+            //If any node does not have neighbors, it will never be processed.
+            while (unprocessed.Count > 0)
+            {
+                int x = unprocessed[0];
+                foreach (int i in unprocessed)
+                {
+                    if (tier[i] < tier[x])
+                    {
+                        x = i;
+                    }
+                }
+                if (tier[x] == G.INF)
+                {
+                    break;
+                }
+                unprocessed.Remove(x);
+                foreach (int y in unprocessed)
+                {
+                    double alt = tier[x] + cost[x, y];
+                    if (alt < tier[y])
+                    {
+                        tier[y] = alt;
+                        fv[y] = x;
+                    }
+                }
+            }
+            if (G.VB)
+            {
+                for (int i = 0; i < n; i ++)
+                {
+                    Console.Write("{0:d}, ", fv[i]);
+
+                }
+            }
+            int disconnected = 0;
+            foreach (int f in fv)
+            {
+                if (f == -1)
+                {
+                    disconnected++;
+                }
+            }
+            if ((double) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
+            {
+                neigh_upp = new List<int>[];
+                for (int i=0; i < n; i++)
+                {
+                    for (int j = 0; j < n; j++)
+                    {
+                        if (i!=j && tier[j]==tier[i]- 1 && cost[i, j] < G.INF)
+                        {
+                            neigh_upp[i].Add(j);
+                        }
+                    }
+                    ps = suc_prob[i, fv[i]]i;
+                }
+                return;
+            }
+        }
+        Console.WriteLine(n);
+        Console.WriteLine(x);
+        Console.WriteLine(y);
+        Console.WriteLine(tx_rg);
+        throw new Exception("No sufficiently connected topology found");
+    }
+    public void get_tree(Node[] nodes, double weight, int[] fv, double[] ps)
+    {
+        for (int i=1; i<n; i++)
+        {
+            best_neigh = neigh_upp[i][0];
+            double consum = nodes[best_neigh].consum;
+            foreach (int j in neigh_upp)
+            {
+                if (nodes[j].consum < consum)
+                {
+                    consum = nodes[j].consum;
+                    best_neigh = j;
+                }
+            }
+            fv[i] = best_neigh;
+            ps[i] = suc_prob[i, best_neigh]; 
+        }
+    }
+}
 class RandomTree
 {
+// Return:
+// 
+// + Vector with parents fv
+// + Vector with costs 
+    public static int[] gen_top(int n, double x, double y, double tx_rg)
+    {
+
+
+     
+        // n is  the number of nodes
+        // x, y are the geographical area
+        // tx_rg
+        if (n < 2)
+        {
+            throw new Exception("Number of nodes must exceed 2");
+        }
+        int[] fv = new int[n];
+        double[,] xy = new double[n, 2];
+        double[,] cost = new double[n, n];
+        int MAX_TESTS = 15;
+        double MAX_DISCONNECTED = 0.1;
+        for (int h = 0; h < MAX_TESTS; h++)
+        { 
+            for (int i = 1; i < n; i++)
+            {
+                xy[i, 0] = G.rgen.NextDouble() * x;
+                xy[i, 1] = G.rgen.NextDouble() * y;
+            }
+            //Console.WriteLine(n);
+            xy[0, 0] = 0;
+            xy[0, 1] = 0;
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    double dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2)
+                           + Math.Pow(xy[i, 1] - xy[j, 1], 2));
+                    if (dist < tx_rg)
+                    {
+                        cost[i,j] = dist;
+                        cost[j,i] = dist;
+                    }
+                    else
+                    {
+                        cost[i, j] = G.INF;
+                        cost[j, i] = G.INF;
+                    }
+                }
+            }
+            if (G.VB)
+            {
+                Console.WriteLine("****Iteration {0}", h);
+                for (int i = 0; i < n; i++)
+                {
+                    for (int j = 0; j < n; j++)
+                    {
+                        Console.Write("{0:f3}, ", cost[i,j]);
+                    }
+                    Console.WriteLine();
+                }
+            }
+            fv = dijkstra(cost);
+            if (G.VB)
+            {
+                for (int i = 0; i < n; i ++)
+                {
+                    Console.Write("{0:d}, ", fv[i]);
+
+                }
+            }
+            int disconnected = 0;
+            foreach (int f in fv)
+            {
+                if (f == -1)
+                {
+                    disconnected++;
+                }
+            }
+            if ((double) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
+            {
+                return fv;
+            }
+        }
+        Console.WriteLine(n);
+        Console.WriteLine(x);
+        Console.WriteLine(y);
+        Console.WriteLine(tx_rg);
+        throw new Exception("No sufficiently connected topology found");
+    }
     public static int[] parents(int n, double x, double y, double tx_rg)
     {
         // n is  the number of nodes
