@@ -25,14 +25,14 @@ class LossTree
         }
         postorder.Add(x);
     }
-    public LossTree(int[] fv, double[] ps, int size)
+    public LossTree(int[] fv, float[] ps, int buffer_size)
     {
         nodes = new Node[fv.Length];
         for (int i = 0; i < fv.Length; i++)
         {
             nodes[i] = new Node(i);
             nodes[i].ps = ps[i];
-            nodes[i].size = size;
+            nodes[i].buffer_size = buffer_size;
         }
         for (int i = 0; i < fv.Length; i++)
         {
@@ -70,7 +70,7 @@ class LossTree
         {
             throw new Exception();
         }
-        while (n.pkts.Count > n.size)
+        while (n.pkts.Count > n.buffer_size)
         {
             int position = 0;
             if (n.discard_type == 0)
@@ -150,11 +150,111 @@ class LossTree
             n.pkts.RemoveAt(position);
         }
     }
-    public int[] simulate_it(int n_tx_frames, double rate, int type, int seed)
+    // 
+    public int[] simulate_it2(int blocks, int n_packets, int seed)
+    {
+        // Obtain sched_order, which specifies the schedule in which every
+        // node has to transmit n_packets.
+        int[] nframes = new int[n];
+        int nfrmax = 0;
+        for (int i=1; i<n; i++)
+        {
+            nfr = (int) Math.Ceiling(n_packets/(float)nodes[i].ps); 
+            nfrmax = Math.Max(nfrmax, nfr);
+            nframes[i] = nfr;
+        }
+        List<Node> sched_order = new List<Node>();
+        for (int q=0; q<nfr; q++)
+        {
+            foreach (Node n in postorder)
+            {
+                if (nframes[n.ID] > 0)
+                {
+                    sched_order.Add(n);
+                    nframe[n.ID] -= 1;
+                }
+            }
+        }
+
+        G.rgen = new Random(seed);
+        int sensing_interval = 0;
+        int n_blocks = n_tx_frames / n_packets;
+        int n_reporting_intervals = n_blocks * n_packets;
+        int[] results = new int[n_reporting_intervals];
+        for (int block = 0; block < n_blocks; block++)
+        {
+            G.prnt("*** Simulating block " + frame);
+            for (int i=0; i < n; i++)
+            {
+                for (int j=0; j < n_packets; j++)
+                {
+                    int sensing_interval = block * n_packets + j;
+                    nodes[i].pkts.Add(new Packet(sensing_interval, 1));
+                    discard(u);
+                }
+            }
+            foreach (Node n in sched_order)
+            {
+                G.prnt("Processing node " + n.ID);
+                nodes[n.f.ID].consum += rx_consum / n_reporting_intervals;
+                if (n.pkts.Count == 0)
+                {
+                    G.prnt("Node " + n.ID + "has empty buffer");
+                    continue;
+                }
+                n.consum += 1.0 / n_reporting_intervals;
+                float random_number = G.rgen.NextDouble();
+                //Console.WriteLine(random_number);
+                if (random_number >= n.ps)
+                {
+                    G.prnt("Packet transmission of node " + n.ID +
+                            "failed");
+                    continue;
+                }
+                int position = 0;
+                // Select the oldest packet.
+                for (int i = 0; i < n.pkts.Count; i++)
+                {
+                    if (n.pkts[i].t < n.pkts[position].t)
+                    {
+                        position = i;
+                    }
+                }
+                Packet pkt = n.pkts[position];
+                n.pkts.RemoveAt(position);
+                //Console.WriteLine("Node {0:d}; tx: ({1:d}, {2:d})", n.ID,
+                //pkt.t, pkt.k);
+                if (n.f.ID == 0)
+                {
+                    results[pkt.t] += pkt.k;
+                }
+                else
+                {
+                    bool added = false;
+                    foreach (Packet j in n.f.pkts)
+                    {
+                        if (j.t == pkt.t)
+                        {
+                            j.k += pkt.k;
+                            added = true;
+                            break;
+                        }
+                    }
+                    if (added == false)
+                    {
+                        n.f.pkts.Add(pkt);
+                    }
+                    discard(n.f);
+                }
+            }
+        }
+        return results;
+    }
+    public int[] simulate_it(int n_tx_frames, float rate, int type, int seed)
     {
         foreach (Node n in nodes)
         {
-            n.pkts = new List<Packet>(n.size + 4);
+            n.pkts = new List<Packet>(n.buffer_size + 4);
             if (type == 0)
             {
                 n.discard_type = 0;
@@ -177,7 +277,7 @@ class LossTree
             }
             else if (type == 4)
             {
-                double m = 1.0;
+                float m = 1.0;
                 foreach (Node y in n.ancestors)
                 {
                     m = Math.Min(m, y.ps);
@@ -199,7 +299,8 @@ class LossTree
             }
         }
         G.rgen = new Random(seed);
-        int[] results = new int[(int)Math.Floor((n_tx_frames - 1) * rate + 1)];
+        n_reporting_intervals = (int)Math.Floor((n_tx_frames - 1) * rate + 1);
+        int[] results = new int[n_reporting_intervals];
         int sensing_interval = 0;
         for (int frame = 0; frame < n_tx_frames; frame++)
         {
@@ -215,12 +316,14 @@ class LossTree
             foreach (Node n in postorder)
             {
                 G.prnt("Processing node " + n.ID);
+                nodes[n.f.ID].consum += rx_consum / n_reporting_intervals;
                 if (n.pkts.Count == 0)
                 {
                     G.prnt("Node " + n.ID + "has empty buffer");
                     continue;
                 }
-                double random_number = G.rgen.NextDouble();
+                n.consum += 1.0 / n_reporting_intervals;
+                float random_number = G.rgen.NextDouble();
                 //Console.WriteLine(random_number);
                 if (random_number >= n.ps)
                 {
@@ -332,15 +435,15 @@ class LossTree
         }
         return results;
     }
-    public void find_schedule(int frames, int source_min)
+    public void find_schedule(int sched_lgth, int source_min)
     {
         this.nodes[0].ps = 1.0;
         foreach (Node x in nodes)
         {
-            x.q = (int)Math.Floor(x.ps * frames);
+            x.q = (int)Math.Floor(x.ps * sched_lgth);
             foreach (Node y in x.ancestors)
             {
-                x.q = Math.Min(x.q, (int)Math.Floor(y.ps * frames));
+                x.q = Math.Min(x.q, (int)Math.Floor(y.ps * sched_lgth));
             }
         }
         int max_frames = 99999;
@@ -491,7 +594,7 @@ class LossTree
     public static void tst_find_schedule()
     {
         int[] fv = new int[] {-1, 0, 1, 1, 1, 0, 5, 6, 7, 8};
-        double[] ps = new double[fv.Length];
+        float[] ps = new float[fv.Length];
         for (int i = 0; i < ps.Length; i++)
         {
             if (i < 5)
@@ -514,7 +617,7 @@ class LossTree
     public static void tst_find_schedule2()
     {
         int[] fv = new int[] {-1, 0, 1, 1, 0};
-        double[] ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
+        float[] ps = new float[] {1, 0.8, 0.6, 0.2, 0.2};
         LossTree t = new LossTree(fv, ps, 8);
         G.VB = true;
         t.find_schedule(5, 3);
@@ -533,11 +636,12 @@ class Node
     public List<Node> ancestors = new List<Node>(); // includes sink
     public List<Node> ch = new List<Node>();
     public List<int> gen = new List<int>();
+    public float consum = 0.0;
     public Node f = null;
-    public double ps;
+    public float ps;
     public int q = 0;
     // maximum number of packets that a node can transmit per hyperframe. 
-    public int size;
+    public int buffer_size;
     public Node(int ID) {
         this.ID = ID;
     }
@@ -546,9 +650,11 @@ class Packet
 {
     public int t;
     public int k;
-    public Packet(int t, int k) {
+    public Packet(int t, int k) 
+    {
         this.t = t;
-        this.k = k; }
+        this.k = k; 
+    }
 }
 class PgfAxis
 {
@@ -560,7 +666,7 @@ class PgfAxis
         options.Add("xlabel = { " + xlabel + "}");
         options.Add("ylabel = { " + ylabel + "}");
     }
-    public void plot(double[] xv, double[] yv, string leg)
+    public void plot(float[] xv, float[] yv, string leg)
     {
         if (xv.Length != yv.Length)
         {
@@ -580,11 +686,11 @@ class PgfAxis
         }
         legend.Add(leg);
     }
-    public void mplot(double[] xv, double[,] ym, string[] legv)
+    public void mplot(float[] xv, float[,] ym, string[] legv)
     {
         for (int j = 0; j < ym.GetLength(1); j++)
         {
-            double[] yv = new double[ym.GetLength(0)];
+            float[] yv = new float[ym.GetLength(0)];
             for (int i = 0; i < ym.GetLength(0); i++)
             {
                 yv[i] = ym[i, j];
@@ -594,11 +700,11 @@ class PgfAxis
     }
     // Inverse multiplot.  It is inverse in the sense that I swap the x and
     // y axis.  It is multi in the sense that
-    public void implot(double[] xv, double[,] ym, string[] legv)
+    public void implot(float[] xv, float[,] ym, string[] legv)
     {
         for (int j = 0; j < ym.GetLength(1); j++)
         {
-            double[] yv = new double[ym.GetLength(0)];
+            float[] yv = new float[ym.GetLength(0)];
             for (int i = 0; i < ym.GetLength(0); i++)
             {
                 yv[i] = ym[i, j];
@@ -609,7 +715,7 @@ class PgfAxis
 }
 class PltGlb
 {
-    public static void plot_logical3(int[] fv, double[] ps, int plot)
+    public static void plot_logical3(int[] fv, float[] ps, int plot)
     {
         if (plot == 0)
         {
@@ -657,15 +763,15 @@ class Pgf
     {
         body.Add(new PgfAxis(xlabel, ylabel));
     }
-    public void plot(double[] xv, double[] yv, string leg)
+    public void plot(float[] xv, float[] yv, string leg)
     {
         body[body.Count - 1].plot(xv, yv, leg);
     }
-    public void mplot(double[] xv, double[,] ym, string[] legv)
+    public void mplot(float[] xv, float[,] ym, string[] legv)
     {
         body[body.Count - 1].mplot(xv, ym, legv);
     }
-    public void implot(double[] xv, double[,] ym, string[] legv)
+    public void implot(float[] xv, float[,] ym, string[] legv)
     {
         body[body.Count - 1].implot(xv, ym, legv);
     }
@@ -758,42 +864,104 @@ class ProdGlb
     //
     // The goal is to see how the different methods work with different
     // topologies. 
-    public static void averRate(int tst_nr, int_average, int plot)
+    public static void averRate(int tst_nr, int n_average, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
-        double tx_rg = 2;
-        double x = 5 * tx_rg;
-        double y = 5 * tx_rg;
-        double rho = 9;
+        float tx_rg = 2;
+        float x = 5 * tx_rg;
+        float y = 5 * tx_rg;
+        float rho = 9;
         int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
-        int frames = 10;
+        int sched_lgth = 10;
         int n_tx_frames = 2000;
-        double opt = 0;
-        double[] rate_v = G.linspace(0.1, 1.5, 28);
-        int source_min = 3;
-        int size = 30;
+        // Parameters for the all-transmit-in-all approach: number of blocks
+        // and packets per block.
+        int blocks = 200; 
+        int n_packets = 8;  
+        float[] rate_v = G.linspace(0.1, 1.5, 15);
+        int source_min = (int) (n * 0.5);
+        // cycles used to balance the energy consumption
+        int cycles = 8;
+        int buffer_size = 30;
         int[] types = new int[] {0, 1, 2, 3, 4};
         G.VB = false;
+        float[] consum_tot = n;
+        float tot_consum1 = new float[n];
         for (int k = 0; k < n_averages; k++)
         {
             G.rgen = new Random(k);
             AverTree at = new AverTree(n, x, y, tx_rt);
-            LossTree t = new LossTree(at.fv, at.ps, size);
+            Array.Clear(tot_consum1, 0, n);
+            for (int h = 0; h < cycles; h++)
+            {
+                float[] consum_old = new float[n];
+                for (int j=0; j < rate_v.Length; j++)
+                {
+                    at.get_tree(tot_consum1);
+                    LossTree t = new LossTree(at.fv, at.ps, buffer_size);
+                    t.find_schedule(sched_lgth, source_min);
+                    int [] results = t.simulate_it(n_tx_frames, rate_v[j]);
+                    // Fraction of reporting intervals with insufficient
+                    // count
+                    float fid_ratio 0 = 0.0; //
+                    foreach (int h in results)
+                    {
+                        if (h < source_min)
+                        {
+                            fid_ratio += (float) 1.0 / results.Length;
+                        }
+                    }
+                    if (fid_ratio < fid_ratio_threshold)
+                    {
+                        // Record statistics in temporary variable
+                        for (int q = 0; q < n; q++)
+                        {
+                            consum_old[q] = t.nodes[q].consum;
+                        }
+                    }
+                    else
+                    {
+                        for (int r=0; r < n; r++)
+                            tot_consum1[r] += consum_old[r];
+                        // Record statistics in permanent variable
+                        continue;
+                    }
+                }
+            }
+            consum_mean[0] += G.Mean(tot_consum1) / n_averages; 
+            consum_median[0] += G.Median(tot_consum1) / n_averages;
+            consum_max[0] += G.Max(tot_consum1);
+            // 
+            G.rgen = new Random(k);
+            int n_blocks = n_tx_frames / n_packets;
+            float [] tot_consume2 = new float [n];
+            Array.Clear(tot_consum1, 0, n);
+            for (int h = 0; h < cycles; h++)
+            {
+                at.get_tree(tot_consum1);
+                LossTree e = new LossTree(at.fv, at.ps, buffer_size);
+                e.simulate_it2(blocks, n_packets, h);
+                for (int i = 0; i < n; i++)
+                    tot_consume2[i] += e.nodes[i].consum;
+            }
+            consum_mean[1] += G.Mean(tot_consum1) / n_averages; 
+            consum_median[1] += G.Median(tot_consum1) / n_averages;
+            consum_max[1] += G.Max(tot_consum1);
         }
     }
     public static void graphRate1(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3}). Total {4}",
                 G.current(), tst_nr, n_averages, plot, G.elapsed());
-        int frames = 10;
+        int sched_lgth = 10;
         int[] fv;
         int n_tx_frames = 2000;
-        double opt = 0;
-        double[] ps;
-        double[] rate_v = G.linspace(0.1, 1.5, 28);
+        float opt = 0;
+        float[] ps;
+        float[] rate_v = G.linspace(0.1, 1.5, 28);
         int source_min = 3;
-        int size = 30;
+        int buffer_size = 30;
         int[] types = new int[] {0, 1, 2, 3, 4};
         G.VB = false;
         // Shows the advantage of the scheduled approach, particularly in
@@ -801,40 +969,40 @@ class ProdGlb
         if (tst_nr == 0)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 };
+            ps = new float[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 };
         }
         // No advantage in the scheduled approach
         else if (tst_nr == 1)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
+            ps = new float[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
         }
         // No advantage in scheduled approach
         else if (tst_nr == 2)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.4, 0.8, 0.8, 0.8, 0.8 };
+            ps = new float[] { 1, 0.4, 0.8, 0.8, 0.8, 0.8 };
         }
         // Slight advantage of scheduled approach, all select/discard
         // policies are similar.
         else if (tst_nr == 3)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.6, 0.6, 0.6, 0.2, 0.2 };
+            ps = new float[] { 1, 0.6, 0.6, 0.6, 0.2, 0.2 };
         }
         // Advantage of scheduled approach for low rate, great variety
         // between select/discard policies, but 0 is overall the best.
         else if (tst_nr == 4)
         {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.3, 0.6, 0.6, 0.2, 0.2 };
+            ps = new float[] { 1, 0.3, 0.6, 0.6, 0.2, 0.2 };
         }
         // No schedule advantage and moderate advantage of packet
         // selection.  Strong peak at the optimal.
         else if (tst_nr == 5)
         {
             fv = new int[] { -1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5 };
-            ps = new double[12];
+            ps = new float[12];
             for (int i = 0; i < fv.Length; i++)
             {
                 ps[i] = 0.3;
@@ -844,7 +1012,7 @@ class ProdGlb
         else if (tst_nr == 6)
         {
             fv = new int[] { -1, 0, 1, 2, 3, 4, 5 };
-            ps = new double[fv.Length];
+            ps = new float[fv.Length];
             for (int i = 0; i < ps.Length; i++)
             {
                 ps[i] = 0.3;
@@ -855,7 +1023,7 @@ class ProdGlb
         else if (tst_nr == 7)
         {
             fv = new int[] {-1, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2};
-            ps = new double[fv.Length];
+            ps = new float[fv.Length];
             for (int i = 0; i < ps.Length; i++)
             {
                 ps[i] = 0.8;
@@ -864,7 +1032,7 @@ class ProdGlb
         else if (tst_nr == 8)
         {
             fv = new int[] {-1, 0, 0, 1, 1, 1, 2, 2, 2};
-            ps = new double[fv.Length];
+            ps = new float[fv.Length];
             for (int i = 0; i < ps.Length; i++)
             {
                 ps[i] = 0.8;
@@ -873,7 +1041,7 @@ class ProdGlb
         else if (tst_nr == 9)
         {
             fv = new int[] {-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12};
-            ps = new double[fv.Length];
+            ps = new float[fv.Length];
             for (int i = 0; i < ps.Length; i++)
             {
                 if (i < 9)
@@ -891,7 +1059,7 @@ class ProdGlb
         else if (tst_nr == 10)
         {
             fv = new int[] {-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12};
-            ps = new double[fv.Length];
+            ps = new float[fv.Length];
             for (int i = 0; i < ps.Length; i++)
             {
                 if (i < 9)
@@ -907,7 +1075,7 @@ class ProdGlb
         else if (tst_nr == 11)
         {
             fv = new int[] {-1, 0, 1, 1, 1, 0, 5, 6, 7, 8};
-            ps = new double[fv.Length];
+            ps = new float[fv.Length];
             for (int i = 0; i < ps.Length; i++)
             {
                 if (i < 5)
@@ -927,21 +1095,21 @@ class ProdGlb
         else if (tst_nr == 12)
         {
             fv = new int[] {-1, 0, 1, 1, 1, 1, 1};
-            ps = new double[] {1, 0.88, 0.83, 0.83, 0.83, 0.83, 0.83};
+            ps = new float[] {1, 0.88, 0.83, 0.83, 0.83, 0.83, 0.83};
         }
         // These parameters were chosen to show the usefulness of the
         // scheduling algorithm in a small network.
         else if (tst_nr == 13)
         {
             fv = new int[] {-1, 0, 1, 1, 0};
-            ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
+            ps = new float[] {1, 0.8, 0.6, 0.2, 0.2};
         }
         // These parameters show that under a linear topology with all links
         // equally good, all select/discard policies perform very similarly.
         else if (tst_nr == 14)
         {
             fv = new int[] {-1, 0, 1, 2, 3, 4, 5};
-            ps = new double[fv.Length];
+            ps = new float[fv.Length];
             for (int i = 0; i < fv.Length; i++)
             {
                 ps[i] = 0.5;
@@ -953,7 +1121,7 @@ class ProdGlb
         else if (tst_nr == 15)
         {
             fv = new int[] { -1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5 };
-            ps = new double[12];
+            ps = new float[12];
             for (int i = 0; i < fv.Length; i++)
             {
                 if (i < 6)
@@ -971,7 +1139,7 @@ class ProdGlb
         else if (tst_nr == 16)
         {
             fv = new int[] {-1, 0, 1, 2, 3, 4, 5, 6, 7};
-            ps = new double[fv.Length];
+            ps = new float[fv.Length];
             for (int i = 0; i < fv.Length; i++)
             {
                 if (i < 4)
@@ -983,30 +1151,30 @@ class ProdGlb
         else if (tst_nr == 17)
         {
             fv = new int[] {-1, 0, 1, 1};
-            ps = new double[] {1, 0.8, 0.4, 0.4};
+            ps = new float[] {1, 0.8, 0.4, 0.4};
             source_min = 2;
         }
         else if (tst_nr == 18)
         {
             fv = new int[] {-1, 0, 1, 1, 0};
-            ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
+            ps = new float[] {1, 0.8, 0.6, 0.2, 0.2};
             source_min = 2;
         }
         else if (tst_nr == 19)
         {
             fv = new int[] {-1, 0, 1, 1, 0};
-            ps = new double[] {1, 0.66, 0.49, 0.16, 0.16};
+            ps = new float[] {1, 0.66, 0.49, 0.16, 0.16};
             source_min = 2;
-            frames = 5;
+            sched_lgth = 5;
         }
         else
         {
             throw new ArgumentException("Inappropriate tst_nr");
         }
         PltGlb.plot_logical3(fv, ps, plot);
-        double[,] tota = new double[rate_v.Length, types.Length];
-        double[,] mean = new double[rate_v.Length, types.Length];
-        double[,] pmin = new double[rate_v.Length, types.Length];
+        float[,] tota = new float[rate_v.Length, types.Length];
+        float[,] mean = new float[rate_v.Length, types.Length];
+        float[,] pmin = new float[rate_v.Length, types.Length];
         for (int k = 0; k < n_averages; k++)
         {
             Console.WriteLine("Repetition {0} of {1}({2:d2},{3:d6},{4}) {5}",
@@ -1015,24 +1183,24 @@ class ProdGlb
             {
                 for (int i = 0; i < types.Length; i++)
                 {
-                    LossTree t = new LossTree(fv, ps, size);
+                    LossTree t = new LossTree(fv, ps, buffer_size);
                     if (types[i] == 3)
                     {
-                        t.find_schedule(frames, source_min);
+                        t.find_schedule(sched_lgth, source_min);
                         if (k == 0 && j == 0)
                         {
-                            opt = ((double)t.count.Count / frames);
+                            opt = ((float)t.count.Count / sched_lgth);
                         }
                     }
                     int[] results = t.simulate_it(n_tx_frames, rate_v[j],
                             types[i], k);
                     foreach (int h in results)
                     {
-                        tota[j, i] += (double)h / n_averages / n_tx_frames;
-                        mean[j, i] += (double)h / n_averages / results.Length;
+                        tota[j, i] += (float)h / n_averages / n_tx_frames;
+                        mean[j, i] += (float)h / n_averages / results.Length;
                         if (h < source_min)
                         {
-                            pmin[j, i] += (double)1 / n_averages /
+                            pmin[j, i] += (float)1 / n_averages /
                                 results.Length;
                         }
                     }
@@ -1065,29 +1233,29 @@ class ProdGlb
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
-        double tx_rg = 2;
-        double x = 5 * tx_rg;
-        double y = 5 * tx_rg;
-        double rho = 9;
+        float tx_rg = 2;
+        float x = 5 * tx_rg;
+        float y = 5 * tx_rg;
+        float rho = 9;
         int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
-        int frames = 10;
+        int sched_lgth = 10;
         int n_tx_frames = 2000;
-        double opt = 0;
-        double[] rate_v = G.linspace(0.1, 1.5, 28);
+        float opt = 0;
+        float[] rate_v = G.linspace(0.1, 1.5, 28);
         int source_min = 3;
-        int size = 30;
+        int buffer_size = 30;
         int[] types = new int[] {0, 1, 2, 3, 4};
         G.VB = false;
-        double[,] tota = new double[rate_v.Length, types.Length];
-        double[,] mean = new double[rate_v.Length, types.Length];
-        double[,] pmin = new double[rate_v.Length, types.Length];
+        float[,] tota = new float[rate_v.Length, types.Length];
+        float[,] mean = new float[rate_v.Length, types.Length];
+        float[,] pmin = new float[rate_v.Length, types.Length];
         for (int k = 0; k < n_averages; k++)
         {
             Console.WriteLine("Repetition {0,4:D}. Total {1}",
                         k, G.elapsed());
             G.rgen = new Random(k);
             int[] fv = RandomTree.parents(n, x, y, tx_rg);
-            double[] ps = new double[n];
+            float[] ps = new float[n];
             for (int u = 0; u < n; u++)
             {
                 ps[u] = 0.5 + G.rgen.NextDouble() / 2;
@@ -1096,24 +1264,24 @@ class ProdGlb
             {
                 for (int i = 0; i < types.Length; i++)
                 {
-                    LossTree t = new LossTree(fv, ps, size);
+                    LossTree t = new LossTree(fv, ps, buffer_size);
                     if (types[i] == 3)
                     {
-                        t.find_schedule(frames, source_min);
+                        t.find_schedule(sched_lgth, source_min);
                         if (k == 0 && j == 0)
                         {
-                            opt = ((double)t.count.Count / frames);
+                            opt = ((float)t.count.Count / sched_lgth);
                         }
                     }
                     int[] results = t.simulate_it(n_tx_frames, rate_v[j],
                             types[i], k);
                     foreach (int h in results)
                     {
-                        tota[j, i] += (double)h / n_averages / n_tx_frames;
-                        mean[j, i] += (double)h / n_averages / results.Length;
+                        tota[j, i] += (float)h / n_averages / n_tx_frames;
+                        mean[j, i] += (float)h / n_averages / results.Length;
                         if (h < source_min)
                         {
-                            pmin[j, i] += (double)1 / n_averages /
+                            pmin[j, i] += (float)1 / n_averages /
                                 results.Length;
                         }
                     }
@@ -1140,13 +1308,13 @@ class ProdGlb
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
-        double tx_rg = 2;
-        double[] xv = null;
-        double[] yv = null;
+        float tx_rg = 2;
+        float[] xv = null;
+        float[] yv = null;
         if (tst_nr == 0)
         {
-            xv = new double[] {tx_rg, 2 * tx_rg};
-            yv = new double[] {tx_rg,     tx_rg};
+            xv = new float[] {tx_rg, 2 * tx_rg};
+            yv = new float[] {tx_rg,     tx_rg};
         }
         else if (tst_nr == 1)
         {
@@ -1157,18 +1325,18 @@ class ProdGlb
         {
             throw new Exception("xv and yv should have equal length");
         }
-        double rho = 15;
-        int frames = 10;
+        float rho = 15;
+        int sched_lgth = 10;
         int n_tx_frames = 2000;
-        double opt = 0;
+        float opt = 0;
         int[] types = new int[] {0, 1, 2, 3, 4};
-        double[] rate_v = G.linspace(0.5, 3, 28);
+        float[] rate_v = G.linspace(0.5, 3, 28);
         int source_min = 3;
-        int size = 30;
-        double[,] tota = new double[xv.GetLength(0), types.Length];
-        double[,] mean = new double[xv.GetLength(0), types.Length];
-        double[,] pmin = new double[xv.GetLength(0), types.Length];
-        double[,] ropt = new double[xv.GetLength(0), types.Length];
+        int buffer_size = 30;
+        float[,] tota = new float[xv.GetLength(0), types.Length];
+        float[,] mean = new float[xv.GetLength(0), types.Length];
+        float[,] pmin = new float[xv.GetLength(0), types.Length];
+        float[,] ropt = new float[xv.GetLength(0), types.Length];
         for (int k = 0; k < n_averages; k++)
         {
             Console.WriteLine("Repetition {0,4:D}. Total {1}",
@@ -1180,36 +1348,36 @@ class ProdGlb
                 int n = (int)(rho* xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
                 G.rgen = new Random(k);
                 int[] fv = RandomTree.parents(n, xv[s], yv[s], tx_rg);
-                double[] ps = new double[n];
+                float[] ps = new float[n];
                 for (int u = 0; u < n; u++)
                 {
                     ps[u] = 0.5 + G.rgen.NextDouble() / 2;
                 }
                 for (int i = 0; i < types.Length; i++)
                 {
-                    double m_tota = 0;
-                    double m_mean = 0;
-                    double m_pmin = 0;
-                    double m_ropt = rate_v[0];
+                    float m_tota = 0;
+                    float m_mean = 0;
+                    float m_pmin = 0;
+                    float m_ropt = rate_v[0];
                     for (int j = 0; j < rate_v.Length; j++)
                     {
-                        LossTree t = new LossTree(fv, ps, size);
+                        LossTree t = new LossTree(fv, ps, buffer_size);
                         if (types[i] == 3)
                         {
-                            t.find_schedule(frames, source_min);
+                            t.find_schedule(sched_lgth, source_min);
                         }
                         int[] results = t.simulate_it(n_tx_frames, 
                                             rate_v[j], types[i], k);
-                        double a_tota = 0;
-                        double a_mean = 0;
-                        double a_pmin = 0;
+                        float a_tota = 0;
+                        float a_mean = 0;
+                        float a_pmin = 0;
                         foreach (int h in results)
                         {
-                            a_tota += (double) h / n_tx_frames;
-                            a_mean += (double) h / results.Length;
+                            a_tota += (float) h / n_tx_frames;
+                            a_mean += (float) h / results.Length;
                             if (h < source_min)
                             {
-                                a_pmin += (double)1 / results.Length;
+                                a_pmin += (float)1 / results.Length;
                             }
                         }
                         if (a_tota > m_tota)
@@ -1232,7 +1400,7 @@ class ProdGlb
             String.Format("3={0:F3}", opt), "4" };
         Pgf g = new Pgf();
         string xlab = "normalized x size";
-        double[] xn = new double[xv.Length];
+        float[] xn = new float[xv.Length];
         for (int q = 0; q < xn.Length; q++)
         {
             xn[q] = xv[q] / tx_rg;
@@ -1253,13 +1421,13 @@ class ProdGlb
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
-        double tx_rg = 2;
-        double[] xv = null;
-        double[] yv = null;
+        float tx_rg = 2;
+        float[] xv = null;
+        float[] yv = null;
         if (tst_nr == 0)
         {
-            xv = new double[] {tx_rg, 2 * tx_rg};
-            yv = new double[] {tx_rg,     tx_rg};
+            xv = new float[] {tx_rg, 2 * tx_rg};
+            yv = new float[] {tx_rg,     tx_rg};
         }
         else if (tst_nr == 1)
         {
@@ -1270,18 +1438,18 @@ class ProdGlb
         {
             throw new Exception("xv and yv should have equal length");
         }
-        double rho = 15;
-        int frames = 10;
+        float rho = 15;
+        int sched_lgth = 10;
         int n_tx_frames = 2000;
-        double opt = 0;
+        float opt = 0;
         int[] types = new int[] {0, 1, 2, 3, 4};
-        double[] rate_v = G.linspace(0.5, 3, 28);
+        float[] rate_v = G.linspace(0.5, 3, 28);
         int size = 30;
-        double[,] tota = new double[xv.GetLength(0), types.Length];
-        double[,] mean = new double[xv.GetLength(0), types.Length];
-        double[,] pmin = new double[xv.GetLength(0), types.Length];
-        double[,] ropt = new double[xv.GetLength(0), types.Length];
-        for (double frac_source_min = 0.2; frac_source_min < 1; 
+        float[,] tota = new float[xv.GetLength(0), types.Length];
+        float[,] mean = new float[xv.GetLength(0), types.Length];
+        float[,] pmin = new float[xv.GetLength(0), types.Length];
+        float[,] ropt = new float[xv.GetLength(0), types.Length];
+        for (float frac_source_min = 0.2; frac_source_min < 1; 
              frac_source_min += 0.3)
         {
                 for (int k = 0; k < n_averages; k++)
@@ -1296,36 +1464,36 @@ class ProdGlb
                         int source_min = (int) (frac_source_min * n);
                         G.rgen = new Random(k);
                         int[] fv = RandomTree.parents(n, xv[s], yv[s], tx_rg);
-                        double[] ps = new double[n];
+                        float[] ps = new float[n];
                         for (int u = 0; u < n; u++)
                         {
                             ps[u] = 0.5 + G.rgen.NextDouble() / 2;
                         }
                         for (int i = 0; i < types.Length; i++)
                         {
-                            double m_tota = 0;
-                            double m_mean = 0;
-                            double m_pmin = 0;
-                            double m_ropt = rate_v[0];
+                            float m_tota = 0;
+                            float m_mean = 0;
+                            float m_pmin = 0;
+                            float m_ropt = rate_v[0];
                             for (int j = 0; j < rate_v.Length; j++)
                             {
-                                LossTree t = new LossTree(fv, ps, size);
+                                LossTree t = new LossTree(fv,ps,buffer_size);
                                 if (types[i] == 3)
                                 {
-                                    t.find_schedule(frames, source_min);
+                                    t.find_schedule(sched_lgth, source_min);
                                 }
                                 int[] results = t.simulate_it(n_tx_frames, 
                                                     rate_v[j], types[i], k);
-                                double a_tota = 0;
-                                double a_mean = 0;
-                                double a_pmin = 0;
+                                float a_tota = 0;
+                                float a_mean = 0;
+                                float a_pmin = 0;
                                 foreach (int h in results)
                                 {
-                                    a_tota += (double) h / n_tx_frames;
-                                    a_mean += (double) h / results.Length;
+                                    a_tota += (float) h / n_tx_frames;
+                                    a_mean += (float) h / results.Length;
                                     if (h < source_min)
                                     {
-                                        a_pmin += (double)1 / results.Length;
+                                        a_pmin += (float)1 / results.Length;
                                     }
                                 }
                                 if (a_tota > m_tota)
@@ -1348,7 +1516,7 @@ class ProdGlb
                     String.Format("3={0:F3}", opt), "4" };
                 Pgf g = new Pgf();
                 string xlab = "normalized x size";
-                double[] xn = new double[xv.Length];
+                float[] xn = new float[xv.Length];
                 for (int q = 0; q < xn.Length; q++)
                 {
                     xn[q] = xv[q] / tx_rg;
@@ -1377,16 +1545,22 @@ class ProdGlb
         }
     }
 }
+// Deploys the nodes randomly.  Keep a list of each node's neighbors in
+// upper tiers in neigh_upp, and the success probability of each pair of
+// nodes in suc_prob. 
 class AverTree
 {
-    public double [,] cost;
-    public double [,] suc_prob;
-    public double [] ps;
+    public float [,] cost;
+    public float [,] suc_prob;
+    public float [] ps;
     public int [,] fv;
     public int[] tier;
     public int n;
     public List<int>[] neigh_upp; // Neighbors in an upper tier
-    public AverTree(int n, double x, double y, double tx_rg)
+    // Create topology, checking that it is sufficiently connected;
+    // Initialize the following variables that are used later:
+    // tier, suc_prob, neigh_upp   
+    public AverTree(int n, float x, float y, float tx_rg)
     {
         this.n = n;
         if (n < 2)
@@ -1394,10 +1568,10 @@ class AverTree
             throw new Exception("Number of nodes must exceed 2");
         }
         int[] fv = new int[n];
-        double[,] xy = new double[n, 2];
-        double[,] cost = new double[n, n];
+        float[,] xy = new float[n, 2];
+        float[,] cost = new float[n, n];
         int MAX_TESTS = 15;
-        double MAX_DISCONNECTED = 0.1;
+        float MAX_DISCONNECTED = 0.1;
         for (int h = 0; h < MAX_TESTS; h++)
         { 
             for (int i = 1; i < n; i++)
@@ -1412,7 +1586,7 @@ class AverTree
             {
                 for (int j = 0; j < n; j++)
                 {
-                    double dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2)
+                    float dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2)
                            + Math.Pow(xy[i, 1] - xy[j, 1], 2));
                     if (dist < tx_rg)
                     {
@@ -1439,7 +1613,8 @@ class AverTree
                     Console.WriteLine();
                 }
             }
-            tier = new double[n];
+            // Execute Dijkstra's algorithm to compute tier
+            tier = new float[n];
             for (int i = 1; i < n; i++)
             {
                 tier[i] = G.INF;
@@ -1455,6 +1630,7 @@ class AverTree
             //If any node does not have neighbors, it will never be processed.
             while (unprocessed.Count > 0)
             {
+                // Find unprocessed item in closest tier
                 int x = unprocessed[0];
                 foreach (int i in unprocessed)
                 {
@@ -1470,7 +1646,7 @@ class AverTree
                 unprocessed.Remove(x);
                 foreach (int y in unprocessed)
                 {
-                    double alt = tier[x] + cost[x, y];
+                    float alt = tier[x] + cost[x, y];
                     if (alt < tier[y])
                     {
                         tier[y] = alt;
@@ -1494,8 +1670,9 @@ class AverTree
                     disconnected++;
                 }
             }
-            if ((double) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
+            if ((float) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
             {
+                // The topology is valid.   Initialize neigh_upp. 
                 neigh_upp = new List<int>[];
                 for (int i=0; i < n; i++)
                 {
@@ -1517,15 +1694,15 @@ class AverTree
         Console.WriteLine(tx_rg);
         throw new Exception("No sufficiently connected topology found");
     }
-    public void get_tree(Node[] nodes, double weight, int[] fv, double[] ps)
+    public void get_tree(float[] float tot_consump)
     {
         for (int i=1; i<n; i++)
         {
             best_neigh = neigh_upp[i][0];
-            double consum = nodes[best_neigh].consum;
+            float consum = totconodes[best_neigh].consum;
             foreach (int j in neigh_upp)
             {
-                if (nodes[j].consum < consum)
+                if (tot_consump[j] < tot_consum_best_neigh)
                 {
                     consum = nodes[j].consum;
                     best_neigh = j;
@@ -1542,7 +1719,7 @@ class RandomTree
 // 
 // + Vector with parents fv
 // + Vector with costs 
-    public static int[] gen_top(int n, double x, double y, double tx_rg)
+    public static int[] gen_top(int n, float x, float y, float tx_rg)
     {
 
 
@@ -1555,10 +1732,10 @@ class RandomTree
             throw new Exception("Number of nodes must exceed 2");
         }
         int[] fv = new int[n];
-        double[,] xy = new double[n, 2];
-        double[,] cost = new double[n, n];
+        float[,] xy = new float[n, 2];
+        float[,] cost = new float[n, n];
         int MAX_TESTS = 15;
-        double MAX_DISCONNECTED = 0.1;
+        float MAX_DISCONNECTED = 0.1;
         for (int h = 0; h < MAX_TESTS; h++)
         { 
             for (int i = 1; i < n; i++)
@@ -1573,7 +1750,7 @@ class RandomTree
             {
                 for (int j = 0; j < n; j++)
                 {
-                    double dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2)
+                    float dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2)
                            + Math.Pow(xy[i, 1] - xy[j, 1], 2));
                     if (dist < tx_rg)
                     {
@@ -1616,7 +1793,7 @@ class RandomTree
                     disconnected++;
                 }
             }
-            if ((double) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
+            if ((float) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
             {
                 return fv;
             }
@@ -1627,7 +1804,7 @@ class RandomTree
         Console.WriteLine(tx_rg);
         throw new Exception("No sufficiently connected topology found");
     }
-    public static int[] parents(int n, double x, double y, double tx_rg)
+    public static int[] parents(int n, float x, float y, float tx_rg)
     {
         // n is  the number of nodes
         // x, y are the geographical area
@@ -1637,10 +1814,10 @@ class RandomTree
             throw new Exception("Number of nodes must exceed 2");
         }
         int[] fv = new int[n];
-        double[,] xy = new double[n, 2];
-        double[,] cost = new double[n, n];
+        float[,] xy = new float[n, 2];
+        float[,] cost = new float[n, n];
         int MAX_TESTS = 15;
-        double MAX_DISCONNECTED = 0.1;
+        float MAX_DISCONNECTED = 0.1;
         for (int h = 0; h < MAX_TESTS; h++)
         { 
             for (int i = 1; i < n; i++)
@@ -1655,7 +1832,7 @@ class RandomTree
             {
                 for (int j = 0; j < n; j++)
                 {
-                    double dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2)
+                    float dist = Math.Sqrt(Math.Pow(xy[i, 0] - xy[j, 0], 2)
                            + Math.Pow(xy[i, 1] - xy[j, 1], 2));
                     if (dist < tx_rg)
                     {
@@ -1698,7 +1875,7 @@ class RandomTree
                     disconnected++;
                 }
             }
-            if ((double) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
+            if ((float) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
             {
                 return fv;
             }
@@ -1709,7 +1886,7 @@ class RandomTree
         Console.WriteLine(tx_rg);
         throw new Exception("No sufficiently connected topology found");
     }
-    public static int[] dijkstra(double[,] cost)
+    public static int[] dijkstra(float[,] cost)
     {
         // Return every node's next hop to the sink using Dijkstra's algorithm.
         // Parameter:
@@ -1717,7 +1894,7 @@ class RandomTree
         int N = cost.GetLength(0);
         //len(cost);
         // Each node's smallest distance to the sink
-        double[] dst = new double[N];
+        float[] dst = new float[N];
         for (int i = 1; i < N; i++)
         {
             dst[i] = G.INF;
@@ -1748,7 +1925,7 @@ class RandomTree
             unprocessed.Remove(x);
             foreach (int y in unprocessed)
             {
-                double alt = dst[x] + cost[x, y];
+                float alt = dst[x] + cost[x, y];
                 if (alt < dst[y])
                 {
                     dst[y] = alt;
@@ -1760,13 +1937,13 @@ class RandomTree
     }
     public static void tst_parents()
     {
-        double x = 10;
-        double y = 4;
-        double tx_rg = 2;
-        double rho = 8;
+        float x = 10;
+        float y = 4;
+        float tx_rg = 2;
+        float rho = 8;
         int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
         int[] fv = parents(n, x, y, tx_rg);
-        double[] ps = new double[n];
+        float[] ps = new float[n];
         PltGlb.plot_logical3(fv, ps, 2);
     }
 }
@@ -1774,16 +1951,16 @@ class tLossTree
 {
     public static void t_simulate_it1()
     {
-        double[] ps;
+        float[] ps;
         int[] fv;
-        ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
+        ps = new float[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
         fv = new int[] { -1, 0, 1, 1, 1, 1 };
-        int size = 3;
+        int buffer_size = 3;
         //int[] types = new int[] { 0, 1, 2, 3, 4 };
         int[] types = new int[] { 0 };
         int n_tx_frames = 2000;
-        LossTree t = new LossTree(fv, ps, size);
-        foreach (double rate in new double[] { 0.2, 0.4, 0.6, 1.0 })
+        LossTree t = new LossTree(fv, ps, buffer_size);
+        foreach (float rate in new float[] { 0.2, 0.4, 0.6, 1.0 })
         {
             int[] results = t.simulate_it(n_tx_frames, rate, 0, 4);
             int sum = 0;
@@ -1794,26 +1971,26 @@ class tLossTree
     }
     public static void t_simulate_it2()
     {
-        double[] ps;
+        float[] ps;
         int[] fv;
-        ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
+        ps = new float[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
         fv = new int[] { -1, 0, 1, 1, 1, 1 };
-        int size = 20;
+        int buffer_size = 20;
         //int[] types = new int[] { 0, 1, 2, 3, 4 };
         int[] types = new int[] { 0 };
         int n_tx_frames = 1000;
-        LossTree t = new LossTree(fv, ps, size);
+        LossTree t = new LossTree(fv, ps, buffer_size);
         int averages = 1000;
-        double[] rate_v = new double[] { 0.2, 0.4, 0.6, 0.8, 1.0 };
-        foreach (double rate in rate_v)
+        float[] rate_v = new float[] { 0.2, 0.4, 0.6, 0.8, 1.0 };
+        foreach (float rate in rate_v)
         {
-            double sum = 0.0;
+            float sum = 0.0;
             for (int i = 0; i < averages; i++)
             {
                 int[] results = t.simulate_it(n_tx_frames, rate, 0, i);
                 foreach (int x in results)
                 {
-                    double c = (double)x / n_tx_frames / averages;
+                    float c = (float)x / n_tx_frames / averages;
                     sum += c;
                 }
             }
@@ -1822,12 +1999,12 @@ class tLossTree
     }
     public static void tst_find_schedule()
     {
-        double[] ps;
+        float[] ps;
         int[] fv;
-        ps = new double[] { 1, 0.6, 0.3, 0.3, 0.3, 0.3 };
+        ps = new float[] { 1, 0.6, 0.3, 0.3, 0.3, 0.3 };
         fv = new int[] { -1, 0, 1, 1, 1, 1 };
-        int size = 20;
-        LossTree t = new LossTree(fv, ps, size);
+        int buffer_size = 20;
+        LossTree t = new LossTree(fv, ps, buffer_size);
         t.find_schedule(10, 3);
         G.VB = true;
         t.show_schedule();
@@ -1837,10 +2014,10 @@ class tLossTree
         foreach (int type in types)
         {
             int[] results = t.simulate_it(n_tx_frames, 0.6, type, 0);
-            double sum = 0.0;
+            float sum = 0.0;
             foreach (int i in results)
             {
-                sum += (double)i / n_tx_frames;
+                sum += (float)i / n_tx_frames;
             }
             Console.WriteLine("Type {0}, sum = {1}", type, sum);
         }
@@ -1851,13 +2028,13 @@ class tPgf
     public static void tst_plot_logical3()
     {
         int[] fv = new int[] { -1, 0, 1, 1 };
-        double[] ps = new double[] { 1, 0.4, 0.3, 0.2 };
+        float[] ps = new float[] { 1, 0.4, 0.3, 0.2 };
         PltGlb.plot_logical3(fv, ps, 2);
     }
     public static void tst_plot()
     {
-        double[] xv = new double[] { 0, 1, 2, 3, 4 };
-        double[] yv = new double[] { 1, 2, 1, 4, 5 };
+        float[] xv = new float[] { 0, 1, 2, 3, 4 };
+        float[] yv = new float[] { 1, 2, 1, 4, 5 };
         Pgf p = new Pgf();
         p.add("x axis", "y axis");
         p.plot(xv, yv, "mountain");
@@ -1865,9 +2042,9 @@ class tPgf
     }
     public static void tst_Pgf1()
     {
-        double[] xv = G.linspace(0, 9, 10);
-        double[,] y1 = new double[10, 2];
-        double[,] y2 = new double[10, 2];
+        float[] xv = G.linspace(0, 9, 10);
+        float[,] y1 = new float[10, 2];
+        float[,] y2 = new float[10, 2];
         for (int j = 0; j < y1.GetLength(1); j++)
         {
             for (int i = 0; i < y1.GetLength(0); i++)
@@ -1878,19 +2055,44 @@ class tPgf
         }
         Pgf p = new Pgf();
         p.add("x", "y");
-        p.mplot(xv, y1, new string[] { "normal", "double" });
+        p.mplot(xv, y1, new string[] { "normal", "float" });
         p.add("x", "y");
-        p.mplot(xv, y2, new string[] { "normal", "double" });
+        p.mplot(xv, y2, new string[] { "normal", "float" });
         p.save("zb", 2);
     }
 }
 class G
 {
     public static Stopwatch stopwatch = new Stopwatch();
-    public static double INF = 99;
+    public static float INF = 99;
     public static Random rgen = new Random();
+    // Consumption of a receiving operation (a transmission operation costs
+    // 1.
+    public static rx_consum = 1.0;
     public static bool VB = false;
     public static string comando;
+    public float Median(float [] vec)
+    {
+        float[] copy = new float[vec.Length];
+        for (int i = 0; i < vec.Length; i++)
+            copy[i] = ve[i];
+        Array.Sort(copy);
+        return copy[(copy.Length+1)/2];
+    }
+    public float Mean(float [] vec)
+    {
+        float mean = 0;
+        foreach (float x in vec)
+            mean += x / vec.Length;
+        return mean;
+    }
+    public float Max(float [] vec)
+    {
+        float max = vec[0];
+        foreach (float d in vec)
+            max = Math.Max(max, d);
+        return max;
+    }
     public static void prnt(String s)
     {
         if (G.VB) { Console.WriteLine(s); }
@@ -1908,7 +2110,7 @@ class G
     public static void tst_1()
     {
         int[] fv = new int[] { -1, 0, 0, 1, 1 };
-        double[] ps = new double[] { 0.5, 0.5, 0.5, 0.5, 0.5 };
+        float[] ps = new float[] { 0.5, 0.5, 0.5, 0.5, 0.5 };
         LossTree t = new LossTree(fv, ps, 30);
         Console.WriteLine("Hello World!");
         t.simulate_it(4, 0.4, 0, 0);
@@ -1924,11 +2126,11 @@ class G
         Console.WriteLine(x.Count);
         Console.WriteLine(true | false);
     }
-    public static double[] linspace(double init, double end, int number)
+    public static float[] linspace(float init, float end, int number)
     {
-        double[] x = new double[number];
-        double spacing = (end - init) / (double)(number - 1);
-        double y = init;
+        float[] x = new float[number];
+        float spacing = (end - init) / (float)(number - 1);
+        float y = init;
         for (int i = 0; i < number; i++)
         {
             x[i] = y;
