@@ -52,53 +52,53 @@ class LossTree
                 ancestor_ID = fv[ancestor_ID];
             }
         }
-        foreach (Node n in nodes[0].ch)
+        foreach (Node x in nodes[0].ch)
         {
-            add_postorder(n);
+            add_postorder(x);
         }
         if (G.VB)
         {
             Console.Write("Postorder list: ");
-            foreach (Node n in postorder)
+            foreach (Node x in postorder)
             {
-                Console.Write(n.ID + ", ");
+                Console.Write(x.ID + ", ");
             }
             Console.Write(";\n");
         }
     }
-    private void discard(Node n)
+    private void discard(Node x)
     {
-        if (n.ID == 0)
+        if (x.ID == 0)
         {
             throw new Exception();
         }
-        while (n.pkts.Count > n.buffer_size)
+        while (x.pkts.Count > x.buffer_size)
         {
             int position = 0;
-            if (n.discard_type == 0)
+            if (x.discard_type == 0)
             {
                 // Discard the oldest packet
                 position = 0;
-                for (int i = 0; i < n.pkts.Count; i++)
+                for (int i = 0; i < x.pkts.Count; i++)
                 {
-                    if (n.pkts[i].t < n.pkts[position].t)
+                    if (x.pkts[i].t < x.pkts[position].t)
                     {
                         position = i;
                     }
                 }
             }
-            else if (n.discard_type == 1)
+            else if (x.discard_type == 1)
             {
                 // Discard the packet with the minimum node count k
                 int kmin = 999999;
-                foreach (Packet p in n.pkts)
+                foreach (Packet p in x.pkts)
                 {
                     kmin = Math.Min(kmin, p.k);
                 }
                 List<int> l = new List<int>();
-                for (int i = 0; i < n.pkts.Count; i++)
+                for (int i = 0; i < x.pkts.Count; i++)
                 {
-                    if (n.pkts[i].k == kmin)
+                    if (x.pkts[i].k == kmin)
                     {
                         l.Add(i);
                     }
@@ -106,23 +106,23 @@ class LossTree
                 position = l[0];
                 foreach (int i in l)
                 {
-                    if (n.pkts[i].t < n.pkts[position].t)
+                    if (x.pkts[i].t < x.pkts[position].t)
                     {
                         position = i;
                     }
                 }
             }
-            else if (n.discard_type == 2)
+            else if (x.discard_type == 2)
             {
                 // Discard the oldest high-priority packet
 
-                // High priority packets are in the n.gen list
+                // High priority packets are in the x.priority_slots list
                 //
                 // The list l contains all the high priority ppackets.
                 List<int> l = new List<int>();
-                for (int i = 0; i < n.pkts.Count; i++)
+                for (int i = 0; i < x.pkts.Count; i++)
                 {
-                    if (!n.gen.Contains(n.pkts[i].t % count.Count))
+                    if (!x.priority_slots.Contains(x.pkts[i].t % count.Count))
                     {
                         l.Add(i);
                     }
@@ -131,7 +131,7 @@ class LossTree
                 {
                     // If there are no high-priority packets, treat all
                     // nodes as high priority.
-                    for (int i = 0; i < n.pkts.Count; i++)
+                    for (int i = 0; i < x.pkts.Count; i++)
                     {
                         l.Add(i);
                     }
@@ -139,7 +139,7 @@ class LossTree
                 position = l[0];
                 foreach (int i in l)
                 {
-                    if (n.pkts[i].t < n.pkts[position].t)
+                    if (x.pkts[i].t < x.pkts[position].t)
                     {
                         position = i;
                     }
@@ -149,13 +149,13 @@ class LossTree
             {
                 throw new Exception("Incorrect discard_type");
             }
-            n.pkts.RemoveAt(position);
+            x.pkts.RemoveAt(position);
         }
     }
     // Simulate the transmission cycles using a schedule in which every node
     // is assigned n_packets/ps slots per every block of n_packets.   In
     // other words, it is likely that the node count of every reporting
-    // interval is equal to the total number of nodes *n*.
+    // interval is equal to the total number of nodes *x*.
     public int[] simulate_it2(int n_blocks, int n_packets, int seed)
     {
         // Obtain sched_order, which specifies the schedule in which every
@@ -166,82 +166,83 @@ class LossTree
         // number indicates how many times each node should be included in
         // sched_order.  
         int[] slots_block_v = new int[n];
-        int max_slot_block = 0;
+        int max_slots_block = 0;
         for (int i=1; i<n; i++)
         {
-            nfr = (int) Math.Ceiling(n_packets/(double)nodes[i].ps); 
+            int nfr = (int) Math.Ceiling(n_packets/(double)nodes[i].ps); 
             max_slots_block = Math.Max(max_slots_block, nfr);
             slots_block_v[i] = nfr;
         }
+        foreach (Node x in nodes)
+            x.pkts = new List<Packet>(x.buffer_size + 8);
         List<Node> sched_order = new List<Node>();
         for (int q=0; q < max_slots_block; q++)
         {
-            foreach (Node n in postorder)
+            foreach (Node x in postorder)
             {
-                if (slots_block_v[n.ID] > 0)
+                if (slots_block_v[x.ID] > 0)
                 {
-                    sched_order.Add(n);
-                    slots_block_v[n.ID] -= 1;
+                    sched_order.Add(x);
+                    slots_block_v[x.ID] -= 1;
                 }
             }
         }
         G.rgen = new Random(seed);
-        int sensing_interval = 0;
         int n_reporting_intervals = n_blocks * n_packets;
         int[] results = new int[n_reporting_intervals];
         for (int block = 0; block < n_blocks; block++)
         {
-            G.prnt("*** Simulating block " + frame);
+            G.prnt("*** Simulating block " + block);
             // Add information to the nodes' buffers.
-            for (int i=0; i < n; i++)
+            for (int i=1; i < n; i++)
             {
                 for (int j=0; j < n_packets; j++)
                 {
                     int sensing_interval = block * n_packets + j;
                     nodes[i].pkts.Add(new Packet(sensing_interval, 1));
-                    discard(u);
+                    discard(nodes[i]);
                 }
             }
             // Simulate the packet transmissions
-            foreach (Node n in sched_order)
+            foreach (Node x in sched_order)
             {
-                G.prnt("Processing node " + n.ID);
-                nodes[n.f.ID].consum += rx_consum / n_reporting_intervals;
-                if (n.pkts.Count == 0)
+                G.prnt("Processing node " + x.ID);
+                nodes[x.f.ID].consum += G.rx_consum / n_reporting_intervals;
+                if (x.pkts.Count == 0)
                 {
-                    G.prnt("Node " + n.ID + "has empty buffer");
+                    G.prnt("Node " + x.ID + "has empty buffer");
                     continue;
                 }
-                n.consum += 1.0 / n_reporting_intervals;
+                x.consum += 1.0 / n_reporting_intervals;
                 double random_number = G.rgen.NextDouble();
                 //Console.WriteLine(random_number);
-                if (random_number >= n.ps)
+                if (random_number >= x.ps)
                 {
-                    G.prnt("Packet transmission of node " + n.ID +
+                    G.prnt("Packet transmission of node " + x.ID +
                             "failed");
                     continue;
                 }
                 // Select the oldest packet.
                 int position = 0;
-                for (int i = 0; i < n.pkts.Count; i++)
+                for (int i = 0; i < x.pkts.Count; i++)
                 {
-                    if (n.pkts[i].t < n.pkts[position].t)
+                    if (x.pkts[i].t < x.pkts[position].t)
                     {
                         position = i;
                     }
                 }
-                Packet pkt = n.pkts[position];
-                n.pkts.RemoveAt(position);
-                //Console.WriteLine("Node {0:d}; tx: ({1:d}, {2:d})", n.ID,
+                Packet pkt = x.pkts[position];
+                x.pkts.RemoveAt(position);
+                //Console.WriteLine("Node {0:d}; tx: ({1:d}, {2:d})", x.ID,
                 //pkt.t, pkt.k);
-                if (n.f.ID == 0)
+                if (x.f.ID == 0)
                 {
                     results[pkt.t] += pkt.k;
                 }
                 else
                 {
                     bool added = false;
-                    foreach (Packet j in n.f.pkts)
+                    foreach (Packet j in x.f.pkts)
                     {
                         if (j.t == pkt.t)
                         {
@@ -252,9 +253,9 @@ class LossTree
                     }
                     if (added == false)
                     {
-                        n.f.pkts.Add(pkt);
+                        x.f.pkts.Add(pkt);
                     }
-                    discard(n.f);
+                    discard(x.f);
                 }
             }
         }
@@ -309,7 +310,7 @@ class LossTree
             }
         }
         G.rgen = new Random(seed);
-        n_reporting_intervals = (int)Math.Floor((n_tx_frames - 1) * rate + 1);
+        int n_reporting_intervals = (int)Math.Floor((n_tx_frames - 1) * rate + 1);
         int[] results = new int[n_reporting_intervals];
         int sensing_interval = 0;
         for (int frame = 0; frame < n_tx_frames; frame++)
@@ -326,7 +327,7 @@ class LossTree
             foreach (Node n in postorder)
             {
                 G.prnt("Processing node " + n.ID);
-                nodes[n.f.ID].consum += rx_consum / n_reporting_intervals;
+                nodes[n.f.ID].consum += G.rx_consum / n_reporting_intervals;
                 if (n.pkts.Count == 0)
                 {
                     G.prnt("Node " + n.ID + "has empty buffer");
@@ -387,7 +388,7 @@ class LossTree
                     List<int> l = new List<int>();
                     for (int i = 0; i < n.pkts.Count; i++)
                     {
-                        if (n.gen.Contains(n.pkts[i].t % count.Count))
+                        if (n.priority_slots.Contains(n.pkts[i].t % count.Count))
                         {
                             l.Add(i);
                         }
@@ -445,8 +446,15 @@ class LossTree
         }
         return results;
     }
+    // Stamp the sensor nodes with priority_slots
     public void find_schedule(int sched_lgth, int source_min)
     {
+        find_schedule(sched_lgth, source_min, true);
+    }
+    public void find_schedule(int sched_lgth, int source_min, bool use_up)
+    {
+        if (source_min < 1)
+            throw new Exception("source_min should be at least 1");
         this.nodes[0].ps = 1.0;
         foreach (Node x in nodes)
         {
@@ -460,27 +468,26 @@ class LossTree
         for (int frame = 0; frame < max_frames; frame++)
         {
             List<List<Node>> tree_list = new List<List<Node>>(n);
-            foreach (Node n in nodes)
+            foreach (Node x in nodes)
             {
                 List<Node> tree = new List<Node>(n);
-                tree.Add(n);
-                tree.AddRange(n.ancestors);
+                tree.Add(x);
+                tree.AddRange(x.ancestors);
+                // Skip iteration if any of the elements in *tree* has
+                // nonpositive *q*.
                 bool unsuitable = false;
-                foreach (Node x in tree)
-                {
-                    if (x.q <= 0)
-                    {
+                foreach (Node y in tree)
+                    if (y.q <= 0)
                         unsuitable = true;
-                    }
-                }
                 if (unsuitable)
-                {
                     continue;
-                }
+                // Add elements to *tree* until it has *source_min*
+                // elements.  The elements are taken from *x*'s subtree in
+                // depth-first traversal using *stack*.
                 Stack<Node> stack = new Stack<Node>();
-                foreach (Node x in n.ch)
+                foreach (Node y in x.ch)
                 {
-                    stack.Push(x);
+                    stack.Push(y);
                 }
                 // In the following lines the <= in "tree.Count<=source_min"
                 // is correct because tree includes ancestors, which in turn
@@ -493,96 +500,74 @@ class LossTree
                     {
                         tree.Add(y);
                         foreach (Node z in y.ch)
-                        {
                             stack.Push(z);
-                        }
                     }
                 }
                 if (tree.Count > source_min)
-                {
                     tree_list.Add(tree);
-                }
             }
-            if (tree_list.Count == 0)
-            {
+            // No more frames can be populated with source_min nodes.
+            if (tree_list.Count == 0) 
                 break;
-            }
+            // Select the tree whose first node's tier is the highest.
             List<Node> best_tree = tree_list[0];
             foreach (List<Node> auxtree in tree_list)
-            {
                 if (auxtree[0].ancestors.Count > best_tree[0].ancestors.Count)
-                {
                     best_tree = auxtree;
-                }
-            }
             G.prnt("Selected subtree of node " + best_tree[0].ID);
-            foreach (Node n in best_tree)
-            {
-                if (n.ID != 0)
-                {
-                    add_frame(n, frame);
-                }
-            }
-            nodes[0].gen.Add(frame);
+            // Make the nodes in *best_tree* have high priority in *frame*.
+            foreach (Node y in best_tree)
+                if (y.ID != 0)
+                    add_frame(y, frame);
+            nodes[0].priority_slots.Add(frame);
         }
         if (count.Count == max_frames - 1)
-        {
             throw new Exception();
-        }
         if (count.Count == 0)
-        {
             throw new Exception("source_min is too small");
-        }
-        Stack<Node> unprocessed = new Stack<Node>();
-        foreach (Node n in nodes[0].ch)
+        if (use_up)
         {
-            unprocessed.Push(n);
-        }
-        while (unprocessed.Count > 0)
-        {
-            Node x = unprocessed.Pop();
-            foreach (Node y in x.ch)
-            {
+            Stack<Node> unprocessed = new Stack<Node>();
+            foreach (Node y in nodes[0].ch)
                 unprocessed.Push(y);
-            }
-            List<int> available = new List<int>();
-            foreach (int q in x.f.gen)
+            while (unprocessed.Count > 0)
             {
-                if (!x.gen.Contains(q))
+                Node y = unprocessed.Pop();
+                foreach (Node z in y.ch)
+                    unprocessed.Push(z);
+                // *available* are the slots that can be added to
+                // *y.priority_slots*.
+                List<int> available = new List<int>(); 
+                foreach (int q in y.f.priority_slots)
+                    if (!y.priority_slots.Contains(q))
+                        available.Add(q);
+                while (y.q > 0 && available.Count > 0)
                 {
-                    available.Add(q);
+                    int frm = available[0];
+                    foreach (int i in available)
+                        if (count[i] < count[frm])
+                            frm = i;
+                    add_frame(y, frm);
+                    available.Remove(frm);
                 }
             }
-            while (x.q > 0 && available.Count > 0)
-            {
-                int frm = available[0];
-                foreach (int i in available)
-                {
-                    if (count[i] < count[frm])
-                    {
-                        frm = i;
-                    }
-                }
-                add_frame(x, frm);
-                available.Remove(frm);
-            }
+            show_schedule();
         }
-        show_schedule();
     }
-    public void add_frame(Node n, int frame)
+    public void add_frame(Node x, int frame)
     {
-        if (n.q < 1)
+        if (x.q < 1)
         {
             throw new Exception();
         }
-        n.q -= 1;
-        n.gen.Add(frame);
+        x.q -= 1;
+        x.priority_slots.Add(frame);
         if (frame >= count.Count)
         {
             count.Add(0);
         }
         count[frame] += 1;
-        G.prnt("Node " + n.ID + "gained frame " + frame);
+        G.prnt("Node " + x.ID + "gained frame " + frame);
     }
     public void show_schedule()
     {
@@ -591,9 +576,9 @@ class LossTree
             Console.WriteLine("********Showing the computed schedule*******");
             for (int i = 1; i < n; i++)
             {
-                nodes[i].gen.Sort();
+                nodes[i].priority_slots.Sort();
                 Console.Write("Node " + i + "; ");
-                foreach (int j in nodes[i].gen)
+                foreach (int j in nodes[i].priority_slots)
                 {
                     Console.Write(j + ", ");
                 }
@@ -645,7 +630,7 @@ class Node
     public List<Packet> pkts;
     public List<Node> ancestors = new List<Node>(); // includes sink
     public List<Node> ch = new List<Node>();
-    public List<int> gen = new List<int>();
+    public List<int> priority_slots = new List<int>();
     public double consum = 0.0;
     public Node f = null;
     public double ps;
@@ -874,91 +859,319 @@ class ProdGlb
     //
     // The goal is to see how the different methods work with different
     // topologies. 
-    public static void averRate(int tst_nr, int n_average, int plot)
+    public static void tst_it2()
+    {
+        int[] fv = new int[] {-1, 0, 1, 1};
+        double[] ps = new double[] {1, 0.5, 0.5, 0.5};
+        LossTree e = new LossTree(fv, ps, 30);
+        e.simulate_it2(80, 4, 0);
+        foreach (Node x in e.nodes)
+        {
+            Console.WriteLine(x.consum);
+        }
+    }
+    public static void maverRate(int n_averages)
+    {
+        for (int i = 0; i < 3; i++)
+            averRate(i, 3, 1);
+    }
+    public static void averRate(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
         double tx_rg = 2;
-        double x = 5 * tx_rg;
-        double y = 5 * tx_rg;
+        double x = 3 * tx_rg;
+        double y = 3 * tx_rg;
         double rho = 9;
         int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
-        int sched_lgth = 10;
-        int n_tx_frames = 2000;
+        int sched_lgth = 20;
+        int n_tx_frames = 5000;
+        double infid_thresh = 0.15;
         // Parameters for the all-transmit-in-all approach: number of blocks
         // and packets per block.
         int blocks = 200; 
         int n_packets = 8;  
-        double[] rate_v = G.linspace(0.1, 1.5, 15);
-        int source_min = (int) (n * 0.5);
-        // cycles used to balance the energy consumption
-        int cycles = 8;
+        int source_min = 1;
+        if (tst_nr == 0)
+            source_min = 3;//(int) (n * 0.2);
+        else if (tst_nr == 1)
+            source_min = 5;
+        else if (tst_nr == 2)
+            source_min = 8;
+        else
+            throw new Exception("Invalid tst_nr");
+        Console.WriteLine("source_min = {0:d}", source_min);
+        Console.WriteLine("Simulating {0:d} nodes", n);
+        // Number of tree reconfiguration cycles used to balance the energy
+        // consumption.
+        int n_tree_reconf = 5;
+        //double [] tx_factor_v = new double[] {0, 5, 10, 20};
+        double [] tx_factor_v = new double[] {0, 20};
+        double [] rx_consum_v = new double[tx_factor_v.Length];
+        for (int i = 0; i < tx_factor_v.Length; i++)
+        {
+            rx_consum_v[i] = Math.Pow(10, - tx_factor_v[i] / 10);
+            Console.WriteLine(rx_consum_v[i]);
+        }
         int buffer_size = 30;
-        int[] types = new int[] {0, 1, 2, 3, 4};
+        int[] types = new int[] {0, 3, 9};
         G.VB = false;
-        double[] consum_tot = n;
-        double tot_consum1 = new double[n];
+        double[,] consum_mean = new double[rx_consum_v.Length, 3];
+        double[,] consum_median = new double[rx_consum_v.Length, 3];
+        double[,] consum_max = new double[rx_consum_v.Length, 3];
         for (int k = 0; k < n_averages; k++)
         {
             G.rgen = new Random(k);
-            AverTree at = new AverTree(n, x, y, tx_rt);
-            Array.Clear(tot_consum1, 0, n);
-            for (int h = 0; h < cycles; h++)
+            AverTree at = new AverTree(n, x, y, tx_rg);
+            for (int a = 0; a < rx_consum_v.Length; a++)
             {
-                double[] consum_old = new double[n];
-                for (int j=0; j < rate_v.Length; j++)
+                G.rx_consum = rx_consum_v[a];
+                for (int d = 0; d < types.Length; d++)
                 {
-                    at.get_tree(tot_consum1);
-                    LossTree t = new LossTree(at.fv, at.ps, buffer_size);
-                    t.find_schedule(sched_lgth, source_min);
-                    int [] results = t.simulate_it(n_tx_frames, rate_v[j]);
-                    // Fraction of reporting intervals with insufficient
-                    // count
-                    double fid_ratio 0 = 0.0; //
-                    foreach (int h in results)
+                    double[] tot_consum1 = new double[n];
+                    G.rgen = new Random(k);
+                    if (types[d] == 9)
                     {
-                        if (h < source_min)
+                        for (int h = 0; h < n_tree_reconf; h++)
                         {
-                            fid_ratio += (double) 1.0 / results.Length;
-                        }
-                    }
-                    if (fid_ratio < fid_ratio_threshold)
-                    {
-                        // Record statistics in temporary variable
-                        for (int q = 0; q < n; q++)
-                        {
-                            consum_old[q] = t.nodes[q].consum;
+                            at.get_tree(tot_consum1);
+                            LossTree e = new LossTree(at.fv, at.ps,
+                                    buffer_size);
+                            e.simulate_it2(blocks, n_packets, h);
+                            for (int i = 0; i < n; i++)
+                                tot_consum1[i] += e.nodes[i].consum /
+                                    n_tree_reconf;
                         }
                     }
                     else
                     {
-                        for (int r=0; r < n; r++)
-                            tot_consum1[r] += consum_old[r];
-                        // Record statistics in permanent variable
-                        continue;
+                        for (int h = 0; h < n_tree_reconf; h++)
+                        {
+                            double[] consum_old = new double[n];
+                            for (double rate =0.1; ; rate *= 1.05)
+                            {
+                                at.get_tree(tot_consum1);
+                                LossTree t = new LossTree(at.fv, at.ps,
+                                        buffer_size);
+                                t.find_schedule(sched_lgth, source_min, false);
+                                // This is supposed to show the optimal rate.
+                                // Console.WriteLine(((double)t.count.Count /
+                                // sched_lgth));
+                                int [] results = t.simulate_it(n_tx_frames,
+                                        rate, types[d], h);
+                                // Fraction of reporting intervals with
+                                // insufficient count
+                                double infid_ratio = 0.0; 
+                                foreach (int m in results)
+                                {
+                                    if (m < source_min)
+                                        infid_ratio
+                                            +=1.0/(double)results.Length;
+                                }
+                                if (infid_ratio < infid_thresh)
+                                {
+                                    // This rate yields sufficiently low
+                                    // infid_ratio.  Record the consumption in
+                                    // case this is the last rate to yield
+                                    // sufficiently low infid_ratio.
+                                    for (int q = 0; q < n; q++)
+                                        consum_old[q] = t.nodes[q].consum;
+                                }
+                                else
+                                {
+                                    // Record statistics in permanent
+                                    // variable This rate is the smallest
+                                    // rate that is too high.  Record
+                                    // consumption of the previous
+                                    // iteration.
+                                    for (int r=0; r < n; r++)
+                                        tot_consum1[r] += consum_old[r] /
+                                            n_tree_reconf;
+                                    break;
+                                }
+                            }
+                        }
                     }
+                    consum_mean[a,d] += G.Mean(tot_consum1) / n_averages; 
+                    consum_median[a,d] += G.Median(tot_consum1) / n_averages;
+                    consum_max[a,d] += G.Max(tot_consum1) / n_averages;
                 }
             }
-            consum_mean[0] += G.Mean(tot_consum1) / n_averages; 
-            consum_median[0] += G.Median(tot_consum1) / n_averages;
-            consum_max[0] += G.Max(tot_consum1);
-            // 
-            G.rgen = new Random(k);
-            int n_blocks = n_tx_frames / n_packets;
-            double [] tot_consume2 = new double [n];
-            Array.Clear(tot_consum1, 0, n);
-            for (int h = 0; h < cycles; h++)
-            {
-                at.get_tree(tot_consum1);
-                LossTree e = new LossTree(at.fv, at.ps, buffer_size);
-                e.simulate_it2(blocks, n_packets, h);
-                for (int i = 0; i < n; i++)
-                    tot_consume2[i] += e.nodes[i].consum;
-            }
-            consum_mean[1] += G.Mean(tot_consum1) / n_averages; 
-            consum_median[1] += G.Median(tot_consum1) / n_averages;
-            consum_max[1] += G.Max(tot_consum1);
         }
+        string[] legv = new string[] {"0", "3", "9"};
+        Pgf g = new Pgf();
+        string xaxis = "$10\\,\\mathrm{log}_{10}(P_{tx}/P_{rx})$";
+        g.add(xaxis, "consum-mean");
+        g.mplot(tx_factor_v, consum_mean, legv);
+        g.add(xaxis, "consum-median");
+        g.mplot(tx_factor_v, consum_median, legv);
+        g.add(xaxis, "consum-max");
+        g.mplot(tx_factor_v, consum_max, legv);
+        double[,] gain_mean = new double [rx_consum_v.Length, 2];
+        double[,] gain_median = new double [rx_consum_v.Length, 2];
+        double[,] gain_max = new double [rx_consum_v.Length, 2];
+        for (int q = 0; q < rx_consum_v.Length; q++)
+            for (int s = 0; s < 2; s++)
+            {
+                gain_mean[q, s] = 100 * (consum_mean[q, 2] - 
+                        consum_mean[q, s]) / consum_mean[q, 2];
+                gain_median[q, s] = 100 * (consum_median[q, 2] - 
+                        consum_median[q, s]) / consum_median[q, 2];
+                gain_max[q, s] = 100 * (consum_max[q, 2] -
+                        consum_max[q, s]) / consum_max[q, 2];
+            }
+        string[] legv2 = new string[] {"0", "3"};
+        g.add(xaxis, "gain-mean");
+        g.mplot(tx_factor_v, gain_mean, legv2);
+        g.add(xaxis, "gain-median");
+        g.mplot(tx_factor_v, gain_median, legv2);
+        g.add(xaxis, "gain-max");
+        g.mplot(tx_factor_v, gain_max, legv2);
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                tst_nr, n_averages);
+        g.save(filename, plot);
+        //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}   {2,8:F3}",
+        //        consum_mean[0], consum_mean[1], consum_mean[2]); 
+        //Console.WriteLine("consum_median = {0,8:F3}   {1,8:F3}   {2,8:F3}",
+        //        consum_median[0], consum_median[1], consum_median[2]); 
+        //Console.WriteLine("consum_max    = {0,8:F3}   {1,8:F3}   {2,8:F3}",
+        //        consum_max[0], consum_max[1], consum_max[2]); 
+    }
+    public static void averRate2(int tst_nr, int n_averages, int plot)
+    {
+        Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
+                tst_nr, n_averages, plot);
+        double tx_rg = 2;
+        double x = 3 * tx_rg;
+        double y = 2 * tx_rg;
+        double rho = 9;
+        int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
+        int sched_lgth = 20;
+        int n_tx_frames = 5000;
+        double infid_thresh = 0.10;
+        // Parameters for the all-transmit-in-all approach: number of blocks
+        // and packets per block.
+        int blocks = 200; 
+        int n_packets = 8;  
+        int source_min = 3;
+        // Number of tree reconfiguration cycles used to balance the energy
+        // consumption.
+        int n_tree_reconf = 1;
+        //double [] tx_factor_v = new double[] {0, 5, 10, 20};
+        double [] tx_factor_v = new double[] {20};
+        double [] rx_consum_v = new double[tx_factor_v.Length];
+        for (int i = 0; i < tx_factor_v.Length; i++)
+        {
+            rx_consum_v[i] = Math.Pow(10, - tx_factor_v[i] / 10);
+            Console.WriteLine(rx_consum_v[i]);
+        }
+        int buffer_size = 30;
+        int[] types = new int[] {0, 3, 9};
+        G.VB = false;
+        double[,] consum_mean = new double[rx_consum_v.Length, 3];
+        double[,] consum_median = new double[rx_consum_v.Length, 3];
+        double[,] consum_max = new double[rx_consum_v.Length, 3];
+        for (int k = 0; k < n_averages; k++)
+        {
+            G.rgen = new Random(k);
+            AverTree at = new AverTree(n, x, y, tx_rg);
+            for (int a = 0; a < rx_consum_v.Length; a++)
+            {
+                G.rx_consum = rx_consum_v[a];
+                for (int d = 0; d < types.Length; d++)
+                {
+                    double[] tot_consum1 = new double[n];
+                    G.rgen = new Random(k);
+                    if (types[d] == 9)
+                    {
+                        for (int h = 0; h < n_tree_reconf; h++)
+                        {
+                            at.get_tree(tot_consum1);
+                            LossTree e = new LossTree(at.fv, at.ps,
+                                    buffer_size);
+                            e.simulate_it2(blocks, n_packets, h);
+                            for (int i = 0; i < n; i++)
+                                tot_consum1[i] += e.nodes[i].consum /
+                                    n_tree_reconf;
+                        }
+                    }
+                    else
+                    {
+                        for (int h = 0; h < n_tree_reconf; h++)
+                        {
+                            double[] consum_old = new double[n];
+                            for (double rate =0.1; ; rate *= 1.08)
+                            {
+                                at.get_tree(tot_consum1);
+                                LossTree t = new LossTree(at.fv, at.ps,
+                                        buffer_size);
+                                if (types[d] == 3)
+                                {
+                                    t.find_schedule(sched_lgth, source_min);
+                                    Console.WriteLine("here9");
+                                    List<int> pslo = t.nodes[7].priority_slots;
+                                    foreach (int p in pslo)
+                                        Console.WriteLine(p);
+                                    Console.WriteLine("here8");
+                                }
+                                // This is supposed to show the optimal rate.
+                                // Console.WriteLine(((double)t.count.Count /
+                                // sched_lgth));
+                                int [] results = t.simulate_it(n_tx_frames,
+                                        rate, types[d], h);
+                                // Fraction of reporting intervals with
+                                // insufficient count
+                                double infid_ratio = 0.0; 
+                                foreach (int m in results)
+                                {
+                                    if (m < source_min)
+                                        infid_ratio
+                                            +=1.0/(double)results.Length;
+                                }
+                                if (rate > 4)
+                                {
+                                    throw new Exception();
+                                }
+                                if (infid_ratio < infid_thresh)
+                                {
+                                    // This rate yields sufficiently low
+                                    // infid_ratio.  Record the consumption in
+                                    // case this is the last rate to yield
+                                    // sufficiently low infid_ratio.
+                                    for (int q = 0; q < n; q++)
+                                        consum_old[q] = t.nodes[q].consum;
+                                }
+                                else
+                                {
+                                    // Record statistics in permanent
+                                    // variable This rate is the smallest
+                                    // rate that is too high.  Record
+                                    // consumption of the previous
+                                    // iteration.
+                                    for (int r=0; r < n; r++)
+                                        tot_consum1[r] += consum_old[r] /
+                                            n_tree_reconf;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    consum_mean[a,d] += G.Mean(tot_consum1) / n_averages; 
+                    consum_median[a,d] += G.Median(tot_consum1) / n_averages;
+                    consum_max[a,d] += G.Max(tot_consum1) / n_averages;
+                }
+            }
+        }
+        for (int c = 0; c< 3; c++)
+        {
+            Console.WriteLine(consum_max[0, c]);
+        }
+        //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}   {2,8:F3}",
+        //        consum_mean[0], consum_mean[1], consum_mean[2]); 
+        //Console.WriteLine("consum_median = {0,8:F3}   {1,8:F3}   {2,8:F3}",
+        //        consum_median[0], consum_median[1], consum_median[2]); 
+        //Console.WriteLine("consum_max    = {0,8:F3}   {1,8:F3}   {2,8:F3}",
+        //        consum_max[0], consum_max[1], consum_max[2]); 
     }
     public static void graphRate1(int tst_nr, int n_averages, int plot)
     {
@@ -1454,7 +1667,7 @@ class ProdGlb
         double opt = 0;
         int[] types = new int[] {0, 1, 2, 3, 4};
         double[] rate_v = G.linspace(0.5, 3, 28);
-        int size = 30;
+        int buffer_size = 30;
         double[,] tota = new double[xv.GetLength(0), types.Length];
         double[,] mean = new double[xv.GetLength(0), types.Length];
         double[,] pmin = new double[xv.GetLength(0), types.Length];
@@ -1560,10 +1773,11 @@ class ProdGlb
 // nodes in suc_prob. 
 class AverTree
 {
-    public double [,] cost;
+    public int [,] cost;
     public double [,] suc_prob;
     public double [] ps;
-    public int [,] fv;
+    public int [] fv;
+    public double[,] xy;
     public int[] tier;
     public int n;
     public List<int>[] neigh_upp; // Neighbors in an upper tier
@@ -1577,13 +1791,17 @@ class AverTree
         {
             throw new Exception("Number of nodes must exceed 2");
         }
-        int[] fv = new int[n];
-        double[,] xy = new double[n, 2];
-        double[,] cost = new double[n, n];
+        fv = new int[n];
+        xy = new double[n, 2];
+        cost = new int[n, n];
+        ps = new double[n];
+        suc_prob = new double[n, n];
         int MAX_TESTS = 15;
         double MAX_DISCONNECTED = 0.1;
         for (int h = 0; h < MAX_TESTS; h++)
         { 
+            // Randomly deploy the sensor nodes, except the data sink, which
+            // lies in (0, 0).
             for (int i = 1; i < n; i++)
             {
                 xy[i, 0] = G.rgen.NextDouble() * x;
@@ -1624,7 +1842,7 @@ class AverTree
                 }
             }
             // Execute Dijkstra's algorithm to compute tier
-            tier = new double[n];
+            tier = new int[n];
             for (int i = 1; i < n; i++)
             {
                 tier[i] = G.INF;
@@ -1641,26 +1859,26 @@ class AverTree
             while (unprocessed.Count > 0)
             {
                 // Find unprocessed item in closest tier
-                int x = unprocessed[0];
+                int v = unprocessed[0];
                 foreach (int i in unprocessed)
                 {
-                    if (tier[i] < tier[x])
+                    if (tier[i] < tier[v])
                     {
-                        x = i;
+                        v = i;
                     }
                 }
-                if (tier[x] == G.INF)
+                if (tier[v] == G.INF)
                 {
                     break;
                 }
-                unprocessed.Remove(x);
-                foreach (int y in unprocessed)
+                unprocessed.Remove(v);
+                foreach (int u in unprocessed)
                 {
-                    double alt = tier[x] + cost[x, y];
-                    if (alt < tier[y])
+                    int alt = tier[v] + cost[v, u];
+                    if (alt < tier[u])
                     {
-                        tier[y] = alt;
-                        fv[y] = x;
+                        tier[u] = alt;
+                        fv[u] = v;
                     }
                 }
             }
@@ -1683,17 +1901,18 @@ class AverTree
             if ((double) (disconnected - 1) / (n - 1) <= MAX_DISCONNECTED)
             {
                 // The topology is valid.   Initialize neigh_upp. 
-                neigh_upp = new List<int>[];
-                for (int i=0; i < n; i++)
+                neigh_upp = new List<int>[n];
+                for (int i=1; i < n; i++)
                 {
+                    neigh_upp[i] = new List<int>();
                     for (int j = 0; j < n; j++)
                     {
-                        if (i!=j && tier[j]==tier[i]- 1 && cost[i, j] < G.INF)
+                        if (tier[j]==tier[i]- 1 && cost[i, j] < G.INF)
                         {
                             neigh_upp[i].Add(j);
                         }
                     }
-                    ps = suc_prob[i, fv[i]]i;
+                    ps[i] = suc_prob[i, fv[i]];
                 }
                 return;
             }
@@ -1704,17 +1923,15 @@ class AverTree
         Console.WriteLine(tx_rg);
         throw new Exception("No sufficiently connected topology found");
     }
-    public void get_tree(double[] double tot_consump)
+    public void get_tree(double[] tot_consump)
     {
         for (int i=1; i<n; i++)
         {
-            best_neigh = neigh_upp[i][0];
-            double consum = totconodes[best_neigh].consum;
-            foreach (int j in neigh_upp)
+            int best_neigh = neigh_upp[i][0];
+            foreach (int j in neigh_upp[i])
             {
-                if (tot_consump[j] < tot_consum_best_neigh)
+                if (tot_consump[j] < tot_consump[best_neigh])
                 {
-                    consum = nodes[j].consum;
                     best_neigh = j;
                 }
             }
@@ -1731,8 +1948,6 @@ class RandomTree
 // + Vector with costs 
     public static int[] gen_top(int n, double x, double y, double tx_rg)
     {
-
-
      
         // n is  the number of nodes
         // x, y are the geographical area
@@ -2074,29 +2289,29 @@ class tPgf
 class G
 {
     public static Stopwatch stopwatch = new Stopwatch();
-    public static double INF = 99;
+    public static int INF = 99;
     public static Random rgen = new Random();
     // Consumption of a receiving operation (a transmission operation costs
-    // 1.
-    public static rx_consum = 1.0;
+    // 1).
+    public static double rx_consum = 0.01;
     public static bool VB = false;
     public static string comando;
-    public double Median(double [] vec)
+    public static double Median(double [] vec)
     {
         double[] copy = new double[vec.Length];
         for (int i = 0; i < vec.Length; i++)
-            copy[i] = ve[i];
+            copy[i] = vec[i];
         Array.Sort(copy);
         return copy[(copy.Length+1)/2];
     }
-    public double Mean(double [] vec)
+    public static double Mean(double [] vec)
     {
         double mean = 0;
         foreach (double x in vec)
             mean += x / vec.Length;
         return mean;
     }
-    public double Max(double [] vec)
+    public static double Max(double [] vec)
     {
         double max = vec[0];
         foreach (double d in vec)

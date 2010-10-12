@@ -8,7 +8,7 @@ import platform
 comando = sys.argv[1] + "(" + ', '.join(sys.argv[2:]) + ")"
 print "comando = " + comando
 filename = '_'.join(sys.argv[1:])
-with open('net.cs', 'r') as f1:
+with open('net2.cs', 'r') as f1:
     l1 = f1.readlines()  
 with open(filename + '.cs', 'w') as f2:
     for i, line in enumerate(l1):
