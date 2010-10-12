@@ -873,7 +873,7 @@ class ProdGlb
     public static void maverRate(int n_averages)
     {
         for (int i = 0; i < 3; i++)
-            averRate(i, 3, 1);
+            averRate(i, n_averages, 1);
     }
     public static void averRate(int tst_nr, int n_averages, int plot)
     {
@@ -905,8 +905,7 @@ class ProdGlb
         // Number of tree reconfiguration cycles used to balance the energy
         // consumption.
         int n_tree_reconf = 5;
-        //double [] tx_factor_v = new double[] {0, 5, 10, 20};
-        double [] tx_factor_v = new double[] {0, 20};
+        double [] tx_factor_v = new double[] {0, 4, 8, 12, 16};
         double [] rx_consum_v = new double[tx_factor_v.Length];
         for (int i = 0; i < tx_factor_v.Length; i++)
         {
@@ -1916,7 +1915,8 @@ class AverTree
                             neigh_upp[i].Add(j);
                         }
                     }
-                    ps[i] = suc_prob[i, fv[i]];
+                    if (fv[i] >= 0)
+                        ps[i] = suc_prob[i, fv[i]];
                 }
                 return;
             }
@@ -1931,16 +1931,24 @@ class AverTree
     {
         for (int i=1; i<n; i++)
         {
-            int best_neigh = neigh_upp[i][0];
-            foreach (int j in neigh_upp[i])
+            if (neigh_upp[i].Count == 0)
             {
-                if (tot_consump[j] < tot_consump[best_neigh])
-                {
-                    best_neigh = j;
-                }
+                fv[i] = -1;
+                ps[i] = 0;
             }
-            fv[i] = best_neigh;
-            ps[i] = suc_prob[i, best_neigh]; 
+            else
+            {
+                int best_neigh = neigh_upp[i][0];
+                foreach (int j in neigh_upp[i])
+                {
+                    if (tot_consump[j] < tot_consump[best_neigh])
+                    {
+                        best_neigh = j;
+                    }
+                }
+                fv[i] = best_neigh;
+                ps[i] = suc_prob[i, best_neigh]; 
+            }
         }
     }
 }
