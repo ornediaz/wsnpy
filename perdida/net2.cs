@@ -1639,7 +1639,8 @@ class ProdGlb
                 tst_nr, n_averages);
         g.save(filename, plot);
     }
-    // Generate multiple graphs about the different metrics as a function of size.
+    // Generate multiple graphs about the different metrics as a function of
+    // size.
     // Generate a different file for every source_min
     public static void graphRateSize3(int tst_nr, int n_averages, int plot)
     {
