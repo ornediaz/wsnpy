@@ -1640,7 +1640,9 @@ class ProdGlb
                 tst_nr, n_averages);
         g.save(filename, plot);
     }
-    public static void graphRateSize2(int tst_nr, int n_averages, int plot)
+    // Generate multiple graphs about the different metrics as a function of size.
+    // Generate a different file for every source_min
+    public static void graphRateSize3(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
@@ -1672,6 +1674,13 @@ class ProdGlb
         double[,] mean = new double[xv.GetLength(0), types.Length];
         double[,] pmin = new double[xv.GetLength(0), types.Length];
         double[,] ropt = new double[xv.GetLength(0), types.Length];
+        Pgf g = new Pgf();
+        string xlab = "normalized x size";
+        double[] xn = new double[xv.Length];
+        for (int q = 0; q < xn.Length; q++)
+        {
+            xn[q] = xv[q] / tx_rg;
+        }
         for (double frac_source_min = 0.2; frac_source_min < 1; 
              frac_source_min += 0.3)
         {
@@ -1681,6 +1690,7 @@ class ProdGlb
                                 k, G.elapsed());
                     for (int s = 0; s < xv.GetLength(0); s++)
                     {
+
                         Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", s,
                           xv[s] / tx_rg, G.elapsed());
                         int n = (int)(rho* xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
@@ -1737,27 +1747,21 @@ class ProdGlb
                 Console.WriteLine("**** Printing results *****");
                 string[] legv = new string[] { "0", "1", "2",
                     String.Format("3={0:F3}", opt), "4" };
-                Pgf g = new Pgf();
-                string xlab = "normalized x size";
-                double[] xn = new double[xv.Length];
-                for (int q = 0; q < xn.Length; q++)
-                {
-                    xn[q] = xv[q] / tx_rg;
-                }
-                g.add(xlab, "total");
+                string append = String.Format("frac-source-min = {0:f2}", 
+                                              frac_source_min);
+                g.add(xlab, "total " + append);
                 g.mplot(xn, tota, legv);
-                g.add(xlab, "mean");
+                g.add(xlab, "mean " + append);
                 g.mplot(xn, mean, legv);
-                g.add(xlab, "pmin");
+                g.add(xlab, "pmin " + append);
                 g.mplot(xn, pmin, legv);
-                g.add(xlab, "ropt");
+                g.add(xlab, "ropt " + append);
                 g.mplot(xn, ropt, legv);
-                string filename = String.Format("{0}_{1:d2}_{2:d6}_{3:f2}",
-                                                G.current(), tst_nr, 
-                                                n_averages, frac_source_min);
-                Console.WriteLine(filename);
-                g.save(filename, plot);
         }
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                            tst_nr, n_averages);
+        Console.WriteLine(filename);
+        g.save(filename, plot);
     }
     public static void multiplot1(int n_averages)
     {
