@@ -1231,6 +1231,8 @@ class ProdGlb
         double x = 2 * tx_rg;
         double y = 3 * tx_rg;
         double[] rho_v = new double[] {9, 13, 17};
+        if (tst_nr == 1)
+            rho_v = new double[] {8, 12, 16, 20, 24};
         // double rho_v = new double[] {9, 13, 17, 21};
         int sched_lgth = 20;
         int n_tx_frames = 5000;
@@ -2039,9 +2041,9 @@ class ProdGlb
                     for (int s = 0; s < xv.GetLength(0); s++)
                     {
 
-                        Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", s,
-                          xv[s] / tx_rg, G.elapsed());
-                        int n = (int)(rho* xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
+                        Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", 
+                                          s, xv[s] / tx_rg, G.elapsed());
+                        int n = (int)(rho*xv[s]*yv[s]/Math.PI/tx_rg/tx_rg);
                         int source_min = (int) (frac_source_min * n);
                         G.rgen = new Random(k);
                         int[] fv = RandomTree.parents(n, xv[s], yv[s], tx_rg);
