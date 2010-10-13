@@ -889,7 +889,7 @@ class ProdGlb
             Console.WriteLine(x.consum);
         }
     }
-    public static void maverRate(int n_averages)
+    public static void maverRxConsum(int n_averages)
     {
         for (int i = 0; i < 3; i++)
             averRate(i, n_averages, 1);
