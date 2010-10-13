@@ -892,7 +892,7 @@ class ProdGlb
     public static void maverRxConsum(int n_averages)
     {
         for (int i = 0; i < 3; i++)
-            averRate(i, n_averages, 1);
+            averRxConsum(i, n_averages, 1);
     }
     public static void averRxConsum(int tst_nr, int n_averages, int plot)
     {
