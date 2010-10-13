@@ -453,8 +453,8 @@ class LossTree
     }
     public void find_schedule(int sched_lgth, int source_min, bool use_up)
     {
-        if (source_min < 1)
-            throw new Exception("source_min should be at least 1");
+        if (source_min < 1 || source_min > n - 1)
+            throw new Exception("source_min invalid");
         this.nodes[0].ps = 1.0;
         foreach (Node x in nodes)
         {
@@ -894,7 +894,7 @@ class ProdGlb
         for (int i = 0; i < 3; i++)
             averRate(i, n_averages, 1);
     }
-    public static void averRate(int tst_nr, int n_averages, int plot)
+    public static void averRxConsum(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
@@ -1168,46 +1168,59 @@ class ProdGlb
         string[] legv = new string[] {"0", "3", "9"};
         Pgf g = new Pgf();
         g.extra_body.Add(String.Format("\n\nThe number of nodes is {0:d}",
-
-        double[] source_min_v_d = new double[source_min_v.Length];
-        for (int q = 0; q < source_min_v.Length; q++)
-            source_min_v_d[q] = (double) source_min_v[q];
-        string xaxis = "source-min";
-        g.add(xaxis, "consum-mean");
-        g.mplot(source_min_v_d, consum_mean, legv);
-        g.add(xaxis, "consum-median");
-        g.mplot(source_min_v_d, consum_median, legv);
-        g.add(xaxis, "consum-max");
-        g.mplot(source_min_v_d, consum_max, legv);
-        double[,] gain_mean = new double [source_min_v.Length, 2];
-        double[,] gain_median = new double [source_min_v.Length, 2];
-        double[,] gain_max = new double [source_min_v.Length, 2];
-        for (int q = 0; q < source_min_v.Length; q++)
-            for (int s = 0; s < 2; s++)
+                    n)); 
+        for (int i = 0; i < 2; i++)
+        {
+            string xaxis = "source.min"; 
+            double[] xvec = new double[source_min_v.Length];
+            if (i == 0)
+                for (int q = 0; q < source_min_v.Length; q++)
+                    xvec[q] = (double) source_min_v[q];
+            else if (i == 1)
             {
-                gain_mean[q, s] = 100 * (consum_mean[q, 2] - 
-                        consum_mean[q, s]) / consum_mean[q, 2];
-                gain_median[q, s] = 100 * (consum_median[q, 2] - 
-                        consum_median[q, s]) / consum_median[q, 2];
-                gain_max[q, s] = 100 * (consum_max[q, 2] -
-                        consum_max[q, s]) / consum_max[q, 2];
+                for (int q = 0; q < source_min_v.Length; q++)
+                    xvec[q] = source_min_v[q] / (double) (n-1);
+                xaxis = "percent source.min";
             }
-        string[] legv2 = new string[] {"0", "3"};
-        g.add(xaxis, "gain-mean");
-        g.mplot(source_min_v_d, gain_mean, legv2);
-        g.add(xaxis, "gain-median");
-        g.mplot(source_min_v_d, gain_median, legv2);
-        g.add(xaxis, "gain-max");
-        g.mplot(source_min_v_d, gain_max, legv2);
-        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
-                tst_nr, n_averages);
-        g.save(filename, plot);
-        //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}   {2,8:F3}",
-        //        consum_mean[0], consum_mean[1], consum_mean[2]); 
-        //Console.WriteLine("consum_median = {0,8:F3}   {1,8:F3}   {2,8:F3}",
-        //        consum_median[0], consum_median[1], consum_median[2]); 
-        //Console.WriteLine("consum_max    = {0,8:F3}   {1,8:F3}   {2,8:F3}",
-        //        consum_max[0], consum_max[1], consum_max[2]); 
+            g.add(xaxis, "consum-mean");
+            g.mplot(xvec, consum_mean, legv);
+            g.add(xaxis, "consum-median");
+            g.mplot(xvec, consum_median, legv);
+            g.add(xaxis, "consum-max");
+            g.mplot(xvec, consum_max, legv);
+            double[,] gain_mean = new double [source_min_v.Length, 2];
+            double[,] gain_median = new double [source_min_v.Length, 2];
+            double[,] gain_max = new double [source_min_v.Length, 2];
+            for (int q = 0; q < source_min_v.Length; q++)
+                for (int s = 0; s < 2; s++)
+                {
+                    gain_mean[q, s] = 100 * (consum_mean[q, 2] - 
+                            consum_mean[q, s]) / consum_mean[q, 2];
+                    gain_median[q, s] = 100 * (consum_median[q, 2] - 
+                            consum_median[q, s]) / consum_median[q, 2];
+                    gain_max[q, s] = 100 * (consum_max[q, 2] -
+                            consum_max[q, s]) / consum_max[q, 2];
+                }
+            string[] legv2 = new string[] {"0", "3"};
+            g.add(xaxis, "gain-mean");
+            g.mplot(xvec, gain_mean, legv2);
+            g.add(xaxis, "gain-median");
+            g.mplot(xvec, gain_median, legv2);
+            g.add(xaxis, "gain-max");
+            g.mplot(xvec, gain_max, legv2);
+            string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                    tst_nr, n_averages);
+            g.save(filename, plot);
+        }
+            //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}
+            //{2,8:F3}",
+            //        consum_mean[0], consum_mean[1], consum_mean[2]); 
+            //Console.WriteLine("consum_median = {0,8:F3}   {1,8:F3}
+            //{2,8:F3}",
+            //        consum_median[0], consum_median[1], consum_median[2]); 
+            //Console.WriteLine("consum_max    = {0,8:F3}   {1,8:F3}
+            //{2,8:F3}",
+            //        consum_max[0], consum_max[1], consum_max[2]); 
     }
     public static void averDensity(int tst_nr, int n_averages, int plot)
     {
