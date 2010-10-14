@@ -453,8 +453,8 @@ class LossTree
     }
     public void find_schedule(int sched_lgth, int source_min, bool use_up)
     {
-        if (source_min < 1)
-            throw new Exception("source_min should be at least 1");
+        if (source_min < 1 || source_min > n - 1)
+            throw new Exception("source_min invalid");
         this.nodes[0].ps = 1.0;
         foreach (Node x in nodes)
         {
@@ -889,12 +889,12 @@ class ProdGlb
             Console.WriteLine(x.consum);
         }
     }
-    public static void maverRate(int n_averages)
+    public static void maverRxConsum(int n_averages)
     {
         for (int i = 0; i < 3; i++)
-            averRate(i, n_averages, 1);
+            averRxConsum(i, n_averages, 1);
     }
-    public static void averRate(int tst_nr, int n_averages, int plot)
+    public static void averRxConsum(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
@@ -1085,6 +1085,10 @@ class ProdGlb
         double[,] consum_max = new double[source_min_v.Length, 3];
         for (int k = 0; k < n_averages; k++)
         {
+            Console.WriteLine("Repetition {0,4:D}. Total {1}", k,
+                    G.elapsed());
+            Console.WriteLine("                    Current time is {0}",
+                    DateTime.Now.ToString("u"));
             G.rgen = new Random(k);
             AverTree at = new AverTree(n, x, y, tx_rg);
             for (int a = 0; a < source_min_v.Length; a++)
@@ -1116,8 +1120,7 @@ class ProdGlb
                                 at.get_tree(tot_consum1);
                                 LossTree t = new LossTree(at.fv, at.ps,
                                         buffer_size);
-                                t.find_schedule(sched_lgth, source_min_v[a],
-                                                false);
+                                t.find_schedule(sched_lgth, source_min_v[a]);
                                 // This is supposed to show the optimal rate.
                                 // Console.WriteLine(((double)t.count.Count /
                                 // sched_lgth));
@@ -1164,87 +1167,103 @@ class ProdGlb
         }
         string[] legv = new string[] {"0", "3", "9"};
         Pgf g = new Pgf();
-        double[] source_min_v_d = new double[source_min_v.Length];
-        for (int q = 0; q < source_min_v.Length; q++)
-            source_min_v_d[q] = (double) source_min_v[q];
-        string xaxis = "source-min";
-        g.add(xaxis, "consum-mean");
-        g.mplot(source_min_v_d, consum_mean, legv);
-        g.add(xaxis, "consum-median");
-        g.mplot(source_min_v_d, consum_median, legv);
-        g.add(xaxis, "consum-max");
-        g.mplot(source_min_v_d, consum_max, legv);
-        double[,] gain_mean = new double [source_min_v.Length, 2];
-        double[,] gain_median = new double [source_min_v.Length, 2];
-        double[,] gain_max = new double [source_min_v.Length, 2];
-        for (int q = 0; q < source_min_v.Length; q++)
-            for (int s = 0; s < 2; s++)
+        g.extra_body.Add(String.Format("\n\nThe number of nodes is {0:d}",
+                    n)); 
+        for (int i = 0; i < 2; i++)
+        {
+            string xaxis = "source.min"; 
+            double[] xvec = new double[source_min_v.Length];
+            if (i == 0)
+                for (int q = 0; q < source_min_v.Length; q++)
+                    xvec[q] = (double) source_min_v[q];
+            else if (i == 1)
             {
-                gain_mean[q, s] = 100 * (consum_mean[q, 2] - 
-                        consum_mean[q, s]) / consum_mean[q, 2];
-                gain_median[q, s] = 100 * (consum_median[q, 2] - 
-                        consum_median[q, s]) / consum_median[q, 2];
-                gain_max[q, s] = 100 * (consum_max[q, 2] -
-                        consum_max[q, s]) / consum_max[q, 2];
+                for (int q = 0; q < source_min_v.Length; q++)
+                    xvec[q] = source_min_v[q] / (double) (n-1);
+                xaxis = "percent source.min";
             }
-        string[] legv2 = new string[] {"0", "3"};
-        g.add(xaxis, "gain-mean");
-        g.mplot(source_min_v_d, gain_mean, legv2);
-        g.add(xaxis, "gain-median");
-        g.mplot(source_min_v_d, gain_median, legv2);
-        g.add(xaxis, "gain-max");
-        g.mplot(source_min_v_d, gain_max, legv2);
-        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
-                tst_nr, n_averages);
-        g.save(filename, plot);
-        //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}   {2,8:F3}",
-        //        consum_mean[0], consum_mean[1], consum_mean[2]); 
-        //Console.WriteLine("consum_median = {0,8:F3}   {1,8:F3}   {2,8:F3}",
-        //        consum_median[0], consum_median[1], consum_median[2]); 
-        //Console.WriteLine("consum_max    = {0,8:F3}   {1,8:F3}   {2,8:F3}",
-        //        consum_max[0], consum_max[1], consum_max[2]); 
+            g.add(xaxis, "consum-mean");
+            g.mplot(xvec, consum_mean, legv);
+            g.add(xaxis, "consum-median");
+            g.mplot(xvec, consum_median, legv);
+            g.add(xaxis, "consum-max");
+            g.mplot(xvec, consum_max, legv);
+            double[,] gain_mean = new double [source_min_v.Length, 2];
+            double[,] gain_median = new double [source_min_v.Length, 2];
+            double[,] gain_max = new double [source_min_v.Length, 2];
+            for (int q = 0; q < source_min_v.Length; q++)
+                for (int s = 0; s < 2; s++)
+                {
+                    gain_mean[q, s] = 100 * (consum_mean[q, 2] - 
+                            consum_mean[q, s]) / consum_mean[q, 2];
+                    gain_median[q, s] = 100 * (consum_median[q, 2] - 
+                            consum_median[q, s]) / consum_median[q, 2];
+                    gain_max[q, s] = 100 * (consum_max[q, 2] -
+                            consum_max[q, s]) / consum_max[q, 2];
+                }
+            string[] legv2 = new string[] {"0", "3"};
+            g.add(xaxis, "gain-mean");
+            g.mplot(xvec, gain_mean, legv2);
+            g.add(xaxis, "gain-median");
+            g.mplot(xvec, gain_median, legv2);
+            g.add(xaxis, "gain-max");
+            g.mplot(xvec, gain_max, legv2);
+            string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                    tst_nr, n_averages);
+            g.save(filename, plot);
+        }
+            //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}
+            //{2,8:F3}",
+            //        consum_mean[0], consum_mean[1], consum_mean[2]); 
+            //Console.WriteLine("consum_median = {0,8:F3}   {1,8:F3}
+            //{2,8:F3}",
+            //        consum_median[0], consum_median[1], consum_median[2]); 
+            //Console.WriteLine("consum_max    = {0,8:F3}   {1,8:F3}
+            //{2,8:F3}",
+            //        consum_max[0], consum_max[1], consum_max[2]); 
     }
-    public static void averRate2(int tst_nr, int n_averages, int plot)
+    // Vary node density and keep constant the fraction of n_source_nodes
+    // 1009s per iteration at ee-moda2
+    public static void averDensityCR(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
                 tst_nr, n_averages, plot);
         double tx_rg = 2;
-        double x = 3 * tx_rg;
-        double y = 2 * tx_rg;
-        double rho = 9;
-        int n = (int)(rho * x * y / Math.PI / tx_rg / tx_rg);
+        double x = 2 * tx_rg;
+        double y = 3 * tx_rg;
+        double[] rho_v = new double[] {9, 13, 17};
+        if (tst_nr == 1)
+            rho_v = new double[] {8, 12, 16, 20, 24};
+        // double rho_v = new double[] {9, 13, 17, 21};
         int sched_lgth = 20;
         int n_tx_frames = 5000;
-        double infid_thresh = 0.10;
+        double infid_thresh = 0.15;
         // Parameters for the all-transmit-in-all approach: number of blocks
         // and packets per block.
         int blocks = 200; 
         int n_packets = 8;  
-        int source_min = 3;
         // Number of tree reconfiguration cycles used to balance the energy
         // consumption.
-        int n_tree_reconf = 1;
-        //double [] tx_factor_v = new double[] {0, 5, 10, 20};
-        double [] tx_factor_v = new double[] {20};
-        double [] rx_consum_v = new double[tx_factor_v.Length];
-        for (int i = 0; i < tx_factor_v.Length; i++)
-        {
-            rx_consum_v[i] = Math.Pow(10, - tx_factor_v[i] / 10);
-            Console.WriteLine(rx_consum_v[i]);
-        }
+      
+        int n_tree_reconf = 5;
         int buffer_size = 30;
         int[] types = new int[] {0, 3, 9};
         G.VB = false;
-        double[,] consum_mean = new double[rx_consum_v.Length, 3];
-        double[,] consum_median = new double[rx_consum_v.Length, 3];
-        double[,] consum_max = new double[rx_consum_v.Length, 3];
+        G.rx_consum = 0.001;
+        double[,] consum_mean = new double[rho_v.Length, 3];
+        double[,] consum_median = new double[rho_v.Length, 3];
+        double[,] consum_max = new double[rho_v.Length, 3];
         for (int k = 0; k < n_averages; k++)
         {
-            G.rgen = new Random(k);
-            AverTree at = new AverTree(n, x, y, tx_rg);
-            for (int a = 0; a < rx_consum_v.Length; a++)
+            Console.WriteLine("Repetition {0,4:D}. Total {1}", k,
+                    G.elapsed());
+            for (int a = 0; a < rho_v.Length; a++)
             {
-                G.rx_consum = rx_consum_v[a];
+                int n = (int)(rho_v[a] * x * y / Math.PI / tx_rg / tx_rg);
+                int source_min = (int) (0.4 * (double) n);
+                Console.WriteLine("Simulating {0:d} nodes", n);
+                G.rgen = new Random(k);
+                AverTree at = new AverTree(n, x, y, tx_rg);
                 for (int d = 0; d < types.Length; d++)
                 {
                     double[] tot_consum1 = new double[n];
@@ -1267,20 +1286,12 @@ class ProdGlb
                         for (int h = 0; h < n_tree_reconf; h++)
                         {
                             double[] consum_old = new double[n];
-                            for (double rate =0.1; ; rate *= 1.08)
+                            for (double rate =0.1; ; rate *= 1.05)
                             {
                                 at.get_tree(tot_consum1);
                                 LossTree t = new LossTree(at.fv, at.ps,
                                         buffer_size);
-                                if (types[d] == 3)
-                                {
-                                    t.find_schedule(sched_lgth, source_min);
-                                    Console.WriteLine("here9");
-                                    List<int> pslo = t.nodes[7].priority_slots;
-                                    foreach (int p in pslo)
-                                        Console.WriteLine(p);
-                                    Console.WriteLine("here8");
-                                }
+                                t.find_schedule(sched_lgth, source_min);
                                 // This is supposed to show the optimal rate.
                                 // Console.WriteLine(((double)t.count.Count /
                                 // sched_lgth));
@@ -1294,10 +1305,6 @@ class ProdGlb
                                     if (m < source_min)
                                         infid_ratio
                                             +=1.0/(double)results.Length;
-                                }
-                                if (rate > 4)
-                                {
-                                    throw new Exception();
                                 }
                                 if (infid_ratio < infid_thresh)
                                 {
@@ -1329,10 +1336,186 @@ class ProdGlb
                 }
             }
         }
-        for (int c = 0; c< 3; c++)
+        string[] legv = new string[] {"0", "3", "9"};
+        Pgf g = new Pgf();
+        string xaxis = "rho";
+        g.add(xaxis, "consum-mean");
+        g.mplot(rho_v, consum_mean, legv);
+        g.add(xaxis, "consum-median");
+        g.mplot(rho_v, consum_median, legv);
+        g.add(xaxis, "consum-max");
+        g.mplot(rho_v, consum_max, legv);
+        double[,] gain_mean = new double [rho_v.Length, 2];
+        double[,] gain_median = new double [rho_v.Length, 2];
+        double[,] gain_max = new double [rho_v.Length, 2];
+        for (int q = 0; q < rho_v.Length; q++)
+            for (int s = 0; s < 2; s++)
+            {
+                gain_mean[q, s] = 100 * (consum_mean[q, 2] - 
+                        consum_mean[q, s]) / consum_mean[q, 2];
+                gain_median[q, s] = 100 * (consum_median[q, 2] - 
+                        consum_median[q, s]) / consum_median[q, 2];
+                gain_max[q, s] = 100 * (consum_max[q, 2] -
+                        consum_max[q, s]) / consum_max[q, 2];
+            }
+        string[] legv2 = new string[] {"0", "3"};
+        g.add(xaxis, "gain-mean");
+        g.mplot(rho_v, gain_mean, legv2);
+        g.add(xaxis, "gain-median");
+        g.mplot(rho_v, gain_median, legv2);
+        g.add(xaxis, "gain-max");
+        g.mplot(rho_v, gain_max, legv2);
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                tst_nr, n_averages);
+        g.save(filename, plot);
+        //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}   {2,8:F3}",
+        //        consum_mean[0], consum_mean[1], consum_mean[2]); 
+        //Console.WriteLine("consum_median = {0,8:F3}   {1,8:F3}   {2,8:F3}",
+        //        consum_median[0], consum_median[1], consum_median[2]); 
+        //Console.WriteLine("consum_max    = {0,8:F3}   {1,8:F3}   {2,8:F3}",
+        //        consum_max[0], consum_max[1], consum_max[2]); 
+    }
+    public static void averDensity(int tst_nr, int n_averages, int plot)
+    {
+        Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
+                tst_nr, n_averages, plot);
+        double tx_rg = 2;
+        double x = 2 * tx_rg;
+        double y = 3 * tx_rg;
+        double[] rho_v = new double[] {9, 13, 17};
+        // double rho_v = new double[] {9, 13, 17, 21};
+        int sched_lgth = 20;
+        int n_tx_frames = 5000;
+        double infid_thresh = 0.15;
+        // Parameters for the all-transmit-in-all approach: number of blocks
+        // and packets per block.
+        int blocks = 200; 
+        int n_packets = 8;  
+        int source_min = 5;
+        // Number of tree reconfiguration cycles used to balance the energy
+        // consumption.
+        int n_tree_reconf = 5;
+        int buffer_size = 30;
+        int[] types = new int[] {0, 3, 9};
+        G.VB = false;
+        G.rx_consum = 0.001;
+        double[,] consum_mean = new double[rho_v.Length, 3];
+        double[,] consum_median = new double[rho_v.Length, 3];
+        double[,] consum_max = new double[rho_v.Length, 3];
+        for (int k = 0; k < n_averages; k++)
         {
-            Console.WriteLine(consum_max[0, c]);
+            Console.WriteLine("Repetition {0,4:D}. Total {1}", k,
+                    G.elapsed());
+            for (int a = 0; a < rho_v.Length; a++)
+            {
+                int n = (int)(rho_v[a] * x * y / Math.PI / tx_rg / tx_rg);
+                Console.WriteLine("Simulating {0:d} nodes", n);
+                G.rgen = new Random(k);
+                AverTree at = new AverTree(n, x, y, tx_rg);
+                for (int d = 0; d < types.Length; d++)
+                {
+                    double[] tot_consum1 = new double[n];
+                    G.rgen = new Random(k);
+                    if (types[d] == 9)
+                    {
+                        for (int h = 0; h < n_tree_reconf; h++)
+                        {
+                            at.get_tree(tot_consum1);
+                            LossTree e = new LossTree(at.fv, at.ps,
+                                    buffer_size);
+                            e.simulate_it2(blocks, n_packets, h);
+                            for (int i = 0; i < n; i++)
+                                tot_consum1[i] += e.nodes[i].consum /
+                                    n_tree_reconf;
+                        }
+                    }
+                    else
+                    {
+                        for (int h = 0; h < n_tree_reconf; h++)
+                        {
+                            double[] consum_old = new double[n];
+                            for (double rate =0.1; ; rate *= 1.05)
+                            {
+                                at.get_tree(tot_consum1);
+                                LossTree t = new LossTree(at.fv, at.ps,
+                                        buffer_size);
+                                t.find_schedule(sched_lgth, source_min);
+                                // This is supposed to show the optimal rate.
+                                // Console.WriteLine(((double)t.count.Count /
+                                // sched_lgth));
+                                int [] results = t.simulate_it(n_tx_frames,
+                                        rate, types[d], h);
+                                // Fraction of reporting intervals with
+                                // insufficient count
+                                double infid_ratio = 0.0; 
+                                foreach (int m in results)
+                                {
+                                    if (m < source_min)
+                                        infid_ratio
+                                            +=1.0/(double)results.Length;
+                                }
+                                if (infid_ratio < infid_thresh)
+                                {
+                                    // This rate yields sufficiently low
+                                    // infid_ratio.  Record the consumption in
+                                    // case this is the last rate to yield
+                                    // sufficiently low infid_ratio.
+                                    for (int q = 0; q < n; q++)
+                                        consum_old[q] = t.nodes[q].consum;
+                                }
+                                else
+                                {
+                                    // Record statistics in permanent
+                                    // variable This rate is the smallest
+                                    // rate that is too high.  Record
+                                    // consumption of the previous
+                                    // iteration.
+                                    for (int r=0; r < n; r++)
+                                        tot_consum1[r] += consum_old[r] /
+                                            n_tree_reconf;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    consum_mean[a,d] += G.Mean(tot_consum1) / n_averages; 
+                    consum_median[a,d] += G.Median(tot_consum1) / n_averages;
+                    consum_max[a,d] += G.Max(tot_consum1) / n_averages;
+                }
+            }
         }
+        string[] legv = new string[] {"0", "3", "9"};
+        Pgf g = new Pgf();
+        string xaxis = "rho";
+        g.add(xaxis, "consum-mean");
+        g.mplot(rho_v, consum_mean, legv);
+        g.add(xaxis, "consum-median");
+        g.mplot(rho_v, consum_median, legv);
+        g.add(xaxis, "consum-max");
+        g.mplot(rho_v, consum_max, legv);
+        double[,] gain_mean = new double [rho_v.Length, 2];
+        double[,] gain_median = new double [rho_v.Length, 2];
+        double[,] gain_max = new double [rho_v.Length, 2];
+        for (int q = 0; q < rho_v.Length; q++)
+            for (int s = 0; s < 2; s++)
+            {
+                gain_mean[q, s] = 100 * (consum_mean[q, 2] - 
+                        consum_mean[q, s]) / consum_mean[q, 2];
+                gain_median[q, s] = 100 * (consum_median[q, 2] - 
+                        consum_median[q, s]) / consum_median[q, 2];
+                gain_max[q, s] = 100 * (consum_max[q, 2] -
+                        consum_max[q, s]) / consum_max[q, 2];
+            }
+        string[] legv2 = new string[] {"0", "3"};
+        g.add(xaxis, "gain-mean");
+        g.mplot(rho_v, gain_mean, legv2);
+        g.add(xaxis, "gain-median");
+        g.mplot(rho_v, gain_median, legv2);
+        g.add(xaxis, "gain-max");
+        g.mplot(rho_v, gain_max, legv2);
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                tst_nr, n_averages);
+        g.save(filename, plot);
         //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}   {2,8:F3}",
         //        consum_mean[0], consum_mean[1], consum_mean[2]); 
         //Console.WriteLine("consum_median = {0,8:F3}   {1,8:F3}   {2,8:F3}",
@@ -1694,6 +1877,7 @@ class ProdGlb
     }
     // Compare sheduled vs unscheduled approaches operating at their optimal
     // point as a function of the node density and for different topologies.
+    // Execution time at ee-moda2: 413 seconds per average
     public static void graphRateSize(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
@@ -1859,9 +2043,9 @@ class ProdGlb
                     for (int s = 0; s < xv.GetLength(0); s++)
                     {
 
-                        Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", s,
-                          xv[s] / tx_rg, G.elapsed());
-                        int n = (int)(rho* xv[s] * yv[s] / Math.PI / tx_rg / tx_rg);
+                        Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", 
+                                          s, xv[s] / tx_rg, G.elapsed());
+                        int n = (int)(rho*xv[s]*yv[s]/Math.PI/tx_rg/tx_rg);
                         int source_min = (int) (frac_source_min * n);
                         G.rgen = new Random(k);
                         int[] fv = RandomTree.parents(n, xv[s], yv[s], tx_rg);
