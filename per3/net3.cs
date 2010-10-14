@@ -2151,7 +2151,7 @@ class ProdGlb
     // Simulations that I consider most useful
     public static void group2(double factor)
     {
-        maverRxConsum(1, (int) (100 * factor), 1);
+        maverRxConsum((int) (100 * factor));
         averSource(1, (int) (100 * factor), 1);
         averDensityCR(1, (int) (40 * factor), 1);
         graphRateSize(1, (int) (50 * factor), 1);
