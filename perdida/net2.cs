@@ -1223,6 +1223,7 @@ class ProdGlb
             //        consum_max[0], consum_max[1], consum_max[2]); 
     }
     // Vary node density and keep constant the fraction of n_source_nodes
+    // 1009s per iteration at ee-moda2
     public static void averDensityCR(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
@@ -1876,6 +1877,7 @@ class ProdGlb
     }
     // Compare sheduled vs unscheduled approaches operating at their optimal
     // point as a function of the node density and for different topologies.
+    // Execution time at ee-moda2: 413 seconds per average
     public static void graphRateSize(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
