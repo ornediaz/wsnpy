@@ -1,0 +1,3 @@
+This directory contains graphRate1, graphRateSize, graphRateSize3 with a
+plot of discard policy 5 -- which means that the packets that are older than
+G.oldest_tolerable are discarded.

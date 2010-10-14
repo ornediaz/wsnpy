@@ -889,6 +889,7 @@ class ProdGlb
             Console.WriteLine(x.consum);
         }
     }
+    // 1157 s per iteration at ee-moda
     public static void maverRxConsum(int n_averages)
     {
         for (int i = 0; i < 3; i++)
@@ -1055,6 +1056,7 @@ class ProdGlb
         //Console.WriteLine("consum_max    = {0,8:F3}   {1,8:F3}   {2,8:F3}",
         //        consum_max[0], consum_max[1], consum_max[2]); 
     }
+    // 438 seconds per iteration in ee-moda
     public static void averSource(int tst_nr, int n_averages, int plot)
     {
         Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
