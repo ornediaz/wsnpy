@@ -1194,7 +1194,7 @@ class ProdGlb
             else if (i == 1)
             {
                 for (int q = 0; q < source_min_v.Length; q++)
-                    xvec[q] = source_min_v[q] / (double) (n-1);
+                    xvec[q] = 100 * source_min_v[q] / (double) (n-1);
                 xaxis = "percent source.min";
             }
             g.add(xaxis, "consum-mean");
@@ -1225,8 +1225,8 @@ class ProdGlb
             g.mplot(xvec, gain_max, legv2);
             string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
                     tst_nr, n_averages);
-            g.save(filename, plot);
         }
+        g.save(filename, plot);
             //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}
             //{2,8:F3}",
             //        consum_mean[0], consum_mean[1], consum_mean[2]); 
