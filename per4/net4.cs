@@ -1424,6 +1424,7 @@ class ProdGlb
         double[,] consum_mean = new double[y_v.Length, types.Length];
         double[,] consum_median = new double[y_v.Length, types.Length];
         double[,] consum_max = new double[y_v.Length, types.Length];
+        double[,] rate_min_v = new double[y_v.Length, types.Length - 1];
         for (int k = 0; k < n_averages; k++)
         {
             Console.WriteLine("Repetition {0,4:D}. Total {1}", k,
@@ -1457,7 +1458,8 @@ class ProdGlb
                         for (int h = 0; h < n_tree_reconf; h++)
                         {
                             double[] consum_old = new double[n];
-                            for (double rate =0.1; ; rate *= 1.05)
+                            double expon = 1.05;
+                            for (double rate =0.1; ; rate *= expon)
                             {
                                 at.get_tree(tot_consum1);
                                 LossTree t = new LossTree(at.fv, at.ps,
@@ -1493,6 +1495,7 @@ class ProdGlb
                                     // rate that is too high.  Record
                                     // consumption of the previous
                                     // iteration.
+                                    rate_min_v[a,d]+=rate/expon/n_tree_reconf;
                                     for (int r=0; r < n; r++)
                                         tot_consum1[r] += consum_old[r] /
                                             n_tree_reconf;
@@ -2267,6 +2270,124 @@ class ProdGlb
                                     }
                                 }
                                 if (a_tota > m_tota)
+                                {
+                                    m_tota = a_tota;
+                                    m_mean = a_mean;
+                                    m_pmin = a_pmin;
+                                    m_ropt = rate_v[j];
+                                }
+                            }
+                            tota[s, i] += m_tota / n_averages;
+                            mean[s, i] += m_mean / n_averages;
+                            pmin[s, i] += m_pmin / n_averages;
+                            ropt[s, i] += m_ropt / n_averages;
+                        }
+                    }
+                }
+                Console.WriteLine("**** Printing results *****");
+                string[] legv = new string[] {"0", "1", "2",
+                                              String.Format("3={0:F3}",opt),
+                                              "4", "5" };
+                string append = String.Format("frac-source-min = {0:f2}", 
+                                              frac_source_min);
+                g.add(xlab, "total " + append);
+                g.mplot(xn, tota, legv);
+                g.add(xlab, "mean " + append);
+                g.mplot(xn, mean, legv);
+                g.add(xlab, "pmin " + append);
+                g.mplot(xn, pmin, legv);
+                g.add(xlab, "ropt " + append);
+                g.mplot(xn, ropt, legv);
+        }
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                            tst_nr, n_averages);
+        Console.WriteLine(filename);
+        g.save(filename, plot);
+    }
+    // Generate multiple graphs about the different metrics as a function of
+    // size.
+    // Generate a different file for every source_min
+    public static void graphRateSize4(int tst_nr, int n_averages, int plot)
+    {
+        Console.WriteLine("Executing {0}({1:d2},{2:d6},{3})", G.current(),
+                tst_nr, n_averages, plot);
+        double tx_rg = 2;
+        double[] xv = null;
+        double[] yv = null;
+        if (tst_nr == 0)
+        {
+            xv = new double[] {tx_rg, 2 * tx_rg};
+            yv = new double[] {tx_rg,     tx_rg};
+        }
+        else if (tst_nr == 1)
+        {
+            xv = G.linspace(tx_rg, 5 * tx_rg, 5);
+            yv = G.linspace(2 * tx_rg, 2.01 * tx_rg, 5);
+        }
+        if (xv.GetLength(0) != yv.GetLength(0))
+        {
+            throw new Exception("xv and yv should have equal length");
+        }
+        double rho = 15;
+        int sched_lgth = 10;
+        int n_tx_frames = 2000;
+        double opt = 0;
+        int[] types = new int[] {0, 1, 2, 3, 4, 5};
+        double[] rate_v = G.linspace(0.5, 3, 28);
+        int buffer_size = 30;
+        double[,] tota = new double[xv.GetLength(0), types.Length];
+        double[,] mean = new double[xv.GetLength(0), types.Length];
+        double[,] pmin = new double[xv.GetLength(0), types.Length];
+        double[,] ropt = new double[xv.GetLength(0), types.Length];
+        Pgf g = new Pgf();
+        string xlab = "normalized x size";
+        double[] xn = new double[xv.Length];
+        for (int q = 0; q < xn.Length; q++)
+        {
+            xn[q] = xv[q] / tx_rg;
+        }
+        for (double frac_source_min = 0.2; frac_source_min < 1; 
+             frac_source_min += 0.3)
+        {
+                for (int k = 0; k < n_averages; k++)
+                {
+                    Console.WriteLine("Repetition {0,4:D}. Total {1}",
+                                k, G.elapsed());
+                    for (int s = 0; s < xv.GetLength(0); s++)
+                    {
+
+                        Console.WriteLine("s={0,2}, x/t={1,4:F}.  Total {2}", 
+                                          s, xv[s] / tx_rg, G.elapsed());
+                        int n = (int)(rho*xv[s]*yv[s]/Math.PI/tx_rg/tx_rg);
+                        int source_min = (int) (frac_source_min * n);
+                        G.rgen = new Random(k);
+                        int[] fv = RandomTree.parents(n, xv[s], yv[s], tx_rg);
+                        double[] ps = new double[n];
+                        for (int u = 0; u < n; u++)
+                        {
+                            ps[u] = 0.5 + G.rgen.NextDouble() / 2;
+                        }
+                        for (int i = 0; i < types.Length; i++)
+                        {
+                            double m_tota = 0;
+                            double m_mean = 0;
+                            double m_pmin = 0;
+                            double m_ropt = rate_v[0];
+                            for (double rate=0.1; ; rate *=1.05)
+                            {
+                                LossTree t = new LossTree(fv,ps,buffer_size);
+                                t.find_schedule(sched_lgth, source_min);
+                                int[] results = t.simulate_it(n_tx_frames, 
+                                                    rate_v[j], types[i], k);
+                                double a_tota = 0;
+                                double a_mean = 0;
+                                double a_pmin = 0;
+                                double infid_ratio = 0.0;
+                                foreach (int h in results)
+                                    if (h < source_min)
+                                        infid_ratio += 1.0 / (double) 
+                                            results.Length;
+                                if (infid_ratio < infid_thesh)
                                 {
                                     m_tota = a_tota;
                                     m_mean = a_mean;
