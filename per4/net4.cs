@@ -1546,6 +1546,8 @@ class ProdGlb
             else
                 legv2[i-1] = types[i].ToString();
         }
+        g.add(xaxis, "normalized load");
+        g.mplot(y_v, rate_min_v);
         g.add(xaxis, "gain-mean");
         g.mplot(y_v, gain_mean, legv2);
         g.add(xaxis, "gain-median");
