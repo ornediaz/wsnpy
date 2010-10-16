@@ -1398,15 +1398,16 @@ class ProdGlb
                 tst_nr, n_averages, plot);
         double tx_rg = 2;
         double x = 2 * tx_rg;
-        double[] y_v = new double[] {2, 3};
+        double[] y_v_n = new double[] {2, 3};// y vector normalized by tx_rg
         int[] types = new int[] {0, 3, 9};
         if (tst_nr == 1)
         {
-            y_v = new double[] {2, 3, 4, 5, 6};
+            y_v_n = new double[] {2, 3, 4, 5, 6};
             types = new int[] {0, 1, 3, 4, 5, 9};
         }
+        double[] y_v = new double[y_v_n.Length];
         for (int i = 0; i < y_v.Length; i++)
-            y_v[i] = y_v[i] * tx_rg;
+            y_v[i] = y_v_n[i] * tx_rg;
         double rho = 10;
         int sched_lgth = 20;
         int n_tx_frames = 5000;
@@ -1514,18 +1515,18 @@ class ProdGlb
         for (int i = 0; i < types.Length; i++)
             legv[i] = types[i].ToString();
         Pgf g = new Pgf();
-        string xaxis = "rho";
+        string xaxis = "normalized y_v";
         g.add(xaxis, "consum-mean");
-        g.mplot(y_v, consum_mean, legv);
+        g.mplot(y_v_n, consum_mean, legv);
         g.add(xaxis, "consum-median");
-        g.mplot(y_v, consum_median, legv);
+        g.mplot(y_v_n, consum_median, legv);
         g.add(xaxis, "consum-max");
-        g.mplot(y_v, consum_max, legv);
-        double[,] gain_mean = new double [y_v.Length, 2];
-        double[,] gain_median = new double [y_v.Length, 2];
-        double[,] gain_max = new double [y_v.Length, 2];
+        g.mplot(y_v_n, consum_max, legv);
+        double[,] gain_mean = new double [y_v_n.Length, 2];
+        double[,] gain_median = new double [y_v_n.Length, 2];
+        double[,] gain_max = new double [y_v_n.Length, 2];
         int refz = types.Length - 1; // Column used as a benchmark  
-        for (int q = 0; q < y_v.Length; q++)
+        for (int q = 0; q < y_v_n.Length; q++)
             for (int s = 0; s < 2; s++)
             {
                 gain_mean[q, s] = 100 * (consum_mean[q, refz] - 
@@ -1547,15 +1548,15 @@ class ProdGlb
                 legv2[i-1] = types[i].ToString();
         }
         g.add(xaxis, "normalized load");
-        g.mplot(y_v, rate_min_v, legv2);
+        g.mplot(y_v_n, rate_min_v, legv2);
         g.add(xaxis, "gain-mean");
-        g.mplot(y_v, gain_mean, legv2);
+        g.mplot(y_v_n, gain_mean, legv2);
         g.add(xaxis, "gain-median");
-        g.mplot(y_v, gain_median, legv2);
+        g.mplot(y_v_n, gain_median, legv2);
         g.add(xaxis, "gain-max");
-        g.mplot(y_v, gain_max, legv2);
+        g.mplot(y_v_n, gain_max, legv2);
         g.add(xaxis, "max-rate");
-        g.mplot(y_v, rate_min_v, legv2);
+        g.mplot(y_v_n, rate_min_v, legv2);
         string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
                 tst_nr, n_averages);
         g.save(filename, plot);
