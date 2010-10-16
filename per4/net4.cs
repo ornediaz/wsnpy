@@ -931,6 +931,10 @@ class ProdGlb
         double[,] consum_max = new double[rx_consum_v.Length, 3];
         for (int k = 0; k < n_averages; k++)
         {
+            Console.WriteLine("Repetition {0,4:D}. Total {1}", k,
+                    G.elapsed());
+            Console.WriteLine("                    Current time is {0}",
+                    DateTime.Now.ToString("u"));
             G.rgen = new Random(k);
             AverTree at = new AverTree(n, x, y, tx_rg);
             for (int a = 0; a < rx_consum_v.Length; a++)
