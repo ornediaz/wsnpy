@@ -1537,7 +1537,7 @@ class ProdGlb
             }
         string[] legv2 = new string[refz];
         bool refy = false; // Reference column already encountered?
-        for (int i = 0; i < types.Length; i++)
+        for (int i = 0; i < types.Length - 1; i++)
         {
             if (types[i] == refz)
                 refy = true;
