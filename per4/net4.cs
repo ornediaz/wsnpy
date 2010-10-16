@@ -1223,9 +1223,9 @@ class ProdGlb
             g.mplot(xvec, gain_median, legv2);
             g.add(xaxis, "gain-max");
             g.mplot(xvec, gain_max, legv2);
-            string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
-                    tst_nr, n_averages);
         }
+        string filename = String.Format("{0}_{1:d2}_{2:d6}", G.current(),
+                                        tst_nr, n_averages);
         g.save(filename, plot);
             //Console.WriteLine("consum_mean   = {0,8:F3}   {1,8:F3}
             //{2,8:F3}",
