@@ -1475,20 +1475,16 @@ class ProdGlb
                                 // insufficient count
                                 double infid_ratio = 0.0; 
                                 foreach (int m in results)
-                                {
                                     if (m < source_min)
-                                        infid_ratio
-                                            +=1.0/(double)results.Length;
-                                }
+                                        infid_ratio +=
+                                            1.0/(double)results.Length;
+                                // This rate yields sufficiently low
+                                // infid_ratio.  Record the consumption in
+                                // case this is the last rate to yield
+                                // sufficiently low infid_ratio.
                                 if (infid_ratio < infid_thresh)
-                                {
-                                    // This rate yields sufficiently low
-                                    // infid_ratio.  Record the consumption in
-                                    // case this is the last rate to yield
-                                    // sufficiently low infid_ratio.
                                     for (int q = 0; q < n; q++)
                                         consum_old[q] = t.nodes[q].consum;
-                                }
                                 else
                                 {
                                     // Record statistics in permanent
