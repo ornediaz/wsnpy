@@ -1408,9 +1408,6 @@ class ProdGlb
         for (int i = 0; i < y_v.Length; i++)
             yv[i] = yv[i] * tx_rg;
         double[] rho = 10;
-        if (tst_nr == 1)
-            rho_v = new double[] {8, 12, 16, 20, 24};
-        // double rho_v = new double[] {9, 13, 17, 21};
         int sched_lgth = 20;
         int n_tx_frames = 5000;
         double infid_thresh = 0.15;
@@ -1433,7 +1430,7 @@ class ProdGlb
                     G.elapsed());
             for (int a = 0; a < y_v.Length; a++)
             {
-                int n = (int)(rho * x * y[a] / Math.PI / tx_rg / tx_rg);
+                int n = (int)(rho * x * y_v[a] / Math.PI / tx_rg / tx_rg);
                 int source_min = (int) (0.4 * (double) n);
                 Console.WriteLine("Simulating {0:d} nodes", n);
                 G.rgen = new Random(k);
