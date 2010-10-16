@@ -1511,8 +1511,8 @@ class ProdGlb
             }
         }
         string[] legv = new string[types.Length];
-        for (int i = 0; i < types.Length)
-            legv[i] = Conver.ToString(types[i], 10);
+        for (int i = 0; i < types.Length; i++)
+            legv[i] = Convert.ToString(types[i], 10);
         Pgf g = new Pgf();
         string xaxis = "rho";
         g.add(xaxis, "consum-mean");
