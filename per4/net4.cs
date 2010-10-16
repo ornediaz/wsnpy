@@ -1402,7 +1402,7 @@ class ProdGlb
         int[] types = new int[] {0, 3, 9};
         if (tst_nr == 1)
         {
-            y_v = new double[2, 3, 4, 5, 6];
+            y_v = new double[] {2, 3, 4, 5, 6};
             types = new int[] {0, 1, 3, 4, 5, 9};
         }
         for (int i = 0; i < y_v; i++)
