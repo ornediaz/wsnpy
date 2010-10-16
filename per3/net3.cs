@@ -2153,6 +2153,7 @@ class ProdGlb
     {
         maverRxConsum((int) (100 * factor));
         averSource(1, (int) (100 * factor), 1);
+        averSize(1, (int) (30 * factor), 1);
         averDensityCR(1, (int) (40 * factor), 1);
         graphRateSize(1, (int) (50 * factor), 1);
         graphRateSize3(1, (int) (40 * factor), 1);
