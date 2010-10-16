@@ -271,56 +271,34 @@ class LossTree
     }
     public int[] simulate_it(int n_tx_frames, double rate, int type, int seed)
     {
-        foreach (Node n in nodes)
-        {
+        foreach (Node n in nodes) {
             n.pkts = new List<Packet>(n.buffer_size + 4);
-            if (type == 0)
-            {
+            if (type == 0) {
                 n.discard_type = 0;
-                n.select_type = 0;
-            }
-            else if (type == 1)
-            {
+                n.select_type = 0; }
+            else if (type == 1) {
                 n.discard_type = 0;
-                n.select_type = 1;
-            }
-            else if (type == 2)
-            {
+                n.select_type = 1; }
+            else if (type == 2) {
                 n.discard_type = 1;
-                n.select_type = 1;
-            }
-            else if (type == 3)
-            {
+                n.select_type = 1; }
+            else if (type == 3) {
                 n.discard_type = 2;
-                n.select_type = 2;
-            }
-            else if (type == 4)
-            {
+                n.select_type = 2; }
+            else if (type == 4) {
                 double m = 1.0;
                 foreach (Node y in n.ancestors)
-                {
                     m = Math.Min(m, y.ps);
-                }
-                if (rate < m)
-                {
+                if (rate < m) {
                     n.discard_type = 0;
-                    n.select_type = 0;
-                }
-                else
-                {
+                    n.select_type = 0; }
+                else {
                     n.discard_type = 1;
-                    n.select_type = 1;
-                }
-            }
-            else if (type == 5)
-            {
+                    n.select_type = 1; } }
+            else if (type == 5) {
                 n.discard_type = 3;
-                n.select_type = 0;
-            }
-            else
-            {
-                throw new ArgumentException("Incorrect type");
-            }
+                n.select_type = 0; }
+            else throw new ArgumentException("Incorrect type");
         }
         G.rgen = new Random(seed);
         int n_reporting_intervals = (int)Math.Floor((n_tx_frames-1)*rate+1);
@@ -1426,25 +1404,20 @@ class ProdGlb
         double[,] consum_median = new double[y_v.Length, types.Length];
         double[,] consum_max = new double[y_v.Length, types.Length];
         double[,] rate_min_v = new double[y_v.Length, types.Length - 1];
-        for (int k = 0; k < n_averages; k++)
-        {
+        for (int k = 0; k < n_averages; k++) {
             Console.WriteLine("Repetition {0,4:D}. Total {1}", k,
                     G.elapsed());
-            for (int a = 0; a < y_v.Length; a++)
-            {
+            for (int a = 0; a < y_v.Length; a++) {
                 int n = (int)(rho * x * y_v[a] / Math.PI / tx_rg / tx_rg);
                 int source_min = (int) (0.4 * (double) n);
                 Console.WriteLine("Simulating {0:d} nodes", n);
                 G.rgen = new Random(k);
                 AverTree at = new AverTree(n, x, y_v[a], tx_rg);
-                for (int d = 0; d < types.Length; d++)
-                {
+                for (int d = 0; d < types.Length; d++) {
                     double[] tot_consum1 = new double[n];
                     G.rgen = new Random(k);
-                    if (types[d] == 9)
-                    {
-                        for (int h = 0; h < n_tree_reconf; h++)
-                        {
+                    if (types[d] == 9) {
+                        for (int h = 0; h < n_tree_reconf; h++) {
                             at.get_tree(tot_consum1);
                             LossTree e = new LossTree(at.fv, at.ps,
                                     buffer_size);
@@ -1454,14 +1427,11 @@ class ProdGlb
                                     n_tree_reconf;
                         }
                     }
-                    else
-                    {
-                        for (int h = 0; h < n_tree_reconf; h++)
-                        {
+                    else { 
+                        for (int h = 0; h < n_tree_reconf; h++) {
                             double[] consum_old = new double[n];
                             double expon = 1.05;
-                            for (double rate =0.1; ; rate *= expon)
-                            {
+                            for (double rate =0.1; ; rate *= expon) {
                                 at.get_tree(tot_consum1);
                                 LossTree t = new LossTree(at.fv, at.ps,
                                         buffer_size);
@@ -1485,8 +1455,7 @@ class ProdGlb
                                 if (infid_ratio < infid_thresh)
                                     for (int q = 0; q < n; q++)
                                         consum_old[q] = t.nodes[q].consum;
-                                else
-                                {
+                                else {
                                     // Record statistics in permanent
                                     // variable This rate is the smallest
                                     // rate that is too high.  Record
@@ -1727,243 +1696,171 @@ class ProdGlb
         G.VB = false;
         // Shows the advantage of the scheduled approach, particularly in
         // terms of 
-        if (tst_nr == 0)
-        {
+        if (tst_nr == 0) {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 };
-        }
+            ps = new double[] { 1, 0.8, 0.4, 0.4, 0.4, 0.4 }; }
         // No advantage in the scheduled approach
-        else if (tst_nr == 1)
-        {
+        else if (tst_nr == 1) {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 };
-        }
+            ps = new double[] { 1, 0.4, 0.4, 0.4, 0.4, 0.4 }; }
         // No advantage in scheduled approach
-        else if (tst_nr == 2)
-        {
+        else if (tst_nr == 2) {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.4, 0.8, 0.8, 0.8, 0.8 };
-        }
+            ps = new double[] { 1, 0.4, 0.8, 0.8, 0.8, 0.8 }; }
         // Slight advantage of scheduled approach, all select/discard
         // policies are similar.
-        else if (tst_nr == 3)
-        {
+        else if (tst_nr == 3) {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.6, 0.6, 0.6, 0.2, 0.2 };
-        }
+            ps = new double[] { 1, 0.6, 0.6, 0.6, 0.2, 0.2 }; }
         // Advantage of scheduled approach for low rate, great variety
         // between select/discard policies, but 0 is overall the best.
-        else if (tst_nr == 4)
-        {
+        else if (tst_nr == 4) {
             fv = new int[] { -1, 0, 1, 1, 1, 1 };
-            ps = new double[] { 1, 0.3, 0.6, 0.6, 0.2, 0.2 };
-        }
+            ps = new double[] { 1, 0.3, 0.6, 0.6, 0.2, 0.2 }; }
         // No schedule advantage and moderate advantage of packet
         // selection.  Strong peak at the optimal.
-        else if (tst_nr == 5)
-        {
+        else if (tst_nr == 5) {
             fv = new int[] { -1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5 };
             ps = new double[12];
             for (int i = 0; i < fv.Length; i++)
-            {
                 ps[i] = 0.3;
-            }
-        }
-        // No schedule advantage and moderate advantage of packet selection.
-        else if (tst_nr == 6)
-        {
+        } // No schedule advantage and moderate advantage of packet selection.
+        else if (tst_nr == 6) {
             fv = new int[] { -1, 0, 1, 2, 3, 4, 5 };
             ps = new double[fv.Length];
             for (int i = 0; i < ps.Length; i++)
-            {
                 ps[i] = 0.3;
-            }
         }
         // Unsuccessful attempt to make the hybrid select/discard topology
         // work.
-        else if (tst_nr == 7)
-        {
+        else if (tst_nr == 7) {
             fv = new int[] {-1, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2};
             ps = new double[fv.Length];
             for (int i = 0; i < ps.Length; i++)
-            {
                 ps[i] = 0.8;
-            }
         }
-        else if (tst_nr == 8)
-        {
+        else if (tst_nr == 8) {
             fv = new int[] {-1, 0, 0, 1, 1, 1, 2, 2, 2};
             ps = new double[fv.Length];
             for (int i = 0; i < ps.Length; i++)
-            {
                 ps[i] = 0.8;
-            }
         }
-        else if (tst_nr == 9)
-        {
+        else if (tst_nr == 9) {
             fv = new int[] {-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12};
             ps = new double[fv.Length];
-            for (int i = 0; i < ps.Length; i++)
-            {
+            for (int i = 0; i < ps.Length; i++) {
                 if (i < 9)
-                {
                     ps[i] = 0.8;
-                }
                 else
-                {
                     ps[i] = 0.4;
-                }
             }
         }
         // These parameters are chosen to show the advantage of the
         // scheduled approach vs the unscheduled approach.
-        else if (tst_nr == 10)
-        {
+        else if (tst_nr == 10) {
             fv = new int[] {-1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 9, 10, 11, 12};
             ps = new double[fv.Length];
-            for (int i = 0; i < ps.Length; i++)
-            {
+            for (int i = 0; i < ps.Length; i++) {
                 if (i < 9)
-                {
                     ps[i] = 0.4;
-                }
                 else
-                {
                     ps[i] = 0.8;
-                }
             }
         }
-        else if (tst_nr == 11)
-        {
+        else if (tst_nr == 11) {
             fv = new int[] {-1, 0, 1, 1, 1, 0, 5, 6, 7, 8};
             ps = new double[fv.Length];
-            for (int i = 0; i < ps.Length; i++)
-            {
-                if (i < 5)
-                {
-                    ps[i] = 0.4;
-                }
-                else
-                {
-                    ps[i] = 0.8;
-                }
+            for (int i = 0; i < ps.Length; i++) {
+                if (i < 5) ps[i] = 0.4;
+                else ps[i] = 0.8;
             }
         }
         // These parameters were chosen to show that the optimal rate is
         // hard to determine.  In this case, the total is higher for 0.83,
         // despite the fact that it means that node 1 has spare capacity
         // that it could be using to transmit more packets.
-        else if (tst_nr == 12)
-        {
+        else if (tst_nr == 12) {
             fv = new int[] {-1, 0, 1, 1, 1, 1, 1};
-            ps = new double[] {1, 0.88, 0.83, 0.83, 0.83, 0.83, 0.83};
-        }
+            ps = new double[] {1, 0.88, 0.83, 0.83, 0.83, 0.83, 0.83}; }
         // These parameters were chosen to show the usefulness of the
         // scheduling algorithm in a small network.
-        else if (tst_nr == 13)
-        {
+        else if (tst_nr == 13) {
             fv = new int[] {-1, 0, 1, 1, 0};
-            ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
-        }
+            ps = new double[] {1, 0.8, 0.6, 0.2, 0.2}; }
         // These parameters show that under a linear topology with all links
         // equally good, all select/discard policies perform very similarly.
-        else if (tst_nr == 14)
-        {
+        else if (tst_nr == 14) {
             fv = new int[] {-1, 0, 1, 2, 3, 4, 5};
             ps = new double[fv.Length];
             for (int i = 0; i < fv.Length; i++)
-            {
                 ps[i] = 0.5;
-            }
         }
         // These parameters show a linear topology whose last node has many
         // children.  This is a good example of a situation in which the
         // select/discard type 2 performs much better than the other types.
-        else if (tst_nr == 15)
-        {
+        else if (tst_nr == 15) {
             fv = new int[] { -1, 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5 };
             ps = new double[12];
             for (int i = 0; i < fv.Length; i++)
             {
                 if (i < 6)
-                {
                     ps[i] = 0.3;
-                }
                 else
-                {
                     ps[i] = 1;
-                }
             }
         }
         // These parameters show that under a linear topology with unequal
         // link qualities, the priority traffic may perform best.
-        else if (tst_nr == 16)
-        {
+        else if (tst_nr == 16) {
             fv = new int[] {-1, 0, 1, 2, 3, 4, 5, 6, 7};
             ps = new double[fv.Length];
-            for (int i = 0; i < fv.Length; i++)
-            {
+            for (int i = 0; i < fv.Length; i++) {
                 if (i < 4)
                     ps[i] = 0.4;
                 else
                     ps[i] = 1;
             }
         }
-        else if (tst_nr == 17)
-        {
+        else if (tst_nr == 17) {
             fv = new int[] {-1, 0, 1, 1};
             ps = new double[] {1, 0.8, 0.4, 0.4};
             source_min = 2;
         }
-        else if (tst_nr == 18)
-        {
+        else if (tst_nr == 18) {
             fv = new int[] {-1, 0, 1, 1, 0};
             ps = new double[] {1, 0.8, 0.6, 0.2, 0.2};
             source_min = 2;
         }
-        else if (tst_nr == 19)
-        {
+        else if (tst_nr == 19) {
             fv = new int[] {-1, 0, 1, 1, 0};
             ps = new double[] {1, 0.66, 0.49, 0.16, 0.16};
             source_min = 2;
             sched_lgth = 5;
         }
-        else
-        {
-            throw new ArgumentException("Inappropriate tst_nr");
-        }
+        else throw new ArgumentException("Inappropriate tst_nr");
         PltGlb.plot_logical3(fv, ps, plot);
         double[,] tota = new double[rate_v.Length, types.Length];
         double[,] mean = new double[rate_v.Length, types.Length];
         double[,] pmin = new double[rate_v.Length, types.Length];
-        for (int k = 0; k < n_averages; k++)
-        {
+        for (int k = 0; k < n_averages; k++) {
             Console.WriteLine("Repetition {0} of {1}({2:d2},{3:d6},{4}) {5}",
                     k, G.current(), tst_nr, n_averages, plot, G.elapsed());
-            for (int j = 0; j < rate_v.Length; j++)
-            {
-                for (int i = 0; i < types.Length; i++)
-                {
+            for (int j = 0; j < rate_v.Length; j++) {
+                for (int i = 0; i < types.Length; i++) {
                     LossTree t = new LossTree(fv, ps, buffer_size);
-                    if (types[i] == 3)
-                    {
+                    if (types[i] == 3) {
                         t.find_schedule(sched_lgth, source_min);
                         if (k == 0 && j == 0)
-                        {
                             opt = ((double)t.count.Count / sched_lgth);
-                        }
                     }
                     int[] results = t.simulate_it(n_tx_frames, rate_v[j],
                             types[i], k);
-                    foreach (int h in results)
-                    {
+                    foreach (int h in results) {
                         tota[j, i] += (double)h / n_averages / n_tx_frames;
                         mean[j, i] += (double)h / n_averages / results.Length;
                         if (h < source_min)
-                        {
                             pmin[j, i] += (double)1 / n_averages /
                                 results.Length;
-                        }
                     }
                 }
             }
