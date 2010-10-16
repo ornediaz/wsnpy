@@ -1515,7 +1515,7 @@ class ProdGlb
         for (int i = 0; i < types.Length; i++)
             legv[i] = types[i].ToString();
         Pgf g = new Pgf();
-        string xaxis = "normalized y_v";
+        string xaxis = "normalized y-v";
         g.add(xaxis, "consum-mean");
         g.mplot(y_v_n, consum_mean, legv);
         g.add(xaxis, "consum-median");
