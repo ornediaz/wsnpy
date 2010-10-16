@@ -1398,7 +1398,7 @@ class ProdGlb
                 tst_nr, n_averages, plot);
         double tx_rg = 2;
         double x = 2 * tx_rg;
-        double[] y_v = new double[2, 3];
+        double[] y_v = new double[] {2, 3};
         int[] types = new int[] {0, 3, 9};
         if (tst_nr == 1)
         {
