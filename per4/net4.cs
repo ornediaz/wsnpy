@@ -2335,6 +2335,24 @@ class ProdGlb
             ProdGlb.graphRate1(tst_nr, n_averages, 1);
         }
     }
+    // Group of the individual plotting functions that do not compare with
+    // the all-assignments schedule.
+    public static void group1(double factor)
+    {
+        ProdGlb.graphRateSize(1, (int) (50 * factor), 1);
+        ProdGlb.graphRateSize3(1, (int) (40 * factor), 1);
+        ProdGlb.multiplot1((int) (50 * factor));
+    }
+    // Simulations that I consider most useful
+    public static void group2(double factor)
+    {
+        maverRxConsum((int) (100 * factor));
+        averSource(1, (int) (100 * factor), 1);
+        averDensityCR(1, (int) (40 * factor), 1);
+        graphRateSize(1, (int) (50 * factor), 1);
+        graphRateSize3(1, (int) (40 * factor), 1);
+        multiplot1((int) (50 * factor));
+    }
 }
 // Deploys the nodes randomly.  Keep a list of each node's neighbors in
 // upper tiers in neigh_upp, and the success probability of each pair of
