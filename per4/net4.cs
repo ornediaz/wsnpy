@@ -1405,7 +1405,7 @@ class ProdGlb
             y_v = new double[] {2, 3, 4, 5, 6};
             types = new int[] {0, 1, 3, 4, 5, 9};
         }
-        for (int i = 0; i < y_v; i++)
+        for (int i = 0; i < y_v.Length; i++)
             yv[i] = yv[i] * tx_rg;
         double[] rho = 10;
         if (tst_nr == 1)
