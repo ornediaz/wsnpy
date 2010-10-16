@@ -1406,8 +1406,8 @@ class ProdGlb
             types = new int[] {0, 1, 3, 4, 5, 9};
         }
         for (int i = 0; i < y_v.Length; i++)
-            yv[i] = yv[i] * tx_rg;
-        double[] rho = 10;
+            y_v[i] = y_v[i] * tx_rg;
+        double rho = 10;
         int sched_lgth = 20;
         int n_tx_frames = 5000;
         double infid_thresh = 0.15;
@@ -1509,7 +1509,7 @@ class ProdGlb
         }
         string[] legv = new string[types.Length];
         for (int i = 0; i < types.Length; i++)
-            legv[i] = Convert.ToString(types[i], 10);
+            legv[i] = types[i].ToString();
         Pgf g = new Pgf();
         string xaxis = "rho";
         g.add(xaxis, "consum-mean");
@@ -1539,9 +1539,9 @@ class ProdGlb
             if (types[i] == refz)
                 refy = true;
             else if (refy == false)
-                legv2[i] = types[i];
+                legv2[i] = types[i].ToString();
             else
-                legv2[i-1] = types[i];
+                legv2[i-1] = types[i].ToString();
         }
         g.add(xaxis, "gain-mean");
         g.mplot(y_v, gain_mean, legv2);
