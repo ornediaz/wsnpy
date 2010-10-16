@@ -1461,7 +1461,8 @@ class ProdGlb
                                     // rate that is too high.  Record
                                     // consumption of the previous
                                     // iteration.
-                                    rate_min_v[a,d]+=rate/expon/n_tree_reconf;
+                                    rate_min_v[a,d] +=rate/expon/
+                                        n_tree_reconf / n_averages;
                                     for (int r=0; r < n; r++)
                                         tot_consum1[r] += consum_old[r] /
                                             n_tree_reconf;
