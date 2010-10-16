@@ -1434,7 +1434,7 @@ class ProdGlb
                 int source_min = (int) (0.4 * (double) n);
                 Console.WriteLine("Simulating {0:d} nodes", n);
                 G.rgen = new Random(k);
-                AverTree at = new AverTree(n, x, y, tx_rg);
+                AverTree at = new AverTree(n, x, y_v[a], tx_rg);
                 for (int d = 0; d < types.Length; d++)
                 {
                     double[] tot_consum1 = new double[n];
