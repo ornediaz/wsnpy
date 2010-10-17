@@ -1492,12 +1492,12 @@ class ProdGlb
         g.mplot(y_v_n, consum_median, legv);
         g.add(xaxis, "consum-max");
         g.mplot(y_v_n, consum_max, legv);
-        double[,] gain_mean = new double [y_v_n.Length, 2];
-        double[,] gain_median = new double [y_v_n.Length, 2];
-        double[,] gain_max = new double [y_v_n.Length, 2];
+        double[,] gain_mean = new double [y_v_n.Length, types.Length - 1];
+        double[,] gain_median = new double [y_v_n.Length, types.Length -1];
+        double[,] gain_max = new double [y_v_n.Length, types.Length - 1];
         int refz = types.Length - 1; // Column used as a benchmark  
         for (int q = 0; q < y_v_n.Length; q++)
-            for (int s = 0; s < 2; s++)
+            for (int s = 0; s < types.Length - 1; s++)
             {
                 gain_mean[q, s] = 100 * (consum_mean[q, refz] - 
                         consum_mean[q, s]) / consum_mean[q, refz];
