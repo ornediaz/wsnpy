@@ -1,0 +1,6 @@
+function display(a)
+% DISPLAY(a) Display an asset object
+stg = sprintf(...
+   'Descriptor: %s\nDate: %s\nType: %s\nCurrent Value:%9.2f',...
+   a.descriptor,a.date,a.type,a.currentValue);
+disp(stg)

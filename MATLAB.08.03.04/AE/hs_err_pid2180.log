@@ -1,0 +1,255 @@
+#
+# An unexpected error has been detected by HotSpot Virtual Machine:
+#
+#  EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x7c9432ef, pid=2180, tid=1760
+#
+# Java VM: Java HotSpot(TM) Client VM (1.5.0_07-b03 mixed mode)
+# Problematic frame:
+# C  [ntdll.dll+0x432ef]
+#
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x01593660):  JavaThread "main" [_thread_in_native, id=1760]
+
+siginfo: ExceptionCode=0xc0000005, reading address 0x8a885d04
+
+Registers:
+EAX=0x00000000, EBX=0x00000004, ECX=0x7c91eb05, EDX=0x7c90eb94
+ESP=0x00ce9dac, EBP=0x00ce9e0c, ESI=0x00ce9e30, EDI=0x8a885d04
+EIP=0x7c9432ef, EFLAGS=0x00010286
+
+Top of Stack: (sp=0x00ce9dac)
+0x00ce9dac:   0015ae10 00000000 0015af28 7b88cb89
+0x00ce9dbc:   00000000 00ce9df8 0015ae10 00000001
+0x00ce9dcc:   00ce9dbc 00000000 00ce9e78 7b88cdbc
+0x00ce9ddc:   7b890c48 ffffffff 7b88cb89 7c9011a7
+0x00ce9dec:   7b870000 00000000 00000001 0015ae10
+0x00ce9dfc:   00000000 0015af28 00ce9e88 7ffdf000
+0x00ce9e0c:   00ce9e88 7c923f49 0010fa20 7c923f39
+0x00ce9e1c:   00000000 7c90e88e 00000000 00000014 
+
+Instructions: (pc=0x7c9432ef)
+0x7c9432df:   08 e8 40 b8 fd ff 83 c4 18 eb 08 3b 7d 08 74 07
+0x7c9432ef:   8b 3f 43 85 ff 75 f4 8b 45 fc 83 65 b4 00 85 ff 
+
+
+Stack: [0x004f0000,0x00cf0000),  sp=0x00ce9dac,  free space=8167k
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+C  [ntdll.dll+0x432ef]
+C  [ntdll.dll+0x23f49]
+C  [kernel32.dll+0x1cd76]
+C  [kernel32.dll+0x1cdee]
+C  [MSVCR80.dll+0x1720]
+C  [MSVCR80.dll+0x1a4b]
+C  [MFC80.DLL+0x327ad]
+C  [MFC80.DLL+0x31543]
+C  [MFC80.DLL+0x31759]
+C  [uiw.dll+0x441b4]
+C  [USER32.dll+0x8734]
+C  [USER32.dll+0x8816]
+C  [USER32.dll+0xb4c0]
+C  [USER32.dll+0xb50c]
+
+Java frames: (J=compiled Java code, j=interpreted, Vv=VM code)
+j  com.mathworks.jmi.NativeMatlab.nativeThreadMessage(Ljava/lang/Object;)Ljava/lang/Object;+0
+j  com.mathworks.jmi.MatlabLooper.sendThreadMessage(Lcom/mathworks/services/message/MWMessage;)Ljava/lang/Object;+20
+j  com.mathworks.jmi.Matlab.mtFevalConsoleOutput(Ljava/lang/String;[Ljava/lang/Object;I)Ljava/lang/Object;+48
+j  com.mathworks.mde.desk.MLDesktop$3.run()V+22
+j  com.mathworks.jmi.NativeMatlab.dispatchMTRequests(Z)V+50
+v  ~StubRoutines::call_stub
+
+---------------  P R O C E S S  ---------------
+
+Java Threads: ( => current thread )
+  0x14750b00 JavaThread "Prefs Updater" [_thread_blocked, id=1816]
+  0x1472a8a0 JavaThread "Timer-8" [_thread_blocked, id=1612]
+  0x146c2410 JavaThread "Thread-36" [_thread_in_native, id=2984]
+  0x01615d60 JavaThread "Active Reference Queue Daemon" daemon [_thread_blocked, id=3072]
+  0x01614a70 JavaThread "Timer-3" daemon [_thread_blocked, id=932]
+  0x01608b50 JavaThread "Timer-2" daemon [_thread_blocked, id=3232]
+  0x015e47b0 JavaThread "TimerQueue" daemon [_thread_blocked, id=3264]
+  0x015c6520 JavaThread "Java2D Disposer" daemon [_thread_blocked, id=3312]
+  0x015c4e70 JavaThread "Timer-0" [_thread_blocked, id=3140]
+  0x015c1830 JavaThread "AWT-Windows" daemon [_thread_in_native, id=240]
+  0x015a0030 JavaThread "Low Memory Detector" daemon [_thread_blocked, id=2096]
+  0x0159f430 JavaThread "CompilerThread0" daemon [_thread_blocked, id=2628]
+  0x0159e2e0 JavaThread "Signal Dispatcher" daemon [_thread_blocked, id=3928]
+  0x0159d950 JavaThread "Finalizer" daemon [_thread_blocked, id=1132]
+  0x0159c5a0 JavaThread "Reference Handler" daemon [_thread_blocked, id=3460]
+=>0x01593660 JavaThread "main" [_thread_in_native, id=1760]
+
+Other Threads:
+  0x0159b8b0 VMThread [id=3536]
+  0x015a2b40 WatcherThread [id=3028]
+
+VM state:not at safepoint (normal execution)
+
+VM Mutex/Monitor currently owned by a thread: None
+
+Heap
+ def new generation   total 17152K, used 3214K [0x06070000, 0x07300000, 0x07870000)
+  eden space 15296K,  21% used [0x06070000, 0x06393a48, 0x06f60000)
+  from space 1856K,   0% used [0x06f60000, 0x06f60000, 0x07130000)
+  to   space 1856K,   0% used [0x07130000, 0x07130000, 0x07300000)
+ tenured generation   total 56624K, used 33973K [0x07870000, 0x0afbc000, 0x0c070000)
+   the space 56624K,  59% used [0x07870000, 0x0999d5c0, 0x0999d600, 0x0afbc000)
+ compacting perm gen  total 32768K, used 24958K [0x0c070000, 0x0e070000, 0x0e070000)
+   the space 32768K,  76% used [0x0c070000, 0x0d8cf8c0, 0x0d8cfa00, 0x0e070000)
+No shared spaces configured.
+
+Dynamic libraries:
+0x00400000 - 0x004ee000 	C:\Program Files\MATLAB\R2007a\bin\win32\MATLAB.exe
+0x7c900000 - 0x7c9b0000 	C:\WINNT\system32\ntdll.dll
+0x7c800000 - 0x7c8f5000 	C:\WINNT\system32\kernel32.dll
+0x78e80000 - 0x79088000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwservices.dll
+0x7e410000 - 0x7e4a0000 	C:\WINNT\system32\USER32.dll
+0x77f10000 - 0x77f57000 	C:\WINNT\system32\GDI32.dll
+0x763b0000 - 0x763f9000 	C:\WINNT\system32\comdlg32.dll
+0x77f60000 - 0x77fd6000 	C:\WINNT\system32\SHLWAPI.dll
+0x77dd0000 - 0x77e6b000 	C:\WINNT\system32\ADVAPI32.dll
+0x77e70000 - 0x77f01000 	C:\WINNT\system32\RPCRT4.dll
+0x77c10000 - 0x77c68000 	C:\WINNT\system32\msvcrt.dll
+0x5d090000 - 0x5d12a000 	C:\WINNT\system32\COMCTL32.dll
+0x7c9c0000 - 0x7d1d5000 	C:\WINNT\system32\SHELL32.dll
+0x78530000 - 0x7857c000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmx.dll
+0x78200000 - 0x78298000 	C:\Program Files\MATLAB\R2007a\bin\win32\icuuc32.dll
+0x10000000 - 0x10006000 	C:\Program Files\MATLAB\R2007a\bin\win32\icudt32.dll
+0x78130000 - 0x781cb000 	C:\WINNT\WinSxS\x86_Microsoft.VC80.CRT_1fc8b3b9a1e18e3b_8.0.50727.762_x-ww_6b128700\MSVCR80.dll
+0x78460000 - 0x7846e000 	C:\Program Files\MATLAB\R2007a\bin\win32\libz.dll
+0x78470000 - 0x7852e000 	C:\Program Files\MATLAB\R2007a\bin\win32\libut.dll
+0x00280000 - 0x00335000 	C:\Program Files\MATLAB\R2007a\bin\win32\icuin32.dll
+0x00350000 - 0x0035c000 	C:\Program Files\MATLAB\R2007a\bin\win32\icuio32.dll
+0x7c420000 - 0x7c4a7000 	C:\WINNT\WinSxS\x86_Microsoft.VC80.CRT_1fc8b3b9a1e18e3b_8.0.50727.762_x-ww_6b128700\MSVCP80.dll
+0x76c90000 - 0x76cb8000 	C:\WINNT\system32\imagehlp.dll
+0x79730000 - 0x79789000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwmathutil.dll
+0x785b0000 - 0x785c8000 	C:\Program Files\MATLAB\R2007a\bin\win32\mpath.dll
+0x5b860000 - 0x5b8b4000 	C:\WINNT\system32\NETAPI32.dll
+0x71ab0000 - 0x71ac7000 	C:\WINNT\system32\WS2_32.dll
+0x71aa0000 - 0x71aa8000 	C:\WINNT\system32\WS2HELP.dll
+0x79540000 - 0x79575000 	C:\Program Files\MATLAB\R2007a\bin\win32\mcr.dll
+0x774e0000 - 0x7761d000 	C:\WINNT\system32\ole32.dll
+0x78580000 - 0x78590000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmex.dll
+0x78750000 - 0x7879d000 	C:\Program Files\MATLAB\R2007a\bin\win32\m_dispatcher.dll
+0x782a0000 - 0x7845b000 	C:\Program Files\MATLAB\R2007a\bin\win32\xerces-c_2_6.dll
+0x78e60000 - 0x78e7c000 	C:\Program Files\MATLAB\R2007a\bin\win32\datasvcs.dll
+0x79290000 - 0x79353000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwgui.dll
+0x786c0000 - 0x78749000 	C:\Program Files\MATLAB\R2007a\bin\win32\udd.dll
+0x785d0000 - 0x786b5000 	C:\Program Files\MATLAB\R2007a\bin\win32\mcos.dll
+0x787a0000 - 0x78c01000 	C:\Program Files\MATLAB\R2007a\bin\win32\m_interpreter.dll
+0x79790000 - 0x79799000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwmathrng.dll
+0x78e20000 - 0x78e31000 	C:\Program Files\MATLAB\R2007a\bin\win32\m_pcodeio.dll
+0x00d30000 - 0x00d3a000 	C:\Program Files\MATLAB\R2007a\bin\win32\mtok.dll
+0x78c10000 - 0x78db7000 	C:\Program Files\MATLAB\R2007a\bin\win32\m_parser.dll
+0x78dc0000 - 0x78df1000 	C:\Program Files\MATLAB\R2007a\bin\win32\m_ir.dll
+0x78e40000 - 0x78e4c000 	C:\Program Files\MATLAB\R2007a\bin\win32\ir_xfmr.dll
+0x00d80000 - 0x00db0000 	C:\Program Files\MATLAB\R2007a\bin\win32\profiler.dll
+0x78590000 - 0x785ac000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmat.dll
+0x00dd0000 - 0x00e98000 	C:\Program Files\MATLAB\R2007a\bin\win32\libhdf5.dll
+0x78e00000 - 0x78e15000 	C:\Program Files\MATLAB\R2007a\bin\win32\m_pcodegen.dll
+0x7a020000 - 0x7a038000 	C:\Program Files\MATLAB\R2007a\bin\win32\bridge.dll
+0x00ec0000 - 0x00ecf000 	C:\Program Files\MATLAB\R2007a\bin\win32\iqm.dll
+0x79f80000 - 0x79fca000 	C:\Program Files\MATLAB\R2007a\bin\win32\comcli.dll
+0x77120000 - 0x771ab000 	C:\WINNT\system32\OLEAUT32.dll
+0x79f40000 - 0x79f77000 	C:\Program Files\MATLAB\R2007a\bin\win32\jmi.dll
+0x71ad0000 - 0x71ad9000 	C:\WINNT\system32\WSOCK32.dll
+0x791b0000 - 0x79231000 	C:\Program Files\MATLAB\R2007a\bin\win32\uiw.dll
+0x79240000 - 0x79273000 	C:\Program Files\MATLAB\R2007a\bin\win32\libuij.dll
+0x79510000 - 0x7953c000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwhardcopy.dll
+0x79280000 - 0x79289000 	C:\Program Files\MATLAB\R2007a\bin\win32\uinone.dll
+0x00f40000 - 0x0104f000 	C:\WINNT\WinSxS\x86_Microsoft.VC80.MFC_1fc8b3b9a1e18e3b_8.0.50727.762_x-ww_3bf8fa05\MFC80.DLL
+0x73000000 - 0x73026000 	C:\WINNT\system32\WINSPOOL.DRV
+0x7c630000 - 0x7c64b000 	C:\WINNT\WinSxS\x86_Microsoft.VC80.ATL_1fc8b3b9a1e18e3b_8.0.50727.42_x-ww_6e805841\ATL80.DLL
+0x79ec0000 - 0x79ed4000 	C:\Program Files\MATLAB\R2007a\bin\win32\mwoles05.DLL
+0x79ee0000 - 0x79f3b000 	C:\Program Files\MATLAB\R2007a\bin\win32\udd_mi.dll
+0x79fd0000 - 0x79fdb000 	C:\Program Files\MATLAB\R2007a\bin\win32\mlautoregister.dll
+0x79360000 - 0x794c3000 	C:\Program Files\MATLAB\R2007a\bin\win32\hg.dll
+0x79580000 - 0x79725000 	C:\Program Files\MATLAB\R2007a\bin\win32\numerics.dll
+0x79dd0000 - 0x79dd7000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwamd.dll
+0x79de0000 - 0x79e38000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwcholmod.dll
+0x79e40000 - 0x79e47000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwcolamd.dll
+0x797a0000 - 0x797c3000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwlapack.dll
+0x79810000 - 0x79897000 	C:\Program Files\MATLAB\R2007a\bin\win32\libfftw3.dll
+0x798a0000 - 0x7993b000 	C:\Program Files\MATLAB\R2007a\bin\win32\libfftw3f.dll
+0x79e50000 - 0x79ebc000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmwumfpack.dll
+0x76390000 - 0x763ad000 	C:\WINNT\system32\IMM32.DLL
+0x629c0000 - 0x629c9000 	C:\WINNT\system32\LPK.DLL
+0x74d90000 - 0x74dfb000 	C:\WINNT\system32\USP10.dll
+0x773d0000 - 0x774d3000 	C:\WINNT\WinSxS\x86_Microsoft.Windows.Common-Controls_6595b64144ccf1df_6.0.2600.2982_x-ww_ac3f9c03\comctl32.dll
+0x5d360000 - 0x5d36e000 	C:\WINNT\WinSxS\x86_Microsoft.VC80.MFCLOC_1fc8b3b9a1e18e3b_8.0.50727.762_x-ww_91481303\MFC80ENU.DLL
+0x7bdf0000 - 0x7be25000 	C:\Program Files\MATLAB\R2007a\bin\win32\libguide40.dll
+0x797d0000 - 0x797f8000 	C:\Program Files\MATLAB\R2007a\bin\win32\mkl.dll
+0x79800000 - 0x79805000 	C:\Program Files\MATLAB\R2007a\bin\win32\mklcompat.dll
+0x79940000 - 0x79dc3000 	C:\Program Files\MATLAB\R2007a\bin\win32\mllapack.dll
+0x025a0000 - 0x0264a000 	C:\Program Files\MATLAB\R2007a\bin\win32\libifcoremd.dll
+0x02650000 - 0x02880000 	C:\Program Files\MATLAB\R2007a\bin\win32\libmmd.dll
+0x74290000 - 0x74294000 	C:\WINNT\system32\icmp.Dll
+0x76d60000 - 0x76d79000 	C:\WINNT\system32\iphlpapi.dll
+0x77fe0000 - 0x77ff1000 	C:\WINNT\system32\Secur32.dll
+0x71a50000 - 0x71a8f000 	C:\WINNT\System32\mswsock.dll
+0x76f20000 - 0x76f47000 	C:\WINNT\system32\DNSAPI.dll
+0x76fb0000 - 0x76fb8000 	C:\WINNT\System32\winrnr.dll
+0x76f60000 - 0x76f8c000 	C:\WINNT\system32\WLDAP32.dll
+0x76fc0000 - 0x76fc6000 	C:\WINNT\system32\rasadhlp.dll
+0x662b0000 - 0x66308000 	C:\WINNT\system32\hnetcfg.dll
+0x71a90000 - 0x71a98000 	C:\WINNT\System32\wshtcpip.dll
+0x74720000 - 0x7476b000 	C:\WINNT\system32\MSCTF.dll
+0x03c70000 - 0x03c98000 	C:\Program Files\ScanSoft\OmniPagePro12.0\ophook12.dll
+0x77c00000 - 0x77c08000 	C:\WINNT\system32\VERSION.dll
+0x755c0000 - 0x755ee000 	C:\WINNT\system32\msctfime.ime
+0x6d6c0000 - 0x6d857000 	C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin\client\jvm.dll
+0x76b40000 - 0x76b6d000 	C:\WINNT\system32\WINMM.dll
+0x6d280000 - 0x6d288000 	C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin\hpi.dll
+0x76bf0000 - 0x76bfb000 	C:\WINNT\system32\PSAPI.DLL
+0x6d690000 - 0x6d69c000 	C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin\verify.dll
+0x6d300000 - 0x6d31d000 	C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin\java.dll
+0x6d6b0000 - 0x6d6bf000 	C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin\zip.dll
+0x6d000000 - 0x6d167000 	C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin\awt.dll
+0x7b330000 - 0x7b342000 	C:\Program Files\MATLAB\R2007a\bin\win32\nativejava.dll
+0x0f2f0000 - 0x0f303000 	C:\Program Files\MATLAB\R2007a\bin\win32\nativejmi.dll
+0x0f3a0000 - 0x0f3a6000 	C:\Program Files\MATLAB\R2007a\bin\win32\nativeservices.dll
+0x6d240000 - 0x6d27f000 	C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin\fontmanager.dll
+0x6d4c0000 - 0x6d4d3000 	C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin\net.dll
+0x6d4e0000 - 0x6d4e9000 	C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin\nio.dll
+0x0f210000 - 0x0f21c000 	C:\Program Files\MATLAB\R2007a\bin\win32\nativecmdwin.dll
+0x0f240000 - 0x0f247000 	C:\Program Files\MATLAB\R2007a\bin\win32\nativemlint.dll
+0x0f8c0000 - 0x0f8f4000 	C:\Program Files\MATLAB\R2007a\bin\win32\mlint.dll
+0x7b350000 - 0x7b356000 	C:\Program Files\MATLAB\R2007a\bin\win32\nativelex.dll
+0x25000000 - 0x25050000 	C:\WINNT\System32\spool\DRIVERS\W32X86\3\fpinter5.dll
+0x30000000 - 0x30025000 	C:\WINNT\System32\spool\DRIVERS\W32X86\3\fpres532.dll
+0x77b40000 - 0x77b62000 	C:\WINNT\system32\Apphelp.dll
+0x76fd0000 - 0x7704f000 	C:\WINNT\system32\CLBCATQ.DLL
+0x77050000 - 0x77115000 	C:\WINNT\system32\COMRes.dll
+0x20000000 - 0x202c5000 	C:\WINNT\system32\xpsp2res.dll
+0x75e90000 - 0x75f40000 	C:\WINNT\system32\SXS.DLL
+0x7d1e0000 - 0x7d49e000 	C:\WINNT\system32\msi.dll
+0x12e10000 - 0x12e9e000 	C:\Documents and Settings\MODA\Application Data\Microsoft\Word\STARTUP\RM11CWYW.wll
+0x7c140000 - 0x7c243000 	C:\WINNT\system32\MFC71.DLL
+0x7c360000 - 0x7c3b6000 	C:\WINNT\system32\MSVCR71.dll
+0x10df0000 - 0x10e6b000 	C:\WINNT\system32\MSVCP71.dll
+
+VM Arguments:
+jvm_args: -Xss512k -XX:PermSize=32M -Xms64m -XX:NewRatio=3 -XX:MaxPermSize=32M -Xmx96m -Dsun.java2d.noddraw=true -Dsun.awt.nopixfmt=true -Xshare:off -Djava.library.path=C:\Program Files\MATLAB\R2007a\bin\win32 vfprintf abort
+java_command: <unknown>
+Launcher Type: generic
+
+Environment Variables:
+JAVA_HOME=C:\Program Files\Java\jdk1.6.0_02
+CLASSPATH=C:\Program Files\Java\jdk1.6.0_02\lib
+PATH=C:\Program Files\MATLAB\R2007a\sys\java\jre\win32\jre1.5.0_07\bin;C:\Program Files\MATLAB\R2007a\sys\webrenderer\windows\corecomponents;C:\Program Files\MATLAB\R2007a\sys\webrenderer\windows;C:\Program Files\Microsoft Office\Office12\;c:\program files\imagemagick-6.3.6-q16;C:\Program Files\Intel\MKL\8.0.2\ia32\bin;C:\MinGW\bin;C:\Program Files\CMake 2.4\bin;c:\program files\miktex 2.6\miktex\bin;c:\omnet++\bin;c:\perl\perl\bin\;C:\WINNT\system32;C:\WINNT;C:\WINNT\system32\wbem;c:\ic-utils;c:\cygwin\bin;c:\program files\common files\gtk\2.0\bin;c:\watcom-1.3\binnt;c:\watcom-1.3\binw;c:\program files\unxutils\usr\local\wbin;c:\program files\unxutils\bin;C:\Program Files\MATLAB\R2007a\bin;C:\Program Files\MATLAB\R2007a\bin\win32;c:\program files\latex\texmf\miktex\bin;c:\program files\microsoft sql server\90\tools\binn\;c:\program files\netbeans-5.5.1\ide7\ant\bin;c:\program files\java\jdk1.6.0_02\bin;;C:\PROGRA~1\ATT\Graphviz\bin;
+USERNAME=moda
+OS=Windows_NT
+PROCESSOR_IDENTIFIER=x86 Family 6 Model 15 Stepping 6, GenuineIntel
+
+
+
+---------------  S Y S T E M  ---------------
+
+OS: Windows XP Build 2600 Service Pack 2
+
+CPU:total 2 family 6, cmov, cx8, fxsr, mmx, sse, sse2, ht
+
+Memory: 4k page, physical 1031408k(680636k free), swap 2481248k(1964712k free)
+
+vm_info: Java HotSpot(TM) Client VM (1.5.0_07-b03) for windows-x86, built on May  3 2006 01:04:38 by "java_re" with MS VC++ 6.0
+

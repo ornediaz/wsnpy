@@ -1,0 +1,13 @@
+function manyParameters
+clc
+	h = many(1,2,3,4)
+end
+function h = many(...
+	uno,...
+	dos,...
+	... % Hasta con nada
+	tres,...
+	cuatro)
+h = uno + dos + tres + cuatro;
+
+end
