@@ -1506,17 +1506,9 @@ class ProdGlb
                 gain_max[q, s] = 100 * (consum_max[q, refz] -
                         consum_max[q, s]) / consum_max[q, refz];
             }
-        string[] legv2 = new string[refz];
-        bool refy = false; // Reference column already encountered?
+        string[] legv2 = new string[types.Length - 1];
         for (int i = 0; i < types.Length - 1; i++)
-        {
-            if (types[i] == refz)
-                refy = true;
-            else if (refy == false)
                 legv2[i] = types[i].ToString();
-            else
-                legv2[i-1] = types[i].ToString();
-        }
         g.add(xaxis, "normalized load");
         g.mplot(y_v_n, rate_min_v, legv2);
         g.add(xaxis, "gain-mean");
