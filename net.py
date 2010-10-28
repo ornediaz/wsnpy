@@ -991,9 +991,10 @@ class FlexiTPNode(Node):
         work as if z.nexch were infinite. 
 
         z.packet_l: list (rel, src), where "rel" is the node that contends
-        on behalf of its child node and "src" is the source of the packet
-        for whom the slot is claimed.
-        
+        to obtain a packet and "src" is the source of the packet for whom
+        the slot is claimed.  For simplicity, instead of "rel", its parent
+        contends and identifies itself as "rel".
+
         -------------------------
         Output of the routine (it is not returned, it is stamped)
 
@@ -1017,6 +1018,8 @@ class FlexiTPNode(Node):
                         .format(node_id, z.frame_n))
                 z.packet_l.append((node_id, node_id))
             z.sim.record['laten'] += len(z.packet_l)
+            for rel, src in z.packet_l:
+                z.sim.record['lates'] += z.sim[rel].tier
             for n_exch in xrange(z.n_exch):
                 ce = z.now() + z.t_w  # end of contention time in this slot
                 if n_exch == 0 and z.packet_l:
@@ -1362,6 +1365,8 @@ class ACSPNode(RandSchedNode):
             # that it has already done it.
             while z.b: # I want to claim some slots
                 z.sim.record['laten'] += len(z.b)
+                for sourcu in z.b:
+                    z.sim.record['lates'] += z.sim[sourcu].tier
                 if z.status == 0:
                     z.print('starts contending in the window')
                     ce = z.now() + z.t_w
@@ -1603,7 +1608,11 @@ class ACSPNet(RandSchedNet):
         z.natre = float(sum(n.tier for n in z if n.id not in 
                             n.tx_d.values()))
         z.record = dict(
-            laten  = 0., # Frames from attempt to success
+            laten  = 0., # Acquisition latency: time to obtain a slot
+            lates  = 0., # global latency, or postponement variable.  If a
+                         # node is 2 hops away from the data sink, each
+                         # acquisition takes 2 slots, and they occur
+                         # sequentially, lates= 2*2+2 = 6
             activ  = 0., # Time that a node listens immediately after the
                          # contention window for a packet indicating which
                          # node should be active and in which slot.
@@ -1731,7 +1740,7 @@ class ACSPNet(RandSchedNet):
                 unsuc = set(src).difference(suc)
                 for node in unsuc:
                     expe1 += 1
-                    expe2 += node.tier - 1
+                    expe2 += z[node].tier - 1
             elif slot - last_used > 15:
                 break
         else:
@@ -2755,10 +2764,12 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
         expe1=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
         expe2=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
         laten=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
+        lates=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
         losse=np.zeros((repetitions, len(rho_v), len(sdsl))),
         nadv1=np.zeros((repetitions, len(rho_v), len(fltfw))),
         nadv2=np.zeros((repetitions, len(rho_v), len(fltfw))),
         natre=np.zeros((repetitions, len(rho_v))),
+        pkets=np.zeros((repetitions, len(rho_v))),
         sloov=np.zeros((repetitions, len(rho_v), len(sdsl) + len(fltfw))),
         slosu=np.zeros((repetitions, len(rho_v), 1+len(fltfw))),
         )
@@ -2769,6 +2780,9 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
+                hu = sum(x for x in (wsn.tier(w) for w in xrange(wsn.c))
+                         if x < TIER_MAX)
+                o['pkets'][k,i] = hu
                 nt = [ACSPNet(wsn, cont_f=100., Q=1/bitrate, slot_t=slot_t,
                         pairs=40, VB=0)]
                 for fw in fltfw:
@@ -2779,7 +2793,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     if r > 0:
                         o['nadv1'][k,i,r-1] = n.nadve
                 wsn.mutate_network(c - nnew, nnew)
-                var = ('attem', 'expe1', 'expe2', 'laten', 'losse')
+                var = ('attem', 'expe1', 'expe2', 'laten', 'lates', 'losse')
                 for q, nsds in enumerate(sdsl):
                     np.random.seed(k)
                     netc = copy.deepcopy(nt[0])
@@ -2799,6 +2813,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     o['nadv2'][k,i,u] = nx.nadve 
                     o['sloov'][k,i,len(sdsl)+u] = c*nx.n_frames() * nx.nadve
                     o['laten'][k,i,len(sdsl)+u] = nx.record['laten']
+                    o['lates'][k,i,len(sdsl)+u] = nx.record['lates']
                     expe12 = nx.expe12()
                     o['expe1'][k,i,len(sdsl)+u] = expe12[0]
                     o['expe2'][k,i,len(sdsl)+u] = expe12[1]
@@ -2845,6 +2860,20 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     g.mplot(rho_v, r['sloov'], legsds + legflt)
     g.add(x_t, "slosu: number of slot in the setup phase")
     g.mplot(rho_v, r['slosu'], legsu)
+    ######################################
+    # Postponement
+    postpone = np.zeros((len(rho_v), len(sdsl+2)))
+    for i, rho in enumerate(rho_v):
+        for j, k in enumerate(0, 2): 
+
+            postpone[i,j] = ((r['losse'][i,k]+r['lates'][i,k])
+                             / Ts / r['pkets'][i])
+        postpone[i,2] = (r['lates'][i,3] * r['laten'][i,3] / r['laten'][i,0] 
+                         / Ts / r['pkets'][i])
+        postpone[i,3] = (r['lates'][i,3] + r['laten'][i,3] / r['laten'][i,2]
+                         / Ts / r['pkets'][i])
+    g.add(x_t, "postponements")
+    g.mplot(rho_v, postpone) 
     ############## Normalized gain as a function of the T_s
     # Energy consumed by FlexiTP
     eflex = np.zeros((len(rho_v), len(fltfw)))
