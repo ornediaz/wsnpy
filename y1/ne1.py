@@ -19,6 +19,7 @@ import doctest
 import glob
 import inspect
 import numpy as np 
+np.seterr('raise')
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
 from operator import itemgetter
@@ -649,7 +650,7 @@ class PhyNet(Tree):
         for attempt in xrange(z.n_tries):
             z.p[old:] = np.random.rand(new, 2) * [z.x, z.y] 
             for i in xrange(tot):
-                for j in xrange(max(i, old), tot):
+                for j in xrange(max(i+1, old), tot):
                     d = sum((z.p[i] - z.p[j]) ** 2) ** .5
                     z.att_m[[i, j], [j, i]] = z.atten(d)
             # Cost function used in Dijkstra
@@ -2679,9 +2680,9 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     o = dict(
         # number of nodes unduly dismissed as unreachable
         dismi = np.zeros((repetitions, n_nodes.size, 4)),
-        #  slots per FTS used in the initialization phase of FlexiTP
+        # slots per scheduling operation
         nadv1 = np.zeros((repetitions, n_nodes.size, 2)),
-        # number of slots used in FlexiTP's setup to propagate schedule
+        # schedule length $M$
         slosu=np.zeros((repetitions, n_nodes.size, 3)),
         )
     # Number of slots per FTS used in the transmission phase of FlexiTP
@@ -2698,7 +2699,7 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
                     if j in (0, 1):
                         nets.append(FlexiTPNet(wsn, fw=j + 2, n_exch=70)) 
                     elif j == 2:
-                        nets.append(ACSPNet(wsn, cont_f=100, pairs=40))
+                        nets.append(ACSPNet(wsn, cont_f=100, pairs=7))
                     else:
                         nets.append(FlexiTPNet2(wsn, fw=j - 1)) 
                 o['slosu'][k,i,:] = [n.n_slots() for n in nets[:3]]
@@ -2737,6 +2738,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     """Dependence on the number of SDS tones. 
 
     tsn_nr:seconds per iteration, 1:2700@ee-modalap
+    1:3982@packard
 
     DEBUGGING:
     
@@ -2784,7 +2786,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                          if x < TIER_MAX)
                 o['pkets'][k,i] = hu
                 nt = [ACSPNet(wsn, cont_f=100., Q=1/bitrate, slot_t=slot_t,
-                        pairs=40, VB=0)]
+                        pairs=7, VB=0)]
                 for fw in fltfw:
                     nt.append(FlexiTPNet(wsn, fw=fw, n_exch=70))
                 for r, n in enumerate(nt):
@@ -2841,8 +2843,8 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     g.add(x_t, 'expe1 + expe2')
     g.mplot(rho_v, r['expe1'] + r['expe2'], legsds + legflt)
     g.add(x_t, r'expe2/expe1')
-    quot = r['expe2'] / r['expe1'] # some elements may be NaN (divide by 0)
-    quot = np.where(np.isnan(quot), 0, quot) # Replace NaN by 0
+    inz = np.where(r['expe1'] > 0, r['expe1'], 9999.)
+    quot = r['expe2'] / inz 
     g.mplot(rho_v, quot, legsds + legflt)
     #g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
     g.add(x_t, r'laten: per natreq') 
@@ -2861,23 +2863,60 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     g.mplot(rho_v, r['sloov'], legsds + legflt)
     g.add(x_t, "slosu: number of slot in the setup phase")
     g.mplot(rho_v, r['slosu'], legsu)
+    #######################################
+    # Plot duration of scheduling operation.
+    # 11 is the number of slots per CF when using pairs=7 in ACSP
+    duration_ope = slot_t * np.hstack((11*np.ones((len(rho_v),1)),
+                                       r['nadv1']))
+    numberof_ope = np.hstack((r['slosu'][:,0].reshape((-1,1)), 
+                              r['pkets'].reshape((-1,1))))
+    duration_tot = duration_ope * np.hstack((
+            r['slosu'][:,0].reshape((-1,1)), 
+            r['pkets'].reshape((-1,1)).repeat(2,1)))
+    g.add(x_t, "duration~ope in ms")
+    g.mplot(rho_v, duration_ope * 1000, legsu)
+    g.add(x_t, "numberof~ope")
+    g.mplot(rho_v, numberof_ope, legsu)
+    g.add(x_t, "duration~tot")
+    g.mplot(rho_v, duration_tot, legsu)
+    ##############################
+    # Duration of the initialization phase as a function of the network size
+    # using results from other function.
+    y = np.arange(1, 10, 2)
+    npz = np.load("graphFlexiLength_01_000100.npz")
+    n_frames = npz['n_frames'][:,(2,0,1)]
+    rho_ind = -1
+    rho = rho_v[-1]
+    duration_tol = duration_ope[[rho_ind]].repeat(len(y),0) * n_frames
+    g.add(r'normalized network length $\bar{y}$', "n~frames")
+    g.mplot(y, n_frames,legsu)
+    g.add(r'normalized network length $\bar{y}$', 
+          "initialization in s for rho={0:f}".format(rho))
+    g.mplot(y, duration_tol, legsu)
     ######################################
     # Postponement as a function of the node density.
     #  
     # Postponements are all the transmissions that have to be delayed
     # because the protocol is not infinitely fast.  Postponements capture
     # the effect of packet losses.
-    postpone = np.zeros((len(rho_v), len(sdsl)+2))
+    postpone = np.zeros((len(rho_v),4))
+    Ts = 10
     for i, rho in enumerate(rho_v):
+        # Postponements of ACSP for Q=0 and Q=2
         for j, k in enumerate((0, 2)): 
             postpone[i,j] = ((r['losse'][i,k]+r['lates'][i,k])
                              / Ts / r['pkets'][i])
-        postpone[i,2] = (r['lates'][i,3] * r['laten'][i,3] / r['laten'][i,0] 
+        # Postponement of FlexiTP2 when operating under the acquisition
+        # latency of ACSP with Q=0
+        postpone[i,2] = (r['lates'][i,3] * r['laten'][i,0] / r['laten'][i,3] 
                          / Ts / r['pkets'][i])
-        postpone[i,3] = (r['lates'][i,3] + r['laten'][i,3] / r['laten'][i,2]
+        # Postponement of FlexiTP2 when operating under the acquisition
+        # latency of ACSP with Q=2
+        postpone[i,3] = (r['lates'][i,3] * r['laten'][i,2] / r['laten'][i,3]
                          / Ts / r['pkets'][i])
     g.add(x_t, "postponements")
-    g.mplot(rho_v, postpone) 
+    g.mplot(rho_v, postpone, ("ACSP Q=0", "ACSP Q=2", "FlexiTP Q=0", 
+                              "FlexiTP Q=2")) 
     """ Compute and plot the normalized gain as a function of the Teta"""
     # T_eta is the interval between naturally required slots
     #
