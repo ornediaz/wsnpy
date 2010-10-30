@@ -11,6 +11,8 @@ Criteria for correct reception of a packet:
     SINR model:
         The sinr threshold includes the noise introduced by the amplifier in
         the receptor.  
+
+
 '''
 from __future__ import print_function
 import collections
@@ -1515,7 +1517,8 @@ class ACSPNet(RandSchedNet):
         network.  This routine is used after making topology changes.
 
         If the ancestor Y of a node X was replaced, remove all the slots
-        allocated to relay X's data over the tree.
+        allocated to relay X's data over the tree.  This is more than
+        necesary, but for simplicity I keep it this way.
         """
         z[z.wsn.old:] = [z.AlNode(id=i, sim=z)
                          for i in xrange(z.wsn.old, len(z.wsn.f))]
@@ -2824,7 +2827,8 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     r = load_npz()
     # Compute the unnormalized latency lateu
     #lateu = np.zeros(len(rho_v), len(sdsl)+len(fltfw))
-    lateu = r['laten'] * (1 + r['expe1'] + r['expe2'])
+    lateu = r['laten']*(1 + r['expe1'] + r['expe2'])
+    lossu = r['losse']*(1+r['expe1'][:,:len(sdsl)]+r['expe2'][:,:len(sdsl)])
     # Plot schedule length. Takeaway: FlexiTP requires more slots when the
     # network changes.
     x_t = r'node density $\bar{\rho}$'
@@ -2852,10 +2856,12 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     #g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
     g.add(x_t, r'laten: per natreq') 
     g.mplot(rho_v, r['laten'], legsds + legflt)
-    g.add(x_t, r'lateu: per natreq') 
+    g.add(x_t, r'lateu: per unnormalized incorporation') 
     g.mplot(rho_v, lateu, legsds + legflt)
-    g.add(x_t, r'losse: packets ruined per incorporation in ACSP')
+    g.add(x_t, r'losse: packets ruined per natreq in ACSP')
     g.mplot(rho_v, r['losse'], legsds)
+    g.add(x_t, r'lossu: packets ruined per unnormalized ACSP incorporation')
+    g.mplot(rho_v, lossu, legsds)
     g.plot(rho_v, np.zeros(len(rho_v)), 'FlexiTP')
     g.opt(r'ylabel style={yshift = 3mm}')
     g.add(x_t, r"nadv1: slots per exchange in FlexiTP's setup")
@@ -2872,22 +2878,21 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     # Plot duration of scheduling operation.
     # 11 is the number of slots per CF when using pairs=7 in ACSP
     duration_ope = slot_t * np.hstack((11*np.ones((len(rho_v),1)),
-
                                        r['nadv1']))
     numberof_ope = np.hstack((r['slosu'][:,0].reshape((-1,1)), 
                               r['pkets'].reshape((-1,1))))
     duration_tot = duration_ope * np.hstack((
             r['slosu'][:,0].reshape((-1,1)), 
             r['pkets'].reshape((-1,1)).repeat(2,1)))
-    g.add(x_t, "duration~ope in ms")
+    g.add(x_t, "duration\_ope in ms")
     g.mplot(rho_v, duration_ope * 1000, legsu)
-    g.add(x_t, "numberof~ope")
+    g.add(x_t, "numberof\_ope")
     g.mplot(rho_v, numberof_ope, legsu)
-    g.add(x_t, "duration~tot")
+    g.add(x_t, "duration\_tot")
     g.mplot(rho_v, duration_tot, legsu)
     ##############################
     # Duration of the initialization phase as a function of the network size
-    # using results from other function.
+    # using results from graphFlexiLength_01_000100.npz.
     y = np.arange(1, 10, 2)
     npz = np.load("graphFlexiLength_01_000100.npz")
     n_frames = npz['n_frames'][:,(2,0,1)]
@@ -2905,6 +2910,12 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     # Postponements are all the transmissions that have to be delayed
     # because the protocol is not infinitely fast.  Postponements capture
     # the effect of packet losses.
+    #
+    # postpone: 
+    # + rows are for the node density
+    # + Columns 0 and 1 are for ACSP with Q=0 and Q=2.  
+    # + Columns 2 and 3 are for FlexiTP2 when operating under the same
+    #   acquisition latency as ACSP with Q=0 and ACSP with Q=2.
     postpone = np.zeros((len(rho_v),4))
     Ts = 10
     for i, rho in enumerate(rho_v):
