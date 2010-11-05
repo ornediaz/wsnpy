@@ -1637,7 +1637,7 @@ class ACSPNet(RandSchedNet):
                         # were expelled
         z.print('*****Start computing the schedule*******')
     def incorp_ener(z):
-        """Return energy consumed per incorporation in ACSP.
+        """Return variable consumption per naturally required slot in ACSP.
 
         This only includes the variable energy.  That is, it does not
         include the amount of energy.
@@ -1646,10 +1646,13 @@ class ACSPNet(RandSchedNet):
         tx = STATES['tx']
         rx = STATES['rx']
         ener = (
-          + z.t_w / 2 * z.record['laten'] * tx # contention window  
+          + z.t_w / 2 * z.record['laten'] * tx 
+            # Energy consumed contending during contention window.  This is
+            # an overestimate because the nodes do not contend in 'laten'
+            # frames.  They only contend when their backoff period reaches
+            # 0.
           + z.slot_t  * z.record['sensea'] * rx # find available slot
           + z.slot_t  * z.record['attem'] * (tx+rx) 
-          #
           # recever side
           + z.slot_t  * z.record['activ'] * rx # Listen to the slot
                                                # indicating whether it
@@ -2918,23 +2921,28 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     #   acquisition latency as ACSP with Q=0 and ACSP with Q=2.
     postpone = np.zeros((len(rho_v),4))
     Ts = 10
-    for i, rho in enumerate(rho_v):
-        # Postponements of ACSP for Q=0 and Q=2
-        for j, k in enumerate((0, 2)): 
-            postpone[i,j] = ((r['losse'][i,k]+r['lates'][i,k])
-                             / Ts / r['pkets'][i])
-        # Postponement of FlexiTP2 when operating under the acquisition
-        # latency of ACSP with Q=0
-        postpone[i,2] = (r['lates'][i,3] * lateu[i,0] / lateu[i,3] 
-                         / Ts / r['pkets'][i])
-        # Postponement of FlexiTP2 when operating under the acquisition
-        # latency of ACSP with Q=2
-        postpone[i,3] = (r['lates'][i,3] * lateu[i,2] / lateu[i,3]
-                         / Ts / r['pkets'][i])
-    g.add(x_t, "postponements")
+    # Postponements of ACSP for Q=0 and Q=2
+    for j, k in enumerate((0, 2)): 
+        postpone[:,j] = ((r['losse'][:,k]+r['lates'][:,k])
+                         / Ts / r['pkets'][:])
+    # Postponement of FlexiTP2 when operating under the acquisition
+    # latency of ACSP with Q=0
+    postpone[:,2] = (r['lates'][:,3] * lateu[:,0] / lateu[:,3] 
+                     / Ts / r['pkets'][:])
+    # Postponement of FlexiTP2 when operating under the acquisition
+    # latency of ACSP with Q=2
+    postpone[:,3] = (r['lates'][:,3] * lateu[:,2] / lateu[:,3]
+                     / Ts / r['pkets'][:])
+    g.add(x_t, "postpone")
     g.mplot(rho_v, postpone, ("ACSP Q=0", "ACSP Q=2", "FlexiTP Q=0", 
                               "FlexiTP Q=2")) 
-    Ts_v = np.arange(5, 20, 2) # frames between natreq slots
+    #
+    # Compute postpon2, which is the number of postponenements as a function
+    # of Ts, which is the average interval between naturally required slots.
+    #
+    # This part seems pointles because the number of postponements is
+    # independent of Ts.
+    Ts_v = np.arange(5, 20, 2) # frames between natreq slots 
     postpon2 = np.zeros((len(Ts_v),4))
     d_i = 3 # index for the density
     # Postponements of ACSP for Q=0 and Q=2
@@ -2952,43 +2960,37 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     g.add("Ts", "postponements")
     g.mplot(Ts_v, postpon2, ("ACSP Q=0", "ACSP Q=2", "FlexiTP Q=0", 
                               "FlexiTP Q=2")) 
-    """ Compute and plot the normalized gain as a function of the Teta"""
-    # T_eta is the interval between naturally required slots
     #
-    #  Compute the following parameters, which are all per naturally
-    #  required slot:
+    # Compute and plot the normalized gain as a function of the Teta
     #
     # + eflex: total (fixed + variable) energy consumed by FlexiTP's
     # + E_v_sutp_0: variable energy consumed by FlexiTP
     # + E_f_sutp   : variable energy consumed by FlexiTP
-    eflex = np.zeros((len(rho_v), len(fltfw)))
-    E_v_sutp_0 = np.zeros((len(rho_v), len(sdsl)))
-    for i in xrange(len(rho_v)):
-        for j in xrange(len(fltfw)):
-            eflex[i, j] = (STATES['tx'] * 1000 * r['nadv2'][i,j] * slot_t)
-        for j in xrange(len(sdsl)):
-            E_v_sutp_0[i, j] = r['energ'][i,j] * 1000.
-    print("eflex = {0}".format(eflex))
+    #
+    # Ts is the interval between naturally required slots
     # Compute the gain as a function of Teta (interval between naturally
     # required slots.
+    eflex = STATES['tx'] * 1000 * r['nadv2'] * slot_t
+    E_v_sutp_0 = r['energ'] * 1000.
+    print("eflex = {0}".format(eflex))
     Ts = np.arange(5, 20, 2) # frames between natreq slots
     Gbar = np.zeros((len(Ts), len(rho_v), len(sdsl), len(fltfw)))
     for s, sds in enumerate(sdsl):
         for i, rho in enumerate(rho_v):
             E_f_sutp =  STATES['rx'] * 1000 * (slot_t + sglt * sds)
-            E_t_sutp = (E_f_sutp + E_v_sutp_0[i, s] / Ts / n_nodes[i])
+            E_t_sutp = E_f_sutp + E_v_sutp_0[i, s] / Ts / n_nodes[i]
             print("E_t_sutp = {0}".format(E_t_sutp))
-            for h, fw in enumerate(fltfw):
+            for h in xrange(len(fltfw)):
                 x = eflex[i,h] / lateu[i,s] * lateu[i,len(sdsl)+h] 
                 if x < 0.1:
                     pdb.set_trace()
                 Gbar[:, i, s, h] = x / E_t_sutp
-    fwi = 0
-    sdsi = 0
     for u, k in enumerate(fltfw):
         for Tsi in (0, len(Ts)/2, -1): #index in the Ts vector
             g.add(x_t, "Gain over FlexiTP{0} for Ts={1}".format(k,Ts[Tsi]))
             g.mplot(rho_v, Gbar[Tsi,:,[0,2],u].T, ('Q=0','Q=2')) 
+    fwi = 0
+    sdsi = 0
     g.add('Period between changes $T_s$', 
           'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
     g.mplot(Ts, Gbar[:,ind_rho_table,0,0], leg2)
@@ -2996,22 +2998,21 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     g.extra_body.append(r"""
 \begin{verbatim}
 """)
-    # E_f is the fixed energy consumption, i.e. the energy consumed even
-    # when no node has the need to obtain a slot.  E_f is the fixed energy
-    # per node.
+    # E_f is the fixed energy consumption, i.e. the energy consumed when no
+    # node is seeking a slot.  E_f is the fixed energy per node.
     g.extra_body.append("|%15s|%6s|%15s|%15s|\n" %("Protocol", "rho",
           "E_f", "E_g"))
-    for j, fw in enumerate(fltfw):
+    for j, fw in enumerate(fltfw):# Print esults for FlexiTP2 and FlexiTP3
         for i in ind_rho_table:#index of node density
             g.extra_body.append("|%15s|%6d|%15f|%15f|\n" %
                                 (("", "FlexiTP{0}".format(fw))[not i], 
                                  rho_v[i], eflex[i, j], 0))
-    for nsds in sdsl:
+    for nsds in sdsl: # Print results for SUTP with various Q
         for i, j in enumerate(rho_v):#index of node density
             g.extra_body.append("|%15s|%6d|%15f|%15f|\n" %
              (("", "SDS=%d$" % nsds)[not i],
               rho_v[i],
-              STATES['rx'] * 1000 * sglt * (nsds+1),
+              STATES['rx'] * 1000 * (sglt * nsds+ slot_t),
               r['energ'][i,nsds] * 1000.))
     g.extra_body.append(r"""
 \end{verbatim}
