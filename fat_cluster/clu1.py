@@ -1,16 +1,27 @@
-''' Produce plots of hierarchichal FAT.
+''' Produce plots of optimal unequal cluster size distribution
+
+In order to plot the results type:
+   python clu1.py 0
+
+In order to generate new results and plot them type:
+   python clu1.py 1
 
 Produce graphs about the dependency of the
 optimal layer size with the network size gamma, the network size beta, and
 the compression factor sigma.
 
 '''
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
+import pdb
+import shutil
+import subprocess
+import platform
 from matplotlib.font_manager import FontProperties
 
 fn = __file__[0:__file__.rfind('.')]
-compute = True
+compute = bool(int(sys.argv[1])) # Compute new results?
 plt.rc('font', size=10)
 
 def save(n):
@@ -77,7 +88,8 @@ def opt2(beta, gamma, sigma, event_rate=10, debug=False):
     '''Return optimal widths, variety improvement and quotient between
     internal and relay cost.
 
-    This is the main function of the script.
+    This is the main computational function of the script, but does not plot
+    anything.
 
     '''
     r_b = beta * tx_rg + r_a
@@ -114,10 +126,10 @@ def opt2(beta, gamma, sigma, event_rate=10, debug=False):
                 break
             best[i, :] = P[mx, :]
             div[i] = h2.copy()
-            if h2[mn] - t < hmin: 
+            if h2[mn] - t < hmin: # One layer has become too thin
                 break
-            h2[mn] += t
-            h2[mx] -= t       
+            h2[mn] += t # Extend the least energy consuming ring
+            h2[mx] -= t # Reduce the most energy consuming ring      
         else:
             raise Exception('We should not reach this point')
     i = best.sum(1).argmin()
@@ -138,12 +150,12 @@ def pl(n, x, lb, tit):
         if i == 2:
             ax.set_xlabel(lb)
         if n == 0:
-            ax.set_ylabel((r'mean($h_k$)', 
+            ax.set_ylabel((r'mean($h_k/r_{tx}$)', 
                 r'Variety improvement $\nu$ (%)', 
                 r'external to total ratio $\varepsilon$')[i])
         if i == 0:
             ax.set_title(tit)
-    ax.legend(('initial', 'final'), loc=(4, 1, 1)[n])
+    ax.legend(('before', 'after'), loc=(4, 1, 1)[n])
 
 r_a = 10.
 w0 = 100.0 # Cost of transmitting one packet 
@@ -193,7 +205,7 @@ gamma_v = np.linspace(0.2, 30, sam)
 sigma = 15. # Compression factor
 if compute:
     np.save('%s_1_%d.npy' %(fn, 1), [opt2(beta, g, sigma) for g in gamma_v])
-pl(1, gamma_v, r'Event size $\gamma$', 
+pl(1, gamma_v, r'normalized event size $\gamma$', 
     r'$\beta=%1.f;\sigma=%1.f$' %(beta,sigma))
 
 beta = 80. # Network size
@@ -205,4 +217,12 @@ pl(2, sigma_v, r'Compression factor $\sigma$',
     r'$\beta=%1.f;\gamma=%1.f$' %(beta, gamma))
 
 save(1)
-plt.show()
+#plt.show()
+orig='clu1_1.pdf'
+dest='../../latex/pic_clu1_1.pdf'
+shutil.copy(orig, dest)
+if platform.system() == 'Linux':
+    if platform.system() == 'Windows':
+        subprocess.Popen(['acrord32', orig])
+    else:
+        subprocess.Popen(['xpdf', orig])

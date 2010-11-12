@@ -38,6 +38,14 @@ T0 = 290 # Room temperature in Kelvin (=17C)
 INF = 9999 # Used in Dijkstra's algorithm
 TIER_MAX = 9999 # This tier indicates that the node is disconnected
 STATES = dict(tx=0.063, rx=0.030, id=0.030, sl=3-6) #Energy consumption
+def printarray(string):
+    # Print string and evaluate it
+    frame_record = inspect.stack(0)[1]
+    loc = frame_record[0].f_locals
+    print(string  + " = ")
+    # array = eval(string, globals(), loc)
+    # print(array)
+    print(eval(string, globals(), loc))
 def display(filename):
     if filename.endswith('pdf'):
         if platform.system() == 'Windows':
@@ -190,9 +198,9 @@ class Pgf(list):
         b.append('\\begin{document}\n')
         for i, axis in enumerate(z):
             b.append(2 * ' ' + '\\begin{tikzpicture}\n')
-            b.append(4 * ' ' + '\\begin{axis}[%\n' + 6 * ' ')
+            b.append(4 * ' ' + '\\begin{axis}[')
             b.append((',%\n' + 6 * ' ').join(axis.options))
-            b.append('\n' + 6 * ' ' +  ']%\n')
+            b.append(']%\n')
             b.extend(axis.buf)
             if axis.legend:
                 b.append(6 * ' ' + '\\legend{{' + '}, {'
@@ -230,12 +238,21 @@ class PgfAxis():
             z.buf.append(6 * ' ' + '\\addplot [' 
                     + (',\n' + 8 * ' ').join(args) + '] coordinates{%\n') 
         else:
-            z.buf.append(6 * ' ' + '\\addplot coordinates {%\n')
+            z.buf.append(6 * ' ' + '\\addplot coordinates { ')
         for i, (u, v) in enumerate(zip(x, y)):
             if i < len(x) - 1:
-                z.buf.append(8 * ' ' + "({0}, {1})%\n".format(u, v))
-            else:
-                z.buf.append(8 * ' ' + "({0}, {1})}};%\n".format(u, v))
+                if i % 3 == 2:
+                    z.buf.append(8*' '+"({0:+.2e},{1:+.2e})".format(u, v))
+                elif i % 3 == 0:
+                    z.buf.append("({0:+.2e},{1:+.2e})".format(u, v))
+                elif i % 3 == 1:
+                    z.buf.append("({0:+.2e},{1:+.2e})%\n".format(u, v))
+            elif i % 3 == 2:
+                z.buf.append(8*' '+"({0:+.2e},{1:+.2e})}};%\n".format(u, v))
+            elif i % 3 == 0:
+                z.buf.append("({0:+.2e},{1:+.2e})}};%\n".format(u, v))
+            elif i % 3 == 1:
+                z.buf.append("({0:+.2e},{1:+.2e})}};%\n".format(u, v))
         if leg is not None:
             z.legend.append(leg)
     def mplot(z, x, ym, leg=None):
@@ -2771,13 +2788,17 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
         energ=np.zeros((repetitions, len(rho_v), len(sdsl))),
         expe1=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
         expe2=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
+        # laten: acquisition latency (time to obtain a DB) multiplied
+        # by (1 + exp1 + exp2) (to take into account expulsions)
         laten=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
+        # lates: number of DBs spent without desired DBs
         lates=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
         losse=np.zeros((repetitions, len(rho_v), len(sdsl))),
         nadv1=np.zeros((repetitions, len(rho_v), len(fltfw))),
         nadv2=np.zeros((repetitions, len(rho_v), len(fltfw))),
         natre=np.zeros((repetitions, len(rho_v))),
-        pkets=np.zeros((repetitions, len(rho_v))),
+        #total number of packets that have to be scheduled:
+        pkets=np.zeros((repetitions, len(rho_v))), 
         sloov=np.zeros((repetitions, len(rho_v), len(sdsl) + len(fltfw))),
         slosu=np.zeros((repetitions, len(rho_v), 1+len(fltfw))),
         )
@@ -2823,15 +2844,15 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
                     o['laten'][k,i,len(sdsl)+u] = nx.record['laten']
                     o['lates'][k,i,len(sdsl)+u] = nx.record['lates']
                     expe12 = nx.expe12()
-                    o['expe1'][k,i,len(sdsl)+u] = expe12[0]
-                    o['expe2'][k,i,len(sdsl)+u] = expe12[1]
+                    o['expe1'][k,i,len(sdsl)+u]= expe12[0]/float(netc.natre)
+                    o['expe2'][k,i,len(sdsl)+u]= expe12[1]/float(netc.natre)
          # wsn.plot_tree()
         savedict(**o)
     r = load_npz()
     # Compute the unnormalized latency lateu
     #lateu = np.zeros(len(rho_v), len(sdsl)+len(fltfw))
-    lateu = r['laten']*(1 + r['expe1'] + r['expe2'])
-    lossu = r['losse']*(1+r['expe1'][:,:len(sdsl)]+r['expe2'][:,:len(sdsl)])
+    lateu = r['laten']/(1 + r['expe1'] + r['expe2'])
+    lossu = r['losse']/(1+r['expe1'][:,:len(sdsl)]+r['expe2'][:,:len(sdsl)])
     # Plot schedule length. Takeaway: FlexiTP requires more slots when the
     # network changes.
     x_t = r'node density $\bar{\rho}$'
@@ -2839,6 +2860,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     legsds = ['SDS = {0}'.format(i) for i in sdsl]
     legz = ['ACSP Q=0', 'ACSP Q=2', 'FlexiTP2 Q=0', 'FlexiTP2 Q=2']
     leg2 = ['$\\rho = {0}$'.format(rho_v[i]) for i in ind_rho_table]
+    leg3 = ['$\\rho = {0}$'.format(i) for i in rho_v]
     legflt = ["Flt fltfw = {0}".format(f) for f in fltfw]
     g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
     # Plot the packets destroyed by incorporations in ACSP
@@ -2859,6 +2881,8 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     #g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
     g.add(x_t, r'laten: per natreq') 
     g.mplot(rho_v, r['laten'], legsds + legflt)
+    g.add(x_t, r'lates: per natreq') 
+    g.mplot(rho_v, r['lates'], legsds + legflt)
     g.add(x_t, r'lateu: per unnormalized incorporation') 
     g.mplot(rho_v, lateu, legsds + legflt)
     g.add(x_t, r'losse: packets ruined per natreq in ACSP')
@@ -2883,16 +2907,14 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     duration_ope = slot_t * np.hstack((11*np.ones((len(rho_v),1)),
                                        r['nadv1']))
     numberof_ope = np.hstack((r['slosu'][:,0].reshape((-1,1)), 
-                              r['pkets'].reshape((-1,1))))
-    duration_tot = duration_ope * np.hstack((
-            r['slosu'][:,0].reshape((-1,1)), 
-            r['pkets'].reshape((-1,1)).repeat(2,1)))
+                              r['pkets'].reshape((-1,1)).repeat(2,1)))
+    duration_tot1 = duration_ope * numberof_ope
     g.add(x_t, "duration\_ope in ms")
     g.mplot(rho_v, duration_ope * 1000, legsu)
     g.add(x_t, "numberof\_ope")
-    g.mplot(rho_v, numberof_ope, legsu)
-    g.add(x_t, "duration\_tot")
-    g.mplot(rho_v, duration_tot, legsu)
+    g.mplot(rho_v, numberof_ope[:,0:2], legsu)
+    g.add(x_t, "duration\_tot1")
+    g.mplot(rho_v, duration_tot1, legsu)
     ##############################
     # Duration of the initialization phase as a function of the network size
     # using results from graphFlexiLength_01_000100.npz.
@@ -2901,12 +2923,17 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     n_frames = npz['n_frames'][:,(2,0,1)]
     rho_ind = -1
     rho = rho_v[-1]
-    duration_tol = duration_ope[[rho_ind]].repeat(len(y),0) * n_frames
-    g.add(r'normalized network length $\bar{y}$', "n~frames")
+    duration_tot2 = duration_ope[[rho_ind]].repeat(len(y),0) * n_frames
+    g.add(r'normalized network length $\bar{y}$', "n\_frames")
+    g.opt('title={{$\\rho={0}$}}'.format(rho))
     g.mplot(y, n_frames,legsu)
     g.add(r'normalized network length $\bar{y}$', 
-          "initialization in s for rho={0:f}".format(rho))
-    g.mplot(y, duration_tol, legsu)
+          "duration\_tot2 in s for rho={0:f}".format(rho))
+    g.mplot(y, duration_tot2, legsu)
+    y_ind = -1
+    duration_tot3 = duration_ope * n_frames[[y_ind]].repeat(len(rho_v),0)
+    g.add(x_t, "duration\_tot3 for y={0}".format(y[y_ind]))
+    g.mplot(rho_v, duration_tot3)
     ######################################
     # Postponement as a function of the node density.
     #  
@@ -2923,16 +2950,24 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     Ts = 10
     # Postponements of ACSP for Q=0 and Q=2
     for j, k in enumerate((0, 2)): 
-        postpone[:,j] = ((r['losse'][:,k]+r['lates'][:,k])
+        postpone[:,j] = (((r['losse'][:,k]+r['lates'][:,k]))
                          / Ts / r['pkets'][:])
     # Postponement of FlexiTP2 when operating under the acquisition
     # latency of ACSP with Q=0
-    postpone[:,2] = (r['lates'][:,3] * lateu[:,0] / lateu[:,3] 
+    postpone[:,2] = (r['lates'][:,3] * r['laten'][:,0] / r['laten'][:,3] 
                      / Ts / r['pkets'][:])
     # Postponement of FlexiTP2 when operating under the acquisition
     # latency of ACSP with Q=2
-    postpone[:,3] = (r['lates'][:,3] * lateu[:,2] / lateu[:,3]
+    postpone[:,3] = (r['lates'][:,3] * r['laten'][:,2] / r['laten'][:,3]
                      / Ts / r['pkets'][:])
+    printarray("lateu[:,0] / lateu[:,3]")
+    printarray("r['lates'][:,0] / r['lates'][:,3]")
+    printarray("lateu[:,0]")
+    printarray("lateu[:,3]")
+    printarray("r['lates'][:,0]")
+    printarray("r['lates'][:,0]")
+    printarray("r['laten'][:,0]")
+    printarray("r['laten'][:,3]")
     g.add(x_t, "postpone")
     g.mplot(rho_v, postpone, ("ACSP Q=0", "ACSP Q=2", "FlexiTP Q=0", 
                               "FlexiTP Q=2")) 
@@ -2993,7 +3028,22 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     sdsi = 0
     g.add('Period between changes $T_s$', 
           'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
-    g.mplot(Ts, Gbar[:,ind_rho_table,0,0], leg2)
+    g.mplot(Ts, Gbar[:,ind_rho_table,sdsi,0], leg2)
+    fwi = 0
+    sdsi = 2
+    g.add('Period between changes $T_s$', 
+          'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
+    g.mplot(Ts, Gbar[:,ind_rho_table,sdsi,0], leg2)
+    fwi = 0
+    sdsi = 0
+    g.add('Period between changes $T_s$', 
+          'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
+    g.mplot(Ts, Gbar[:,:,sdsi,0], leg3)
+    fwi = 0
+    sdsi = 2
+    g.add('Period between changes $T_s$', 
+          'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
+    g.mplot(Ts, Gbar[:,:,sdsi,0], leg3)
     #################
     g.extra_body.append(r"""
 \begin{verbatim}
