@@ -687,7 +687,10 @@ class PhyNet(Tree):
         '''Return attenuation in natural units.'''
         distance_atten = z.PL0 * (d / z.d0) ** z.p_exp
         shadow_fading = 10 ** (np.random.randn() * z.shadow / 10)
-        return distance_atten * shadow_fading
+        at = distance_atten * shadow_fading
+        if at == 0:
+            pdb.set_trace()
+        return at
     @property
     def tx_range(z):
         '''Return transmission range for certain transceiver parameters.
@@ -2852,6 +2855,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     # Compute the unnormalized latency lateu
     #lateu = np.zeros(len(rho_v), len(sdsl)+len(fltfw))
     lateu = r['laten']/(1 + r['expe1'] + r['expe2'])
+    printarray("lateu")
     lossu = r['losse']/(1+r['expe1'][:,:len(sdsl)]+r['expe2'][:,:len(sdsl)])
     # Plot schedule length. Takeaway: FlexiTP requires more slots when the
     # network changes.
@@ -2946,31 +2950,52 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     # + Columns 0 and 1 are for ACSP with Q=0 and Q=2.  
     # + Columns 2 and 3 are for FlexiTP2 when operating under the same
     #   acquisition latency as ACSP with Q=0 and ACSP with Q=2.
-    postpone = np.zeros((len(rho_v),4))
-    Ts = 10
-    # Postponements of ACSP for Q=0 and Q=2
-    for j, k in enumerate((0, 2)): 
-        postpone[:,j] = (((r['losse'][:,k]+r['lates'][:,k]))
+    if True: # Use until I get the good results
+        postpone = np.zeros((len(rho_v),4))
+        Ts = 10
+        # Postponements of ACSP for Q=0 and Q=2
+        for j, k in enumerate((0, 2)): 
+            postpone[:,j] = (((r['losse'][:,k]+r['lates'][:,k]))
+                             / Ts / r['pkets'][:])
+        # Postponement of FlexiTP2 when operating under the acquisition
+        # latency of ACSP with Q=0
+        postpone[:,2] = (r['lates'][:,3] * r['laten'][:,0] / r['laten'][:,3] 
                          / Ts / r['pkets'][:])
-    # Postponement of FlexiTP2 when operating under the acquisition
-    # latency of ACSP with Q=0
-    postpone[:,2] = (r['lates'][:,3] * r['laten'][:,0] / r['laten'][:,3] 
-                     / Ts / r['pkets'][:])
-    # Postponement of FlexiTP2 when operating under the acquisition
-    # latency of ACSP with Q=2
-    postpone[:,3] = (r['lates'][:,3] * r['laten'][:,2] / r['laten'][:,3]
-                     / Ts / r['pkets'][:])
-    printarray("lateu[:,0] / lateu[:,3]")
-    printarray("r['lates'][:,0] / r['lates'][:,3]")
-    printarray("lateu[:,0]")
-    printarray("lateu[:,3]")
-    printarray("r['lates'][:,0]")
-    printarray("r['lates'][:,0]")
-    printarray("r['laten'][:,0]")
-    printarray("r['laten'][:,3]")
-    g.add(x_t, "postpone")
-    g.mplot(rho_v, postpone, ("ACSP Q=0", "ACSP Q=2", "FlexiTP Q=0", 
-                              "FlexiTP Q=2")) 
+        # Postponement of FlexiTP2 when operating under the acquisition
+        # latency of ACSP with Q=2
+        postpone[:,3] = (r['lates'][:,3] * r['laten'][:,2] / r['laten'][:,3]
+                         / Ts / r['pkets'][:])
+        printarray("lateu[:,0] / lateu[:,3]")
+        printarray("r['lates'][:,0] / r['lates'][:,3]")
+        printarray("lateu[:,0]")
+        printarray("lateu[:,3]")
+        printarray("r['lates'][:,0]")
+        printarray("r['lates'][:,0]")
+        printarray("r['laten'][:,0]")
+        printarray("r['laten'][:,3]")
+        g.add(x_t, "postpone")
+        g.mplot(rho_v, postpone, ("ACSP Q=0", "ACSP Q=2", "FlexiTP Q=0", 
+                                  "FlexiTP Q=2")) 
+
+        printarray("r['lates'][:,3]")
+        printarray("r['laten'][:,0]")
+        printarray("r['laten'][:,3]")
+        postpon4 = np.hstack(
+            (r['losse'][:,(0,2)]+r['lates'][:,(0,2)], 
+             (r['lates'][:,3]* r['laten'][:,0]/r['laten'][:,3])
+             .reshape((-1,1))
+             ))
+        printarray("r['pkets']")
+        postpon4 /=  Ts * r['pkets'].reshape((-1,1))
+        g.add(x_t, "postpon4")
+        g.mplot(rho_v, postpon4, ("ACSP Q=0", "ACSP Q=2", "FlexiTP2"))
+    else: # When I get good results
+        postpon4 = np.hstack(
+            (r['losse'][:,(0,2)]+r['lates'][:,(0,2)],
+             r['lates'][:,3] * lateu[:,0] / lateu[:,3]
+             ) / Ts / r['pkets'])
+        g.add(x_t, "postpon4")
+        g.mplot(rho_v, postpon4, ("ACSP Q=0", "ACSP Q=2", "FlexiTP2"))
     #
     # Compute postpon2, which is the number of postponenements as a function
     # of Ts, which is the average interval between naturally required slots.
@@ -3044,12 +3069,118 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     g.add('Period between changes $T_s$', 
           'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
     g.mplot(Ts, Gbar[:,:,sdsi,0], leg3)
-    #################
+    # E_f is the fixed energy consumption, i.e. the energy consumed when no
+    # node is seeking a slot.  E_f is the fixed energy per node.
     g.extra_body.append(r"""
 \begin{verbatim}
 """)
+    g.extra_body.append("|%15s|%6s|%15s|%15s|\n" %("Protocol", "rho",
+          "E_f", "E_g"))
+    for j, fw in enumerate(fltfw):# Print esults for FlexiTP2 and FlexiTP3
+        for i in ind_rho_table:#index of node density
+            g.extra_body.append("|%15s|%6d|%15f|%15f|\n" %
+                                (("", "FlexiTP{0}".format(fw))[not i], 
+                                 rho_v[i], eflex[i, j], 0))
+    for nsds in sdsl: # Print results for SUTP with various Q
+        for i, j in enumerate(rho_v):#index of node density
+            g.extra_body.append("|%15s|%6d|%15f|%15f|\n" %
+             (("", "SDS=%d$" % nsds)[not i],
+              rho_v[i],
+              STATES['rx'] * 1000 * (sglt * nsds+ slot_t),
+              r['energ'][i,nsds] * 1000.))
+    g.extra_body.append(r"""
+\end{verbatim}
+""")
+    #==================================================================
+    #################  Second part
+    extra_lat = 1.7 # Fraction by which FlexiTP's latency is longer This
+    # r['laten'][:,2] is a good indicator of the latency of normalized
+    # latency of fl
+    before_final_results = True
+    Ts = 20
+    inc_flexitp =(r['laten'][:,2]/r['laten'][:,3]*extra_lat).reshape((-1,1))
+    g.add(x_t, "inc\_flexitp")
+    g.plot(rho_v, inc_flexitp.ravel())
+    if before_final_results: # Use until I get the good results
+        postpon4=np.hstack((r['losse'][:,(0,2)]+r['lates'][:,(0,2)],
+               r['lates'][:,[3]]*inc_flexitp))/Ts/r['pkets'].reshape((-1,1))
+        g.add(x_t, "postpon4")
+        g.mplot(rho_v, postpon4, ("ACSP Q=0", "ACSP Q=2", "FlexiTP2"))
+        late1=np.hstack((lateu[:,(0,2)], r['laten'][:,[3]], lateu[:,[2]] * 
+                         extra_lat))
+        g.add(x_t, r'late1: per natreq') 
+        g.mplot(rho_v, late1, ['ACSP Q=0', 'ACSP Q=2', 'FlexiTP2 min',
+                                'FlexiTP2 evaluated'])
+    else: # When I get good results
+        postpon4 = np.hstack(
+            (r['losse'][:,(0,2)]+r['lates'][:,(0,2)],
+             r['lates'][:,3] * lateu[:,0] / lateu[:,3]
+             ) / Ts / r['pkets'])
+        g.add(x_t, "postpon4")
+        g.mplot(rho_v, postpon4, ("ACSP Q=0", "ACSP Q=2", "FlexiTP2"))
+    g.extra_body.append(r"""
+\begin{verbatim}
+""")
+    #nw.adjust_schedule_in_tx_phase(until=200)
+    #
+    # Compute and plot the normalized gain as a function of the Teta
+    #
+    # + eflex: total (fixed + variable) energy consumed by FlexiTP's
+    # + E_v_sutp_0: variable energy consumed by FlexiTP
+    # + E_f_sutp   : variable energy consumed by FlexiTP
+    #
+    # Ts is the interval between naturally required slots
+    # Compute the gain as a function of Teta (interval between naturally
+    # required slots.
+    eflex = STATES['tx'] * r['nadv2'] * slot_t
+    print("eflex = {0}".format(eflex))
+    Tsv = np.arange(20, 40, 4) # frames between natreq slots
+    Gbar = np.zeros((len(Tsv), len(rho_v), len(sdsl), len(fltfw)))
+    for u, Ts in enumerate(Tsv):
+        for s, sds in enumerate(sdsl):
+            for i, rho in enumerate(rho_v):
+                for h in xrange(len(fltfw)):
+                    E_t_sutp = (STATES['rx']*(slot_t + sglt * sds)
+                                + r['energ'][i, s] / Ts / n_nodes[i])
+                    x = eflex[i,h]/inc_flexitp[i]
+                    y = E_t_sutp
+                    Gbar[u, i, s, h] = 100 * (x - y) / x
+    for u, k in enumerate(fltfw):
+        for Tsi in (0, len(Tsv)/2, -1): #index in the Ts vector
+            g.add(x_t, "Gain over FlexiTP{0} for Ts={1}".format(k,Tsv[Tsi]))
+            g.mplot(rho_v, Gbar[Tsi,:,[0,2],u].T, ('Q=0','Q=2')) 
+    fwi, sdsi = 0, 0
+    g.add('Period between changes $T_s$', 
+          'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
+    g.mplot(Tsv, Gbar[:,ind_rho_table,sdsi,0], leg2)
+    fwi, sdsi = 0, 2
+    g.add('Period between changes $T_s$', 
+          'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
+    g.mplot(Tsv, Gbar[:,ind_rho_table,sdsi,0], leg2)
+    fwi, sdsi = 0, 0
+    g.add('Period between changes $T_s$', 
+          'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
+    g.mplot(Tsv, Gbar[:,:,sdsi,0], leg3)
+    fwi, sdsi = 0, 2
+    g.add('Period between changes $T_s$', 
+          'barG FlexiTP{0}/SDS{1}'.format(fltfw[fwi],sdsl[sdsi]))
+    g.mplot(Tsv, Gbar[:,:,sdsi,0], leg3)
     # E_f is the fixed energy consumption, i.e. the energy consumed when no
     # node is seeking a slot.  E_f is the fixed energy per node.
+    for Tsi in (0, len(Tsv)/2, -1): #index in the Ts vector
+        v2 = Gbar[Tsi,:,0,[0,1]].T
+        printarray('v2')
+        g.add(x_t,"G for Ts={0}".format(Tsv[Tsi]))
+        g.mplot(rho_v, v2, ['FlexiTP2', 'FlexiTp3'])
+    for i, rho in enumerate(rho_v):
+        v3 = Gbar[:,i,0,[0,1]]
+        printarray('v3')
+        g.add('Tsv','G for $\\rho={0}$'.format(rho))
+        g.mplot(Tsv, v3, ['FlexiTP2', 'FlexiTP3'])
+        
+    g.extra_body.append(r"""
+\begin{verbatim}
+""")
     g.extra_body.append("|%15s|%6s|%15s|%15s|\n" %("Protocol", "rho",
           "E_f", "E_g"))
     for j, fw in enumerate(fltfw):# Print esults for FlexiTP2 and FlexiTP3
@@ -3068,7 +3199,224 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
 \end{verbatim}
 """)
     g.save(plot=plot)
-    #nw.adjust_schedule_in_tx_phase(until=200)
+def graphFlexiSds2(tst_nr=0, repetitions=1, action=0, plot=False):
+    """Dependence on the number of SDS tones. 
+
+    tsn_nr:seconds per iteration, 1:2700@ee-modalap
+    1:3982@packard
+
+    DEBUGGING:
+    
+    It breaks down for iteration 962, SDS = 0, simulating for 20 nodes.
+    """
+    bitrate = 19.2e3
+    packet_size = 56 * 8 # bits
+    cycles = [3, 3][tst_nr]
+    vcycle = xrange(cycles+1)
+    z = float(cycles)
+    slot_t = packet_size / bitrate
+    sglt = 20.0 / bitrate # 10 bits
+    x, y = np.array([[2, 2],[3,3]][tst_nr]) * tx_rg1
+    rho_v = np.array(((7,8,9), (7,11,15,19,22), 
+                      (7,10,13,16,19,21))[tst_nr])
+    # Since the number of expelled nodes per incorporation is 0.05, the
+    # minimum number of repetitions should be 200.
+    n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
+    nnew = 2 # Number of new nodes to add 
+    o = dict(
+        attem=np.zeros((repetitions, len(rho_v))),
+        dismi=np.zeros((repetitions, len(rho_v), 3)),
+        energ=np.zeros((repetitions, len(rho_v))),
+        expe1=np.zeros((repetitions, len(rho_v),3)),
+        expe2=np.zeros((repetitions, len(rho_v),3)),
+        # laten: acquisition latency (time to obtain a DB) multiplied
+        # by (1 + exp1 + exp2) (to take into account expulsions)
+        laten=np.zeros((repetitions, len(rho_v), 3)),
+        # lates: number of DBs spent without desired DBs
+        lates=np.zeros((repetitions, len(rho_v), 3)),
+        losse=np.zeros((repetitions, len(rho_v))),
+        nadv1=np.zeros((repetitions, len(rho_v),2)),
+        nadv2=np.zeros((repetitions, len(rho_v),2)),
+        natre=np.zeros((repetitions, len(rho_v))),
+        #total number of packets that have to be scheduled:
+        pkets=np.zeros((repetitions, len(rho_v))), 
+        slots=np.zeros((repetitions, cycles+1, len(rho_v), 3)),
+        )
+    print(n_nodes)
+    if action == 1:
+        for k in xrange(repetitions):
+            print_iter(k, repetitions)
+            for i, c in enumerate(n_nodes):
+                print_nodes(c, k)
+                wsn = PhyNet(c=c, x=x, y=y, **net_par1)
+                hu = sum(x for x in (wsn.tier(w) for w in xrange(wsn.c))
+                         if x < TIER_MAX)
+                o['pkets'][k,i] = hu
+                nt = [ACSPNet(wsn, cont_f=100., Q=1/bitrate, slot_t=slot_t,
+                              pairs=30, VB=0), 
+                      FlexiTPNet(wsn, fw=2, n_exch=70),
+                      FlexiTPNet(wsn, fw=3, n_exch=70)]
+                for r, n in enumerate(nt):
+                    o['slots'][k,0,i,r] = n.n_slots()
+                    o['dismi'][k, i, r] = n.dismissed()
+                    if r > 0:
+                        o['nadv1'][k,i,r-1] = n.nadve
+                for q in xrange(cycles):
+                    np.random.seed(repetitions + q)
+                    wsn.mutate_network(c - nnew, nnew)
+                    for u, nx in enumerate(nt):
+                        print("Updating network {0}".format(u))
+                        np.random.seed(k)
+                        if u == 0:
+                            nx.adjust_schedule_in_tx_phase(nsds=0,
+                                        sglt=sglt, cap=1,mult=8)
+                            o['natre'][k, i] += nx.natre / z
+                            o['energ'][k,i]+= nx.incorp_ener()/ z
+                            for v in('expe1','expe2','laten','lates'):
+                                o[v][k,i,u] += nx.record[v] / z
+                            for v in ('attem','losse'):
+                                o[v][k,i] += nx.record[v] /z
+                        else:
+                            nx.adjust_schedule_in_tx_phase()
+                            o['nadv2'][k,i,u-1]+= nx.nadve / z
+                            o['laten'][k,i,u] += nx.record['laten'] / z
+                            o['lates'][k,i,u] += nx.record['lates'] / z
+                            expe12=[a/float(nt[0].natre) for a in nx.expe12()]
+                            o['expe1'][k,i,u]+= expe12[0]/z
+                            o['expe2'][k,i,u]+= expe12[1]/z
+                        o['slots'][k,q,i,u]+= nx.n_slots()/z
+         # wsn.plot_tree()
+        savedict(**o)
+    r = load_npz()
+    # Compute the unnormalized latency lateu
+    #lateu = np.zeros(len(rho_v), len(sdsl)+len(fltfw))
+    lateu = r['laten']/(1 + r['expe1'] + r['expe2'])
+    printarray("lateu")
+    lossu = r['losse']/(1+r['expe1'][:,0]+r['expe2'][:,0])
+    # Plot schedule length. Takeaway: FlexiTP requires more slots when the
+    # network changes.
+    x_t = r'node density $\bar{\rho}$'
+    legsu = ['ACSP', 'Flt fr=2', 'Flt fr=3']
+    legz = ['ACSP Q=0', 'ACSP Q=2', 'FlexiTP2 Q=0', 'FlexiTP2 Q=2']
+    leg3 = ['$\\rho = {0}$'.format(i) for i in rho_v]
+    legflt = ["FlexiTP2", "FlexiTP3"]
+    g = Pgf(extra_preamble='\\usepackage{plotjour1}\n')
+    # Plot the packets destroyed by incorporations in ACSP
+    g.add(x_t, r'attem: attempts per natre')
+    g.plot(rho_v, r['attem'])
+    g.add(x_t, r'dismi')
+    g.mplot(rho_v, r['dismi'], legsu)
+    g.add(x_t, r'energ: per natreq')
+    g.plot(rho_v, r['energ'])
+    g.add(x_t, r'expe1: expelled  per natreq')
+    g.mplot(rho_v, r['expe1'], legsu)
+    g.add(x_t, 'expe1 + expe2')
+    g.mplot(rho_v, r['expe1'] + r['expe2'], legsu)
+    g.add(x_t, r'expe2/expe1')
+    inz = np.where(r['expe1'] > 0, r['expe1'], 9999.)
+    quot = r['expe2'] / inz 
+    g.mplot(rho_v, quot, legsu)
+    #g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
+    g.add(x_t, r'laten: per natreq') 
+    g.mplot(rho_v, r['laten'], legsu)
+    g.add(x_t, r'lates: per natreq') 
+    g.mplot(rho_v, r['lates'], legsu)
+    g.add(x_t, r'lateu: per unnormalized incorporation') 
+    g.mplot(rho_v, lateu, legsu)
+    g.add(x_t, r'losse: packets ruined per natreq in ACSP')
+    g.plot(rho_v, r['losse'])
+    g.add(x_t, r'lossu: packets ruined per unnormalized ACSP incorporation')
+    g.plot(rho_v, lossu)
+    g.plot(rho_v, np.zeros(len(rho_v)), 'FlexiTP')
+    g.add(x_t, r"nadv1: slots per exchange in FlexiTP's setup")
+    g.mplot(rho_v, r['nadv1'], legflt)
+    g.add(x_t, r"nadv2: slots per exchange in FlexiTP's tx")
+    g.mplot(rho_v, r['nadv2'], legflt)
+    g.add(x_t, "natre: naturally required slots")
+    g.plot(rho_v, r['natre'])
+    g.add(x_t, "slots[0,:,:]")
+    g.mplot(rho_v, r['slots'][0])
+    #######################################
+    # Plot duration of scheduling operation.
+    # 11 is the number of slots per CF when using pairs=7 in ACSP
+    duration_ope = slot_t * np.hstack((11*np.ones((len(rho_v),1)),
+                                       r['nadv1']))
+    numberof_ope = np.hstack((r['slots'][0,:,0].reshape((-1,1)), 
+                              r['pkets'].reshape((-1,1)).repeat(2,1)))
+    duration_tot1 = duration_ope * numberof_ope
+    g.add(x_t, "duration\_ope in ms")
+    g.mplot(rho_v, duration_ope * 1000, legsu)
+    g.add(x_t, "numberof\_ope")
+    g.mplot(rho_v, numberof_ope[:,0:2], legsu)
+    g.add(x_t, "duration\_tot1")
+    g.mplot(rho_v, duration_tot1, legsu)
+    ##############################
+    # Duration of the initialization phase as a function of the network size
+    # using results from graphFlexiLength_01_000100.npz.
+    y = np.arange(1, 10, 2)
+    npz = np.load("graphFlexiLength_01_000100.npz")
+    n_frames = npz['n_frames'][:,(2,0,1)]
+    rho_ind = -1
+    rho = rho_v[-1]
+    duration_tot2 = duration_ope[[rho_ind]].repeat(len(y),0) * n_frames
+    g.add(r'normalized network length $\bar{y}$', "n\_frames")
+    g.opt('title={{$\\rho={0}$}}'.format(rho))
+    g.mplot(y, n_frames,legsu)
+    g.add(r'normalized network length $\bar{y}$', 
+          "duration\_tot2 in s for rho={0:f}".format(rho))
+    g.mplot(y, duration_tot2, legsu)
+    y_ind = -1
+    duration_tot3 = duration_ope * n_frames[[y_ind]].repeat(len(rho_v),0)
+    g.add(x_t, "duration\_tot3 for y={0}".format(y[y_ind]))
+    g.mplot(rho_v, duration_tot3)
+    extra_lat = 1.7 # Fraction by which FlexiTP's latency is longer This
+    # r['laten'][:,2] is a good indicator of the latency of normalized
+    # latency of fl
+    Ts = 20
+    inc_flexitp =lateu[:,[0]]/r['laten'][:,[1]]*extra_lat
+    printarray("lateu")
+    printarray("r['laten']")
+    printarray("inc_flexitp")
+    return
+    g.add(x_t, "inc\_flexitp")
+    g.plot(rho_v, inc_flexitp.ravel())
+    postpon4=np.hstack((r['losse'][:,[0]]+r['lates'][:,[0]],
+            r['lates'][:,[1]]*inc_flexitp))/Ts/r['pkets'].reshape((-1,1))
+    g.add(x_t, "postpon4")
+    g.mplot(rho_v, postpon4, ("ACSP Q=0","FlexiTP2"))
+    late1=np.hstack((lateu[:,[0,1]], lateu[:,[0]] * extra_lat))
+    g.add(x_t, r'late1: per natreq') 
+    g.mplot(rho_v, late1, ['ACSP Q=0', 'ACSP Q=2', 'FlexiTP2 min',
+                            'FlexiTP2 evaluated'])
+    # Compute and plot the normalized gain as a function of the Teta
+    #
+    # + eflex: total (fixed + variable) energy consumed by FlexiTP's
+    # + E_v_sutp_0: variable energy consumed by FlexiTP
+    # + E_f_sutp   : variable energy consumed by FlexiTP
+    #
+    # Ts is the interval between naturally required slots
+    # Compute the gain as a function of Teta (interval between naturally
+    # required slots.
+    eflex = STATES['tx'] * r['nadv2'] * slot_t
+    print("eflex = {0}".format(eflex))
+    Tsv = np.arange(20, 40, 4) # frames between natreq slots
+    Gbar = np.zeros((len(Tsv), len(rho_v), 2))
+    for u, Ts in enumerate(Tsv):
+        for i, rho in enumerate(rho_v):
+            for h in xrange(2):
+                E_t_sutp =STATES['rx']*slot_t+r['energ'][i]/Ts/n_nodes[i]
+                x = eflex[i,h]/inc_flexitp[i]
+                y = E_t_sutp
+                Gbar[u, i, h] = 100 * (x - y) / x
+    for Tsi in (0, len(Tsv)/2, -1): #index in the Ts vector
+        g.add(x_t, "G for Ts={0}".format(Tsv[Tsi]))
+        g.mplot(rho_v, Gbar[Tsi], ('Q=0','Q=2')) 
+    for i, rho in enumerate(rho_v):
+        v3 = Gbar[:,i,:]
+        printarray('v3')
+        g.add('Tsv','G for $\\rho={0}$'.format(rho))
+        g.mplot(Tsv, v3, ['FlexiTP2', 'FlexiTP3'])
+    g.save(plot=plot)
 def debugGraphFlexiSds():
     """Dependence on the number of SDS tones. 
     tsn_nr:seconds per iteration, 1:2700@ee-modalap
