@@ -2399,11 +2399,8 @@ def graphRandSched1(tst_nr, repetitions, action):
     tst_nr -- 0 or 1
     
     """
-    file_name = "{0}_{1:02d}".format(sys._getframe().f_code.co_name, tst_nr)
-    tx_rg = PhyNet(tx_p=1e-6, BW=256e3, sinr=20, d0=100, PL0=1e8, 
-                   p_exp=3.5, shadow=8.0).tx_range
-    x, y = np.array([[1,8],[3,8]][tst_nr]) * tx_rg
-    rho_v = np.array([[7,14], [7,14,28]] [tst_nr])
+    x, y = np.array([[1,8],[3,8]][tst_nr]) * tx_rg1
+    rho_v = np.array([[7,14], [7,12,17,22,27]] [tst_nr])
     # Number of nodes in the network (cardinalityVector)
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg**2).round(), int)
     # Slots of centralized algorithms
@@ -2425,160 +2422,18 @@ def graphRandSched1(tst_nr, repetitions, action):
                         slot_t=2, VB=False, until=1e9)
                 o['slots'][k, i, 2] = max(rs_net.schedule())
         savedict(**o)
-    r = np.load(file_name + '.npz')
+    r = load_npz()
     slots = r['slots']
     uncon = rslt['uncon'].mean(axis=0)
     # Comparison of slot number of BF vs RandSched
     g = Pgf()
     g.add(r'node density $\rho$', r'number of slots $M$')
-    g.opt('ybar', 'bar width=10pt', 'ymin=0', 'enlarge x limits=0.2')
-    g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
-    g.opt(r'xtick={' + ', '.join([str(i) for i in xrange(len(rho_v))]) 
-                                 + r'}')
-    g.opt(r'xticklabels={' + ', '.join([str(i) for i in rho_v]) + r'}' )
-    g.mplot(range(3), r['slots'] / n_nodes.reshape((3,1)), 
+    g.mplot(rho_v, r['slots'] / n_nodes.reshape((3,1)), 
             ['BF2', 'BF3', 'RandSched'])
     g.add(r'node density $\rho$', 'fraction of unconnected nodes')
     g.opt('ymode=log')
-    g.mplot(rho_v, uncon, ['BF2','BF3'])
+    g.mplot(rho_v, r['uncon'], ['BF2','BF3'])
     g.save()
-def graphRandSched2(tst_nr=1, action=2):
-    '''Plot size of RandSched's schedule for different node densities,
-    numbers of pairs of slots, and lengths of the contention window.
-
-    Parameters to call this script with:
-    * tst_nr:
-            0: fast test
-            1: parameters for publication
-
-    * action: 
-        0: compute the results and store them in a file
-        1: plot all the results
-        2: (RECOMENDED): plot a reduced version for publication
-
-    '''
-    file_name = "{0}_{1:02d}".format(sys._getframe().f_code.co_name, tst_nr)
-    file_name = "graphRandSched2_{0:02d}".format(tst_nr)
-    tx_rg = PhyNet(tx_p=1e-6, BW=256e3, sinr=20, d0=100, PL0=1e8, p_exp=3.5,
-                   shadow=8.0).tx_range
-    x, y = np.array([[2,4],[3,2]][tst_nr]) * tx_rg
-    # Node density
-    rho_v = np.array([[7,14,28,40], [7,14,28,56]] [tst_nr])
-    # cont_f = how many times is the contention window longer than Q
-    cont_f = np.array([[2,8],[2,4,8,16,32]][tst_nr], int)
-    # Pairs of slots for the resolution of the hidden terminal problem
-    pairs = np.array([[2,32],[2,4,8,16,32,64]][tst_nr])
-    repetitions = [1, 402][tst_nr] 
-    n_nodes = np.array((rho_v * x * y / np.pi / tx_rg**2).round(), int)
-    # r is the matrix that will contain the results
-    r = np.zeros((n_nodes.size, len(cont_f), len(pairs),
-                  repetitions)) 
-    # Set graphical properties
-    font1 = FontProperties(size=8,family='serif')
-    font2 = dict(fontsize=8)
-    font3 = FontProperties(size=10,family='serif')
-    fs = (3,9)
-    dpi = 200
-    def pub(figure_number):
-        plt.savefig('{0}_{1}.png'.format(file_name, figure_number), dpi=dpi)
-        plt.savefig('{0}_{1}.eps'.format(file_name, figure_number), dpi=dpi)
-    if action == 0:
-        for h in xrange(repetitions):
-            print("Iteration =  {0}".format(h))
-            np.random.seed(h)
-            for i, c in enumerate(n_nodes):
-                wsn = PhyNet(c=c, x=x, y=y, n_tries=50)
-                for j, c_f in enumerate(cont_f):
-                    for k, p in enumerate(pairs):
-                        try:
-                            rs_net = sc.RandSchedNet(wsn, cont_f=c_f,
-                                pairs=p, Q=0.1, slot_t=2, VB=False)
-                            rs_net.run_su(until=1e9)
-                            r[i,j,k,h] = max(rs_net.schedule())
-                        except sc.NoProgressError:
-                            # Do not change the value --> error indication
-                            pass 
-        np.save(file_name, r)
-    elif action == 1:
-        r = np.load(file_name + '.npy') 
-        plt.ioff()
-        plt.close('all')
-        figure_number = 1
-        fig = plt.figure(figure_number, figsize=fs)
-        for i, rho in enumerate(rho_v):
-            ax = fig.add_subplot(len(rho_v), 1, i + 1)
-            m = 0 # max
-            for j, c_f in enumerate(cont_f):
-                x = np.array([[p, a.mean()] 
-                              for p, a in zip(pairs, r[i,j]) if a.all()])
-                if x.size:
-                    ax.plot(np.log2(x[:,0]), x[:,1], '-o', 
-                            label="contF = {0}".format(c_f))
-                    m = max(m, max(x[:,1]))
-            ax.set_title(r'Node density $\rho$ = {0}'.format(rho), font2)
-            ax.set_ylabel('Number of slots', font2)
-            ax.set_ybound(0, m)
-            plt.legend(loc='lower left', prop=font1)
-            plt.setp(ax.get_xticklabels() + ax.get_yticklabels(), 
-                    fontproperties=font1)
-        ax.set_xlabel('log2(pairs)', font2)
-        fig.subplots_adjust(left=0.2, hspace=0.5)
-        plt.show()
-        pub(1)
-    elif action == 2:
-        r = np.load(file_name + '.npy') 
-        g = Pgf()
-        g.add(r'$\log_2(L)$', r'number of slots $M$')
-        for q, i in enumerate((2,3)):
-            m = 0 # max
-            for k, j in enumerate((0,4)):
-                x = np.array([[p, a.mean()] 
-                              for p, a in zip(pairs, r[i,j]) if a.all()])
-                g.plot(np.log2(x[:,0]), x[:,1],
-                       r"$\rho={0}, \gamma = {1}$"
-                       .format(rho_v[i], cont_f[j]))
-        g.save()
-    else:
-        raise Exception, "Unexpected action"
-def graphRandSched3(tst_nr=1, action=1):
-    '''Plot size of RandSched's schedule for different node densities,
-    numbers of pairs of slots, and lengths of the contention window.
-
-    Parameters to call this script with:
-    * tst_nr:
-            0: fast test
-            1: parameters for publication
-    * action: 
-        0: compute the results and store them in a file
-        1: plot all the results
-    '''
-    x, y = np.array([[2,4],[4,4]][tst_nr]) * tx_rg1
-    rho_v = np.array([[7,14,28,40], [7,18,29]] [tst_nr])
-    pairs = np.array([[2,32],[4,6,8,10,12]][tst_nr])
-    repetitions = [1, 500][tst_nr] 
-    n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
-    n_slots = np.zeros((repetitions, n_nodes.size, len(pairs))) 
-    if action == 0:
-        for h in xrange(repetitions):
-            print("Iteration =  {0}".format(h))
-            for i, c in enumerate(n_nodes):
-                print_nodes(c, h)
-                wsn = PhyNet(c=c, x=x, y=y, n_tries=50)
-                for j, p in enumerate(pairs):
-                    rs_net = RandSchedNet(wsn, cont_f=40, pairs=p,
-                            Q=0.1, slot_t=2, VB=False, until=1e9)
-                    n_slots[h,i,j] = max(rs_net.schedule())
-        save_npz('n_slots')
-    r = load_npz()
-    g = Pgf()
-    g.add("contention pairs", "relative schedule increase \%")
-    for rho, n_slots in zip(rho_v, r['n_slots']):
-        idx = np.nonzero(n_slots > 0)
-        x = pairs[idx]
-        y = n_slots[idx]
-        y = 100. *(y - y[-1]) / float(y[-1])
-        g.plot(pairs[idx], y, r"$\bar{{\rho}}$ = {0}".format(rho))
-    g.save(plot=action)
 def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=0):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
@@ -2594,21 +2449,25 @@ def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=0):
     xv = np.array([[4, 6, 8, 10, 12],[4, 6, 8, 10, 12]][tst_nr]) * tx_rg1
     rho = 7
     n_nodes = np.array((rho * xv**2 / np.pi / tx_rg1**2).round(), int)
-    o = dict(n_slots=np.zeros((repetitions, n_nodes.size)))
+    o = dict(n_slots=np.zeros((repetitions, n_nodes.size,3)))
     if action == 1:
         for k in xrange(repetitions):
             print_iter(k, repetitions)
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=xv[i], y=xv[i], n_tries=50, **net_par1)
+                for j, h in enumerate((2,3)):
+                    slot_v = wsn.bf_schedule(hops=h)
+                    o['n_slots'][k, i, j] = max(slot_v)
                 rs_net = RandSchedNet(wsn, cont_f=40, pairs=6,
                                       Q=0.1, slot_t=2, VB=False, until=1e9)
-                o['n_slots'][k,i] = max(rs_net.schedule())
+                o['n_slots'][k,i,2] = max(rs_net.schedule())
         savedict(**o)
     r = load_npz()
     g = Pgf()
     g.add("number of node in the network $M$", "$M/N$")
-    g.plot(n_nodes, r['n_slots'] / n_nodes)
+    g.mplot(n_nodes, r['n_slots'] / n_nodes.reshape(-1,1), 
+            ['BF2', 'BF3', 'RandSched'])
     g.save(plot=action)
 def tst_FlexiTP2():
     np.random.seed(0)
