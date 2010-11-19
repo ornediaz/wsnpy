@@ -2402,7 +2402,7 @@ def graphRandSched1(tst_nr, repetitions, action):
     x, y = np.array([[1,8],[3,8]][tst_nr]) * tx_rg1
     rho_v = np.array([[7,14], [7,12,17,22,27]] [tst_nr])
     # Number of nodes in the network (cardinalityVector)
-    n_nodes = np.array((rho_v * x * y / np.pi / tx_rg**2).round(), int)
+    n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
     # Slots of centralized algorithms
     o = dict(slots=np.zeros((repetitions, n_nodes.size, 3)), 
              # Unconnection ratio of of centralized algorithms
