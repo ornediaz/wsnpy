@@ -2765,6 +2765,8 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
 
     tsn_nr:seconds per iteration, 1:2700@ee-modalap
     1:3982@packard
+    
+    1000 repetitions on ee-moda take 15 days
 
     DEBUGGING:
     
@@ -2938,6 +2940,23 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     duration_tot3 = duration_ope * n_frames[[y_ind]].repeat(len(rho_v),0)
     g.add(x_t, "duration\_tot3 for y={0}".format(y[y_ind]))
     g.mplot(rho_v, duration_tot3)
+    #########################
+    # New results multiplying by the node density
+    mult_fact = np.array(rho_v, float)
+    mult_fact = mult_fact / mult_fact[0]
+    n_frames2 = mult_fact * n_frames.reshape(len(y),3,1).repeat(
+        len(rho_v), 2) * mult_fact
+    rho_ind = -1
+    rho = rho_v[-1]
+    duration_tot5 = (duration_ope[[rho_ind]].repeat(len(y),0)
+                     * n_frames2[:,:,rho_ind])
+    g.add(r'normalized network length $\bar{y}$', 
+          "duration\_tot5 in s for rho={0:f}".format(rho))
+    g.mplot(y, duration_tot5, legsu)
+    y_ind = -1
+    duration_tot6 = n_frames2[y_ind].T * duration_ope
+    g.add(x_t, "duration\_tot6 for y={0}".format(y[y_ind]))
+    g.mplot(rho_v, duration_tot6, legsu)
     ######################################
     # Postponement as a function of the node density.
     #  
@@ -2989,6 +3008,13 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
         postpon4 /=  Ts * r['pkets'].reshape((-1,1))
         g.add(x_t, "postpon4")
         g.mplot(rho_v, postpon4, ("ACSP Q=0", "ACSP Q=2", "FlexiTP2"))
+        postpon5 = np.hstack((
+             r['losse'][:,[0]]+r['lates'][:,[0]], 
+             r['lates'][:,[3]], 
+             r['lates'][:,[3]] * r['laten'][:,[0]]/r['laten'][:,[3]] * 1.7
+             )) / Ts / r['pkets'].reshape((-1,1))
+        g.add(x_t, "postpon5")
+        g.mplot(rho_v, postpon5, ("ACSP Q=0", "FlexiTP2 min", "FlexiTP2 eval"))
     else: # When I get good results
         postpon4 = np.hstack(
             (r['losse'][:,(0,2)]+r['lates'][:,(0,2)],
@@ -3200,14 +3226,8 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
 """)
     g.save(plot=plot)
 def graphFlexiSds2(tst_nr=0, repetitions=1, action=0, plot=False):
-    """Dependence on the number of SDS tones. 
+    """ Energy comparison between SUTP with Q=0, FlexiTP2, and FlexiTP3.
 
-    tsn_nr:seconds per iteration, 1:2700@ee-modalap
-    1:3982@packard
-
-    DEBUGGING:
-    
-    It breaks down for iteration 962, SDS = 0, simulating for 20 nodes.
     """
     bitrate = 19.2e3
     packet_size = 56 * 8 # bits
@@ -3377,7 +3397,6 @@ def graphFlexiSds2(tst_nr=0, repetitions=1, action=0, plot=False):
     printarray("lateu")
     printarray("r['laten']")
     printarray("inc_flexitp")
-    return
     g.add(x_t, "inc\_flexitp")
     g.plot(rho_v, inc_flexitp.ravel())
     postpon4=np.hstack((r['losse'][:,[0]]+r['lates'][:,[0]],
