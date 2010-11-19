@@ -2386,7 +2386,7 @@ def graphFlexiLength(tst_nr=0, repetitions=1, action=0, plot=0):
     g.add(x_t, 'number of setup frames')
     g.mplot(yn, r['n_frames'], leg)
     g.save(plot=plot)
-def graphRandSched1(tst_nr=1, action=0):
+def graphRandSched1(tst_nr, repetitions, action):
     """ Generate two graphs using SINR model:
     
     1) number of slots for RandSched and the First Breadth First
@@ -2399,45 +2399,18 @@ def graphRandSched1(tst_nr=1, action=0):
     tst_nr -- 0 or 1
     
     """
-    def bar(ax, x, y, labels, color):
-        '''Make bar plot.
-
-        Each row in y is grouped in one block of bars in the x-axis.
-        color: if True, use colors, otherwise use grayscale
-
-        Example:
-        x = np.array([0,1])
-        y = np.arange(6).reshape(3,2)
-        bar(x, y, ['one', 'two', 'three'])
-        l = plt.legend(prop=font2) '''
-        P, Q = y.shape # P number of densities, Q of distances
-        W = .8 # Bar width in bar plot
-        D = (1 - W) / 2 # Space between bars in bar plot    plt.ioff()
-        for i, g in enumerate(y): # different x-axis locations
-            # different magnitudes within an x location
-            for j, h in enumerate(g): 
-                b, = ax.bar(i * (Q + 1) + j + D, h, width=W, color= ('red',
-                    'blue', 'green')[j] if color else str(float(j)/Q))
-                if i == 0: 
-                    b.set_label(labels[j])
-        t = np.arange(P) * (Q + 1) + float(Q) / 2
-        plt.xlim(-1, P * (Q + 1))
-        ax.set_xticks(np.arange(P) * (Q + 1) + float(Q) / 2)
-        ax.set_xticklabels(["%d" %i for i in x])
-
     file_name = "{0}_{1:02d}".format(sys._getframe().f_code.co_name, tst_nr)
     tx_rg = PhyNet(tx_p=1e-6, BW=256e3, sinr=20, d0=100, PL0=1e8, 
                    p_exp=3.5, shadow=8.0).tx_range
     x, y = np.array([[1,8],[3,8]][tst_nr]) * tx_rg
     rho_v = np.array([[7,14], [7,14,28]] [tst_nr])
-    repetitions = [10, 2400][tst_nr] # Number of repetitions
     # Number of nodes in the network (cardinalityVector)
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg**2).round(), int)
     # Slots of centralized algorithms
-    slots = np.zeros((repetitions, n_nodes.size, 3)) 
-    # Unconnection ratio of of centralized algorithms
-    uncon = np.zeros((repetitions, n_nodes.size, 2))
-    if action == 0:
+    o = dict(slots=np.zeros((repetitions, n_nodes.size, 3)), 
+             # Unconnection ratio of of centralized algorithms
+             uncon=np.zeros((repetitions, n_nodes.size, 2)))
+    if action == 1:
         for k in xrange(repetitions):
             print("Iteration =  {0}".format(k))
             np.random.seed(k)
@@ -2446,75 +2419,29 @@ def graphRandSched1(tst_nr=1, action=0):
                 hops = [2, 3]
                 for j, h in enumerate(hops):
                     slot_v = wsn.bf_schedule(hops=h)
-                    slots[k, i, j] = max(slot_v)
-                    uncon[k, i, j] = wsn.duly_scheduled_sinr(slot_v)
+                    o['slots'][k, i, j] = max(slot_v)
+                    o['uncon'][k, i, j] = wsn.duly_scheduled_sinr(slot_v)
                 rs_net = RandSchedNet(wsn, cont_f=999, pairs=99, Q=0.1,
                         slot_t=2, VB=False, until=1e9)
-                slots[k, i, 2] = max(rs_net.schedule())
-        np.savez(file_name, slots=slots, uncon=uncon)
-    elif action == 1:
-        rslt = np.load(file_name + '.npz')
-        slots = rslt['slots'].mean(axis=0)
-        uncon = rslt['uncon'].mean(axis=0)
-        # Comparison of slot number of BF vs RandSched
-        g = Pgf()
-        g.add(r'node density $\rho$', r'number of slots $M$')
-        g.opt('ybar', 'bar width=10pt', 'ymin=0', 'enlarge x limits=0.2')
-        g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
-        g.opt(r'xtick={' + ', '.join([str(i) for i in xrange(len(rho_v))]) 
-                                     + r'}')
-        g.opt(r'xticklabels={' + ', '.join([str(i) for i in rho_v]) + r'}' )
-        s = (slots / n_nodes.reshape((3,1)))[:,:3]
-        #pdb.set_trace()         # 
-        g.plot(range(3), s[:, 0], 'BF2', 'fill=black!90')
-        g.plot(range(3), s[:, 1], 'BF3', 'fill=black!40')
-        g.plot(range(3), s[:, 2], 'RandSched', 'fill=black!10')
-        g.add(r'node density $\rho$', 'fraction of unconnected nodes')
-        g.opt('ymode=log')
-        g.plot(rho_v, uncon[:,0], 'BF2')
-        g.plot(rho_v, uncon[:,1], 'BF3')
-        g.save()
-    elif action == 2:
-        # Create plots for presentation
-        rslt = np.load(file_name + '.npz')
-        slots = rslt['slots'].mean(axis=0)
-        uncon = rslt['uncon'].mean(axis=0)  
-        # Comparison of slot number of BF vs RandSched
-        plt.close('all')
-        fig = [plt.figure(i, figsize=(3,2)) for i in xrange(2)]
-        ax = [f.add_axes([.2, .3, .7, .5]) for f in fig]
-        ax[0].set_ylabel('schedule size')
-        ax[0].set_xlabel('node density')
-        label = ('Breadth First', 'BF3', 'RandSched')
-        choi = 0, 2
-        bar(ax[0], rho_v, slots[:,choi], [label[i] for i in choi], True)
-        ax[0].legend(loc=2)
-        ax[1].set_title('Unduly scheduled nodes')
-        ax[1].set_xlabel('node density')
-        marker = ['>-','v-','<-','o-']
-        for v, m in zip(uncon.T, marker):
-            print(v)
-            ax[1].semilogy (rho_v, v, m)
-        ax[1].set_ybound(1e-6,.3)
-        ax[1].legend(('BF2', 'BF3'), loc='lower right')
-        #plt.close(1)
-        # Customize fonts and save
-        font1 = FontProperties(size=14, family='Calibri')
-        font2 = FontProperties(size=8)
-        tit_font = FontProperties(size=14, weight='bold')
-        for a in ax[0],:
-            for x in ['x','y']:
-                # Set tick label fonts
-                for l in getattr(a,'get_{0}ticklabels'.format(x))():
-                    l.set_fontsize(8) #properties(font2)
-            # Set font of legends    
-            for l in a.legend_.get_texts():
-                l.set_fontproperties(font1)
-        #    a.title.set_fontproperties(tit_font)
-        fig[0].savefig('{0}_pres00.png'.format(file_name), dpi=300)
-        plt.show()
-    else:
-       raise Exception, "2nd parameter must be 'compute' or 'plot'"
+                o['slots'][k, i, 2] = max(rs_net.schedule())
+        savedict(**o)
+    r = np.load(file_name + '.npz')
+    slots = r['slots']
+    uncon = rslt['uncon'].mean(axis=0)
+    # Comparison of slot number of BF vs RandSched
+    g = Pgf()
+    g.add(r'node density $\rho$', r'number of slots $M$')
+    g.opt('ybar', 'bar width=10pt', 'ymin=0', 'enlarge x limits=0.2')
+    g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
+    g.opt(r'xtick={' + ', '.join([str(i) for i in xrange(len(rho_v))]) 
+                                 + r'}')
+    g.opt(r'xticklabels={' + ', '.join([str(i) for i in rho_v]) + r'}' )
+    g.mplot(range(3), r['slots'] / n_nodes.reshape((3,1)), 
+            ['BF2', 'BF3', 'RandSched'])
+    g.add(r'node density $\rho$', 'fraction of unconnected nodes')
+    g.opt('ymode=log')
+    g.mplot(rho_v, uncon, ['BF2','BF3'])
+    g.save()
 def graphRandSched2(tst_nr=1, action=2):
     '''Plot size of RandSched's schedule for different node densities,
     numbers of pairs of slots, and lengths of the contention window.
@@ -2666,7 +2593,6 @@ def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=0):
     '''
     xv = np.array([[4, 6, 8, 10, 12],[4, 6, 8, 10, 12]][tst_nr]) * tx_rg1
     rho = 7
-    repetitions = [1, 10][tst_nr] 
     n_nodes = np.array((rho * xv**2 / np.pi / tx_rg1**2).round(), int)
     o = dict(n_slots=np.zeros((repetitions, n_nodes.size)))
     if action == 1:
