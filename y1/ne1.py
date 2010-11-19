@@ -2652,8 +2652,8 @@ def graphRandSched3(tst_nr=1, action=1):
         y = 100. *(y - y[-1]) / float(y[-1])
         g.plot(pairs[idx], y, r"$\bar{{\rho}}$ = {0}".format(rho))
     g.save(plot=action)
-def graphRandSched4(tst_nr=1, action=1, plot=0):
-    '''Plot M/N (schedule size / number of nodes in the network).
+def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=0):
+    ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
     * tst_nr:
@@ -2668,21 +2668,21 @@ def graphRandSched4(tst_nr=1, action=1, plot=0):
     rho = 7
     repetitions = [1, 10][tst_nr] 
     n_nodes = np.array((rho * xv**2 / np.pi / tx_rg1**2).round(), int)
-    n_slots = np.zeros((repetitions, n_nodes.size)) 
-    if action == 0:
-        for h in xrange(repetitions):
-            print("Iteration =  {0}".format(h))
-            for i, (c, x) in enumerate(zip(n_nodes, xv)):
-                print_nodes(c, h)
-                wsn = PhyNet(c=c, x=x, y=x, n_tries=50, **net_par1)
+    o = dict(n_slots=np.zeros((repetitions, n_nodes.size)))
+    if action == 1:
+        for k in xrange(repetitions):
+            print_iter(k, repetitions)
+            for i, c in enumerate(n_nodes):
+                print_nodes(c, k)
+                wsn = PhyNet(c=c, x=xv[i], y=xv[i], n_tries=50, **net_par1)
                 rs_net = RandSchedNet(wsn, cont_f=40, pairs=6,
                                       Q=0.1, slot_t=2, VB=False, until=1e9)
-                n_slots[h,i] = max(rs_net.schedule())
-        save_npz('n_slots')
-    norm = load_npz()['n_slots'] / n_nodes
+                o['n_slots'][k,i] = max(rs_net.schedule())
+        savedict(**o)
+    r = load_npz()
     g = Pgf()
     g.add("number of node in the network $M$", "$M/N$")
-    g.plot(n_nodes, norm)
+    g.plot(n_nodes, r['n_slots'] / n_nodes)
     g.save(plot=action)
 def tst_FlexiTP2():
     np.random.seed(0)
