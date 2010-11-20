@@ -2409,12 +2409,11 @@ def graphRandSched1(tst_nr, repetitions, action):
              uncon=np.zeros((repetitions, n_nodes.size, 2)))
     if action == 1:
         for k in xrange(repetitions):
-            print("Iteration =  {0}".format(k))
-            np.random.seed(k)
+            print_iter(k, repetitions)
             for i, c in enumerate(n_nodes):
-                wsn = PhyNet(c=c, x=x, y=y, n_tries=50)
-                hops = [2, 3]
-                for j, h in enumerate(hops):
+                print_nodes(c, k)
+                wsn = PhyNet(c=c, x=x, y=y, n_tries=50, **net_par1)
+                for j, h in enumerate((2, 3)):
                     slot_v = wsn.bf_schedule(hops=h)
                     o['slots'][k, i, j] = max(slot_v)
                     o['uncon'][k, i, j] = wsn.duly_scheduled_sinr(slot_v)
@@ -2423,18 +2422,15 @@ def graphRandSched1(tst_nr, repetitions, action):
                 o['slots'][k, i, 2] = max(rs_net.schedule())
         savedict(**o)
     r = load_npz()
-    slots = r['slots']
-    uncon = rslt['uncon'].mean(axis=0)
-    # Comparison of slot number of BF vs RandSched
     g = Pgf()
     g.add(r'node density $\rho$', r'number of slots $M$')
-    g.mplot(rho_v, r['slots'] / n_nodes.reshape((3,1)), 
+    g.mplot(rho_v, r['slots'] / n_nodes.reshape(-1,1), 
             ['BF2', 'BF3', 'RandSched'])
     g.add(r'node density $\rho$', 'fraction of unconnected nodes')
-    g.opt('ymode=log')
+    #g.opt('ymode=log')
     g.mplot(rho_v, r['uncon'], ['BF2','BF3'])
     g.save()
-def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=0):
+def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=1):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
@@ -2468,7 +2464,7 @@ def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=0):
     g.add("number of node in the network $M$", "$M/N$")
     g.mplot(n_nodes, r['n_slots'] / n_nodes.reshape(-1,1), 
             ['BF2', 'BF3', 'RandSched'])
-    g.save(plot=action)
+    g.save(plot=plot)
 def tst_FlexiTP2():
     np.random.seed(0)
     wsn = PhyNet(c=8,x=3*tx_rg1, y=1*tx_rg1, **net_par1)
