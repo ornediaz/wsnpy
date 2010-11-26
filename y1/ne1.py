@@ -51,7 +51,7 @@ def display(filename):
         if platform.system() == 'Windows':
             subprocess.Popen(['acrord32', filename])
         else:
-            subprocess.Popen(['xpdf', filename])
+            subprocess.Popen(['evince', filename])
     elif platform.system() == 'Windows':
         subprocess.Popen(['rundll32.exe', 'C:\WINDOWS\system32\shimgvw.dll,ImageView_Fullscreen', os.path.join(os.getcwd(),filename)])
     else:
@@ -395,6 +395,10 @@ class Tree(object):
             clr = slot_v[z.f[current_node]] + 1
             while clr in usedColors:
                 clr += 1
+            # for i in xrange(z.c):
+            #     print(i, z.tier(i))
+            # print("Maximum tier is {0}".format(max(z.tier_v)))
+            # pdb.set_trace()
             slot_v[current_node] = clr
         # Invert the schedule
         m = max(slot_v)
@@ -695,7 +699,8 @@ class PhyNet(Tree):
     def tx_range(z):
         '''Return transmission range for certain transceiver parameters.
         tx_p / (d/d0) ** p_exp / noise > sinr '''
-        margin = z.tx_p / z.noise / z.sinr / 10 ** (z.shadow / 10)
+        #margin = z.tx_p / z.noise / z.sinr / 10 ** (z.shadow / 10)
+        margin = z.tx_p / z.noise / z.sinr 
         return z.d0 * (margin / z.PL0) ** (1 / z.p_exp)
     def correct(z, tx_v, # indices of transmitters
                 rx_v, #indices of receivers
@@ -2399,7 +2404,7 @@ def graphRandSched1(tst_nr, repetitions, action):
     tst_nr -- 0 or 1
     
     """
-    x, y = np.array([[1,8],[3,8]][tst_nr]) * tx_rg1
+    x, y = np.array([[1,8],[6,6]][tst_nr]) * tx_rg1
     rho_v = np.array([[7,14], [7,12,17,22,27]] [tst_nr])
     # Number of nodes in the network (cardinalityVector)
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
@@ -2463,6 +2468,9 @@ def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=1):
     g = Pgf()
     g.add("number of node in the network $M$", "$M/N$")
     g.mplot(n_nodes, r['n_slots'] / n_nodes.reshape(-1,1), 
+            ['BF2', 'BF3', 'RandSched'])
+    g.add("normalized square size", "$M/N$")
+    g.mplot(xv / tx_rg1, r['n_slots'] / n_nodes.reshape(-1,1), 
             ['BF2', 'BF3', 'RandSched'])
     g.save(plot=plot)
 def tst_FlexiTP2():
