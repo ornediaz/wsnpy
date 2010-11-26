@@ -2473,6 +2473,44 @@ def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=1):
     g.mplot(xv / tx_rg1, r['n_slots'] / n_nodes.reshape(-1,1), 
             ['BF2', 'BF3', 'RandSched'])
     g.save(plot=plot)
+def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
+    ''' Plot M/N (schedule size / number of nodes in the network).
+
+    Parameters to call this script with:
+    * tst_nr:
+            0: fast test
+            1: parameters for publication
+
+    * action: 
+        0: compute the results and store them in a file
+        1: plot all the results
+    '''
+    xv = np.array([[4, 6, 8, 10, 12],[10, 12]][tst_nr]) * tx_rg1
+    rho = 7
+    n_nodes = np.array((rho * xv**2 / np.pi / tx_rg1**2).round(), int)
+    o = dict(n_slots=np.zeros((repetitions, n_nodes.size,3)))
+    if action == 1:
+        for k in xrange(repetitions):
+            print_iter(k, repetitions)
+            for i, c in enumerate(n_nodes):
+                print_nodes(c, k)
+                wsn = PhyNet(c=c, x=xv[i], y=xv[i], n_tries=50, **net_par1)
+                for j, h in enumerate((3,)):
+                    slot_v = wsn.bf_schedule(hops=h)
+                    o['n_slots'][k, i, j] = max(slot_v)
+                rs_net = RandSchedNet(wsn, cont_f=40, pairs=6,
+                                      Q=0.1, slot_t=2, VB=False, until=1e9)
+                o['n_slots'][k,i,2] = max(rs_net.schedule())
+        savedict(**o)
+    r = load_npz()
+    g = Pgf()
+    g.add("number of node in the network $M$", "$M/N$")
+    g.mplot(n_nodes, r['n_slots'] / n_nodes.reshape(-1,1), 
+            ['BF2', 'BF3', 'RandSched'])
+    g.add("normalized square size", "$M/N$")
+    g.mplot(xv / tx_rg1, r['n_slots'] / n_nodes.reshape(-1,1), 
+            ['BF2', 'BF3', 'RandSched'])
+    g.save(plot=plot)
 def tst_FlexiTP2():
     np.random.seed(0)
     wsn = PhyNet(c=8,x=3*tx_rg1, y=1*tx_rg1, **net_par1)
@@ -3071,7 +3109,7 @@ def graphFlexiSds2(tst_nr=0, repetitions=1, action=0, plot=False):
                     if r > 0:
                         o['nadv1'][k,i,r-1] = n.nadve
                 for q in xrange(cycles):
-                    np.random.seed(repetitions + q)
+                    np.random.seed(repetitions + 20 * k + q)
                     wsn.mutate_network(c - nnew, nnew)
                     for u, nx in enumerate(nt):
                         print("Updating network {0}".format(u))
