@@ -2533,8 +2533,8 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
     printarray("n_nodes")
-    o = dict(slots=np.zeros((repetitions, len(xv), n_nodes.size,3)),
-             uncon=np.zeros((repetitions, len(xv), n_nodes.size,3)))
+    o = dict(slots=np.zeros((repetitions, len(xv), len(rho_v), 3)),
+             uncon=np.zeros((repetitions, len(xv), len(rho_v), 3)))
     if action == 1:
         for k in xrange(repetitions):
             print_iter(k, repetitions)
@@ -2552,12 +2552,15 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
         savedict(**o)
     r = load_npz()
     g = Pgf()
-    g.add("number of node in the network $M$", "$M/N$")
-    g.mplot(n_nodes, r['slots'] / n_nodes.reshape(-1,1), 
-            ['BF2', 'BF3', 'RandSched'])
-    g.add("normalized square size", "$M/N$")
-    g.mplot(xv / tx_rg1, r['slots'] / n_nodes.reshape(-1,1), 
-            ['BF2', 'BF3', 'RandSched'])
+    for t, x in enumerate(xv):
+        g.add("number of node in the network $M$", "$M/N$")
+        g.mplot(n_nodes[t], r['slots'][t] / n_nodes.reshape(-1,1), 
+                ['BF2', 'BF3', 'RandSched'])
+        g.add("number of node in the network $M$", "$M/N$")
+        g.mplot(n_nodes[t], r['uncon'][t], ['BF2', 'BF3'])
+        # g.add("normalized square size", "$M/N$")
+        # g.mplot(xv / tx_rg1, r['slots'][t] / n_nodes.reshape(-1,1), 
+        #         ['BF2', 'BF3', 'RandSched'])
     g.save(plot=plot)
 def tst_FlexiTP2():
     np.random.seed(0)
