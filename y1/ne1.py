@@ -2391,6 +2391,46 @@ def graphFlexiLength(tst_nr=0, repetitions=1, action=0, plot=0):
     g.add(x_t, 'number of setup frames')
     g.mplot(yn, r['n_frames'], leg)
     g.save(plot=plot)
+def graphFlexiLength2(tst_nr=0, repetitions=1, action=0, plot=0):
+    """Dependence on the normalized network length in a square network.
+
+    tst_nr:seconds per iteration, 1:5687@eemoda
+    """
+    rho = 8
+    y_v = np.arange(1,8,2) * tx_rg1
+    n_nodes = np.array((rho * y_v * y_v / np.pi / tx_rg1**2).round(), int)
+    print('Number of nodes to be tested: {0}'.format(n_nodes))
+    n_slots = np.zeros((repetitions, n_nodes.size, 3))
+    n_frames = np.zeros((repetitions, n_nodes.size, 3))
+    if action == 1:
+        for k in xrange(repetitions):
+            print_iter(k, repetitions)
+            for i, (c, y) in enumerate(zip(n_nodes, y_v)):
+                print_nodes(c, k)
+                wsn = PhyNet(c=c, x=y, y=y, **net_par1)
+                nets = []
+                for j in xrange(3):
+                    np.random.seed(k)
+                    print("Constructing net {0}".format(j))
+                    if j < 2:
+                        nets.append(FlexiTPNet(wsn, fw=j+2))
+                    else:
+                        nets.append(ACSPNet(wsn, cont_f=100, pairs=40))
+                n_slots[k, i, :] = [n.n_slots() for n in nets]
+                n_frames[k, i, :] = [n.n_frames() for n in nets]
+        save_npz('n_slots', 'n_frames')
+    r = load_npz()
+    # Plot setup frames
+    x_t = r'normalized network length $\bar{y}$'
+    yn = y_v / tx_rg1
+    leg = ['FlexiTP2', 'FlexiTP3', 'ACSPNet']
+    g = Pgf()
+    g.add(x_t, 'schedule length')
+    g.mplot(yn, r['n_slots'], leg)
+    g.opt(r'legend style={at={(1.02,0.5)}, anchor=west }')
+    g.add(x_t, 'number of setup frames')
+    g.mplot(yn, r['n_frames'], leg)
+    g.save(plot=plot)
 def graphRandSched1(tst_nr, repetitions, action):
     """ Generate two graphs using SINR model:
     
