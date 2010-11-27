@@ -743,7 +743,6 @@ class PhyNet(Tree):
         schedule if its transmission to its parent or the ACK in response
         fail due to insufficient SINR.
         '''
-        scheduled = [i for i, j in enumerate(slot_v) if j]
         # Determine whether each node is duly scheduled by testing
         # bidirectional communication to its parent.
         unduly_scheduled = np.ones(len(z.f), bool)
@@ -756,7 +755,9 @@ class PhyNet(Tree):
         # Determine whether each node is connected, i.e., itself and all
         # its ancestors are duly scheduled.
         connected = np.zeros(len(z.f), bool)
-        for i in scheduled:
+        for i in xrange(len(slot_v)):
+            if slot_v[i] == 0:
+                continue
             j = i
             while j:
                 if unduly_scheduled[j]:
@@ -764,7 +765,7 @@ class PhyNet(Tree):
                 j = z.f[j]
             else:
                 connected[i] = True
-        return 1 - float(sum(connected)) / len(scheduled)
+        return 1 - float(sum(connected)) / sum(slot_v > 0)
 class DiskModelNetwork(Tree):
     ''' WSN using transmission and interference range model.'''
     def __init__(z, c=100, x=200, y=200, tx_rg=50, ix_rg=100, n_tries=50):
@@ -2460,8 +2461,8 @@ def graphRandSched1(tst_nr, repetitions, action):
                 wsn = PhyNet(c=c, x=x, y=y, n_tries=50, **net_par1)
                 for j, h in enumerate((2, 3)):
                     slot_v = wsn.bf_schedule(hops=h)
-                    o['slots'][k, i, j] = max(slot_v)
-                    o['uncon'][k, i, j] = wsn.duly_scheduled_sinr(slot_v)
+                    o['slots'][k,i,j] = max(slot_v)
+                    o['uncon'][k,i,j] = wsn.duly_scheduled_sinr(slot_v)
                 rs_net = RandSchedNet(wsn, cont_f=999, pairs=99, Q=0.1,
                         slot_t=2, VB=False, until=1e9)
                 o['slots'][k, i, 2] = max(rs_net.schedule())
@@ -2490,7 +2491,8 @@ def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=1):
     xv = np.array([[4, 6, 8, 10, 12],[4, 6, 8, 10, 12]][tst_nr]) * tx_rg1
     rho = 7
     n_nodes = np.array((rho * xv**2 / np.pi / tx_rg1**2).round(), int)
-    o = dict(n_slots=np.zeros((repetitions, n_nodes.size,3)))
+    o = dict(slots=np.zeros((repetitions, n_nodes.size,3)),
+             uncon=np.zeros((repetitions, n_nodes.size,3)))
     if action == 1:
         for k in xrange(repetitions):
             print_iter(k, repetitions)
@@ -2499,18 +2501,19 @@ def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=1):
                 wsn = PhyNet(c=c, x=xv[i], y=xv[i], n_tries=50, **net_par1)
                 for j, h in enumerate((2,3)):
                     slot_v = wsn.bf_schedule(hops=h)
-                    o['n_slots'][k, i, j] = max(slot_v)
+                    o['slots'][k,i,j] = max(slot_v)
+                    o['uncon'][k,i,j] = wsn.duly_scheduled_sinr(slot_v)
                 rs_net = RandSchedNet(wsn, cont_f=40, pairs=6,
                                       Q=0.1, slot_t=2, VB=False, until=1e9)
-                o['n_slots'][k,i,2] = max(rs_net.schedule())
+                o['slots'][k,i,2] = max(rs_net.schedule())
         savedict(**o)
     r = load_npz()
     g = Pgf()
     g.add("number of node in the network $M$", "$M/N$")
-    g.mplot(n_nodes, r['n_slots'] / n_nodes.reshape(-1,1), 
+    g.mplot(n_nodes, r['slots'] / n_nodes.reshape(-1,1), 
             ['BF2', 'BF3', 'RandSched'])
     g.add("normalized square size", "$M/N$")
-    g.mplot(xv / tx_rg1, r['n_slots'] / n_nodes.reshape(-1,1), 
+    g.mplot(xv / tx_rg1, r['slots'] / n_nodes.reshape(-1,1), 
             ['BF2', 'BF3', 'RandSched'])
     g.save(plot=plot)
 def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
@@ -2525,30 +2528,35 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
         0: compute the results and store them in a file
         1: plot all the results
     '''
-    xv = np.array([[4, 6, 8, 10, 12],[10, 12]][tst_nr]) * tx_rg1
-    rho = 7
-    n_nodes = np.array((rho * xv**2 / np.pi / tx_rg1**2).round(), int)
-    o = dict(n_slots=np.zeros((repetitions, n_nodes.size,3)))
+    xv = np.array([[4, 6, 8, 10, 12],[1,3,5,7,9]][tst_nr]) * tx_rg1
+    rho_v = np.array([[7,14], [7,11,15,19,23]] [tst_nr])
+    n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
+                        np.pi / tx_rg1**2).round(), int)
+    printarray("n_nodes")
+    o = dict(slots=np.zeros((repetitions, len(xv), n_nodes.size,3)),
+             uncon=np.zeros((repetitions, len(xv), n_nodes.size,3)))
     if action == 1:
         for k in xrange(repetitions):
             print_iter(k, repetitions)
-            for i, c in enumerate(n_nodes):
-                print_nodes(c, k)
-                wsn = PhyNet(c=c, x=xv[i], y=xv[i], n_tries=50, **net_par1)
-                for j, h in enumerate((3,)):
-                    slot_v = wsn.bf_schedule(hops=h)
-                    o['n_slots'][k, i, j] = max(slot_v)
-                rs_net = RandSchedNet(wsn, cont_f=40, pairs=6,
-                                      Q=0.1, slot_t=2, VB=False, until=1e9)
-                o['n_slots'][k,i,2] = max(rs_net.schedule())
+            for t, x in enumerate(xv):
+                for i, c in enumerate(n_nodes[t]):
+                    print_nodes(c, k)
+                    wsn = PhyNet(c=c, x=x,y=x,n_tries=50,**net_par1)
+                    for j, h in enumerate((2,3)):
+                        slot_v = wsn.bf_schedule(hops=h)
+                        o['slots'][k,t,i,j] = max(slot_v)
+                        o['uncon'][k,t,i,j] = wsn.duly_scheduled_sinr(slot_v)
+                    rs_net = RandSchedNet(wsn, cont_f=40, pairs=10, Q=0.1, 
+                                          slot_t=2, VB=False, until=1e9)
+                    o['slots'][k,t,i,2] = max(rs_net.schedule())
         savedict(**o)
     r = load_npz()
     g = Pgf()
     g.add("number of node in the network $M$", "$M/N$")
-    g.mplot(n_nodes, r['n_slots'] / n_nodes.reshape(-1,1), 
+    g.mplot(n_nodes, r['slots'] / n_nodes.reshape(-1,1), 
             ['BF2', 'BF3', 'RandSched'])
     g.add("normalized square size", "$M/N$")
-    g.mplot(xv / tx_rg1, r['n_slots'] / n_nodes.reshape(-1,1), 
+    g.mplot(xv / tx_rg1, r['slots'] / n_nodes.reshape(-1,1), 
             ['BF2', 'BF3', 'RandSched'])
     g.save(plot=plot)
 def tst_FlexiTP2():
