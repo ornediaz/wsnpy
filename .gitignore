@@ -1,19 +1,20 @@
-# git-ls-files --others --exclude-from=.git/info/exclude
-# Lines that start with '#' are comments.
-# For a project mostly in C, the following would be a good set of
-# exclude patterns (uncomment them if you want to use them):
-# *.[oa]
-# zzzgraph*
+# IMPORTANT: if any line does not work, simply repeat it
+
+*#
 *.4ct 
 *.4tc 
 *.a 
 *.al 
+*.aux
 *.aux 
 *.bak 
+*.bbl
 *.bbl 
+*.blg
 *.blg 
 *.css 
 *.doc 
+*.dvi
 *.dvi 
 *.exe
 *.htm
@@ -21,33 +22,37 @@
 *.idv 
 *.la 
 *.lg 
+*.log
 *.log 
 *.nav 
 *.o 
 *.out
 *.out 
 *.pdb
+*.pdf
 *.pdf 
 *.prv 
+*.pyc
 *.pyc
 *.pyo 
 *.rej 
 *.snm 
 *.synctex.gz 
+*.swp
+*.tex
 *.tmp 
 *.toc 
 *.xref
-*_000001*
-/#*
-perdida/obj/*
-z*
+graph*_00_0000*
 *~
-*~  
 .#*
+tags
+TAGS
+\#*
+_region_.prv
+*_000001.*
+z*
 .*.swp
 .DS_Store
 .libs 
 _region_*
-graph*_00_*.npz  
-tags
-TAGS

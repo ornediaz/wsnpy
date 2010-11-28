@@ -2528,8 +2528,8 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
         0: compute the results and store them in a file
         1: plot all the results
     '''
-    xv = np.array([[4, 6, 8, 10, 12],[1,3,5,7,9]][tst_nr]) * tx_rg1
-    rho_v = np.array([[7,14], [7,11,15,19,23]] [tst_nr])
+    xv = np.linspace(*((1,3,2),(3,8,5))[tst_nr]) * tx_rg1
+    rho_v = np.linspace(*((6,12,3),(6,24,6))[tst_nr])
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
     printarray("n_nodes")
@@ -2541,7 +2541,7 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
             for t, x in enumerate(xv):
                 for i, c in enumerate(n_nodes[t]):
                     print_nodes(c, k)
-                    wsn = PhyNet(c=c, x=x,y=x,n_tries=50,**net_par1)
+                    wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
                     for j, h in enumerate((2,3)):
                         slot_v = wsn.bf_schedule(hops=h)
                         o['slots'][k,t,i,j] = max(slot_v)
@@ -2553,14 +2553,20 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
     r = load_npz()
     g = Pgf()
     for t, x in enumerate(xv):
-        g.add("number of node in the network $M$", "$M/N$")
-        g.mplot(n_nodes[t], r['slots'][t] / n_nodes.reshape(-1,1), 
+        g.add("node density $\rho$", "$M/N$ for xnorm={0}".format(x/tx_rg1))
+        g.mplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), 
                 ['BF2', 'BF3', 'RandSched'])
-        g.add("number of node in the network $M$", "$M/N$")
-        g.mplot(n_nodes[t], r['uncon'][t], ['BF2', 'BF3'])
+        g.add("node density $\rho$", "$M/N$")
+        g.mplot(rho_v, r['uncon'][t,:,:2], ['BF2', 'BF3'])
         # g.add("normalized square size", "$M/N$")
         # g.mplot(xv / tx_rg1, r['slots'][t] / n_nodes.reshape(-1,1), 
         #         ['BF2', 'BF3', 'RandSched'])
+    for i, rho in enumerate(rho_v):
+        g.add("normalized network side", "$M/N$ for rho={0}".format(rho))
+        g.mplot(xv / tx_rg1, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1), 
+                ['BF2', 'BF3', 'RandSched'])
+        g.add("number of node in the network $M$", "uncon")
+        g.mplot(xv / tx_rg1, r['uncon'][:,i,:2], ['BF2', 'BF3'])
     g.save(plot=plot)
 def tst_FlexiTP2():
     np.random.seed(0)
