@@ -2556,13 +2556,13 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
         g.add("node density $\rho$", "$M/N$ for xnorm={0}".format(x/tx_rg1))
         g.mplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), 
                 ['BF2', 'BF3', 'RandSched'])
-        g.add("node density $\rho$", "$M/N$")
+        g.add("node density $\\rho$", "uncon")
         g.mplot(rho_v, r['uncon'][t,:,:2], ['BF2', 'BF3'])
         # g.add("normalized square size", "$M/N$")
         # g.mplot(xv / tx_rg1, r['slots'][t] / n_nodes.reshape(-1,1), 
         #         ['BF2', 'BF3', 'RandSched'])
     for i, rho in enumerate(rho_v):
-        g.add("normalized network side", "$M/N$ for rho={0}".format(rho))
+        g.add("normalized network side", "$M/N$ for $\\rho={0}$".format(rho))
         g.mplot(xv / tx_rg1, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1), 
                 ['BF2', 'BF3', 'RandSched'])
         g.add("number of node in the network $M$", "uncon")
@@ -2583,7 +2583,7 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     ee-moda2: 2:1235
     ee-moda:  2:623
     """
-    x, y = np.array(((3,3), (3,3), (3,3))[tst_nr]) * tx_rg1
+    xv, y = np.array(((3,3), (3,3), (3,3))[tst_nr]) * tx_rg1
     rho_v = np.array(((7,10), (7,11,15), (7,11,15,19,22)) [tst_nr])
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
     print('Number of nodes to be tested: {0}'.format(n_nodes))
@@ -2630,6 +2630,59 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     # Plot number of slots necessary to communicate schedule
     g.add(x_t, r"slots per exchange in FlexiTP's init")
     g.mplot(rho_v, r['nadv1'], leg[:3])
+    g.save(plot=plot)
+def graphFlexiDensity2(tst_nr=1, repetitions=1, action=0, plot=1):
+    ''' Plot M/N (schedule size / number of nodes in the network).
+
+    Parameters to call this script with:
+    * tst_nr:
+            0: fast test
+            1: parameters for publication
+
+    * action: 
+        0: compute the results and store them in a file
+        1: plot all the results
+    '''
+    xv = np.linspace(*((1,3,2),(3,8,5))[tst_nr]) * tx_rg1
+    rho_v = np.linspace(*((6,12,3),(6,24,6))[tst_nr])
+    n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
+                        np.pi / tx_rg1**2).round(), int)
+    printarray("n_nodes")
+    o = dict(slots=np.zeros((repetitions, len(xv), len(rho_v), 3)),
+             nadv1=np.zeros((repetitions, len(xv), len(rho_v), 3)),
+             uncon=np.zeros((repetitions, len(xv), len(rho_v), 3)))
+    if action == 1:
+        for k in xrange(repetitions):
+            print_iter(k, repetitions)
+            for t, x in enumerate(xv):
+                for i, c in enumerate(n_nodes[t]):
+                    print_nodes(c, k)
+                    wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
+                    for j, h in enumerate((2,3)):
+                        slot_v = wsn.bf_schedule(hops=h)
+                        o['slots'][k,t,i,j] = max(slot_v)
+                        o['uncon'][k,t,i,j] = wsn.duly_scheduled_sinr(slot_v)
+                    rs_net = RandSchedNet(wsn, cont_f=40, pairs=10, Q=0.1, 
+                                          slot_t=2, VB=False, until=1e9)
+                    o['slots'][k,t,i,2] = max(rs_net.schedule())
+        savedict(**o)
+    r = load_npz()
+    g = Pgf()
+    for t, x in enumerate(xv):
+        g.add("node density $\rho$", "$M/N$ for xnorm={0}".format(x/tx_rg1))
+        g.mplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), 
+                ['BF2', 'BF3', 'RandSched'])
+        g.add("node density $\\rho$", "uncon")
+        g.mplot(rho_v, r['uncon'][t,:,:2], ['BF2', 'BF3'])
+        # g.add("normalized square size", "$M/N$")
+        # g.mplot(xv / tx_rg1, r['slots'][t] / n_nodes.reshape(-1,1), 
+        #         ['BF2', 'BF3', 'RandSched'])
+    for i, rho in enumerate(rho_v):
+        g.add("normalized network side", "$M/N$ for $\\rho={0}$".format(rho))
+        g.mplot(xv / tx_rg1, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1), 
+                ['BF2', 'BF3', 'RandSched'])
+        g.add("number of node in the network $M$", "uncon")
+        g.mplot(xv / tx_rg1, r['uncon'][:,i,:2], ['BF2', 'BF3'])
     g.save(plot=plot)
 def debgraphFlexiDensity():
     """Dependence on the node density.
