@@ -2643,13 +2643,13 @@ def graphFlexiDensity2(tst_nr=1, repetitions=1, action=0, plot=1):
         0: compute the results and store them in a file
         1: plot all the results
     '''
-    xv = np.linspace(*((1,3,2),(3,8,5))[tst_nr]) * tx_rg1
-    rho_v = np.linspace(*((6,12,3),(6,24,6))[tst_nr])
+    xv = np.linspace(*((1,3,2),(3,6,3),(3,8,5))[tst_nr]) * tx_rg1
+    rho_v = np.linspace(*((6,12,3),(6,15,3),(6,24,6))[tst_nr])
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
     printarray("n_nodes")
-    o = dict(slots=np.zeros((repetitions, len(xv), len(rho_v), 3)),
-             nadv1=np.zeros((repetitions, len(xv), len(rho_v), 3)),
+    o = dict(nadv1=np.zeros((repetitions, len(xv), len(rho_v), 3)),
+             slots=np.zeros((repetitions, len(xv), len(rho_v), 3)),
              uncon=np.zeros((repetitions, len(xv), len(rho_v), 3)))
     if action == 1:
         for k in xrange(repetitions):
@@ -2659,21 +2659,22 @@ def graphFlexiDensity2(tst_nr=1, repetitions=1, action=0, plot=1):
                     print_nodes(c, k)
                     wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
                     for j, h in enumerate((2,3)):
-                        slot_v = wsn.bf_schedule(hops=h)
-                        o['slots'][k,t,i,j] = max(slot_v)
-                        o['uncon'][k,t,i,j] = wsn.duly_scheduled_sinr(slot_v)
-                    rs_net = RandSchedNet(wsn, cont_f=40, pairs=10, Q=0.1, 
-                                          slot_t=2, VB=False, until=1e9)
-                    o['slots'][k,t,i,2] = max(rs_net.schedule())
+                        ne = FlexiTPNet(wsn, fw=h, n_exch=70)
+                        o['slots'][k,t,i,j] = ne.n_slots()
+                        o['nadv1'][k,t,i,j] = ne.nadve
+                        o['uncon'][k,t,i,j] = ne.dismissed()
+                    ne = ACSPNet(wsn, cont_f=100, pairs=10, Q=0.1)
+                    o['slots'][k,t,i,2] = ne.n_slots()
+                    o['uncon'][k,t,i,2] = ne.dismissed()
         savedict(**o)
     r = load_npz()
     g = Pgf()
+    leg = 'FlexiTP2', 'FlexiTP3', 'ACSP'
     for t, x in enumerate(xv):
         g.add("node density $\rho$", "$M/N$ for xnorm={0}".format(x/tx_rg1))
-        g.mplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), 
-                ['BF2', 'BF3', 'RandSched'])
+        g.mplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), leg)
         g.add("node density $\\rho$", "uncon")
-        g.mplot(rho_v, r['uncon'][t,:,:2], ['BF2', 'BF3'])
+        g.mplot(rho_v, r['uncon'][t,:,:2], leg)
         # g.add("normalized square size", "$M/N$")
         # g.mplot(xv / tx_rg1, r['slots'][t] / n_nodes.reshape(-1,1), 
         #         ['BF2', 'BF3', 'RandSched'])
