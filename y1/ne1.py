@@ -189,7 +189,7 @@ class Pgf(list):
         b = []
         b.append('''\documentclass{article}
 \usepackage[margin=0in]{geometry}
-\usepackage{orne1}
+\usepackage{orne1,thesisPlots}
 ''')
         if len(z.extra_preamble) == 1:
             b.append(z.extra_preamble)
@@ -220,6 +220,99 @@ class Pgf(list):
             os.remove(f_name + '.log')
         if plot == 2:
             display(f_name + '.pdf')
+class Pgf2(list):
+    def __init__(z, header=None):
+        if header is None:
+            z.append(r"""\documentclass[margin=0in]{article}
+\usepackage{orne1,thesisPlots}
+\begin{document}
+""")
+        elif isinstance(header, string):
+            z.append(header)
+        else:
+            z.extend(header)
+    def leg(z, lg=None):
+         if lg is not None:
+            z.append('      \legend{{' +  '}, {'.join(lg) + '}}\n')
+    def plot(z, x, y, h3=''):
+        """Plot vector y vs vector x.  leg is the legend and args are
+        parameters to add to the addplot operation."""
+        assert len(x) == len(y), "Vectors have different lengths"
+        if h3:
+            z.append(6 * ' ' + '\\addplot coordinates[{0}]{{'.format(h3))
+        else:
+            z.append(6 * ' ' + '\\addplot coordinates{{'.format(h3))
+        for i, (u, v) in enumerate(zip(x, y)):
+            if i < len(x) - 1:
+                if i % 3 == 2:
+                    z.append(8*' '+"({0:+.2e},{1:+.2e})".format(u, v))
+                elif i % 3 == 0:
+                    z.append("({0:+.2e},{1:+.2e})".format(u, v))
+                elif i % 3 == 1:
+                    z.append("({0:+.2e},{1:+.2e})%\n".format(u, v))
+            elif i % 3 == 2:
+                z.append(8*' '+"({0:+.2e},{1:+.2e})}};%\n".format(u, v))
+            elif i % 3 == 0:
+                z.append("({0:+.2e},{1:+.2e})}};%\n".format(u, v))
+            elif i % 3 == 1:
+                z.append("({0:+.2e},{1:+.2e})}};%\n".format(u, v))
+    def mplot(z, x, ym, lg=None, h3m=None):
+        # Plot the columns of matrix ym
+        for i in xrange(ym.shape[1]):
+            z.plot(x, ym[:,i], '' if h3m is None else h3m[i])
+        z.leg(lg)
+    def fplot(z, x, y, leg=None, h1='',h2='',h3=''):
+        z.append(r"""  \begin{{tikzpicture}}[{0}]
+    \begin{{axis}}[{1}]
+""".format(h1, h2))
+        z.plot(x, y, h3)
+        z.append(r"""    \end{axis}
+  \end{tikzpicture}
+
+""")
+    def mfplot(z, x, y, leg=None, h1='', h2=''):
+        z.append(r"""  \begin{{tikzpicture}}[{0}]
+    \begin{{axis}}[{1}]
+""".format(h1, h2))
+        z.mplot(x, y, leg)
+        z.append(r"""    \end{axis}
+  \end{tikzpicture}
+
+""")
+    def compile(z, f_name=None, plot=2):
+        """ Save string into file content from """
+        z.append("\\end{document}\n")
+        if f_name is None:
+            f_name = name_npz()
+        with open(f_name + '.tex', 'w') as f:
+            f.writelines(z)
+        if plot > 0:
+            subprocess.call(['pdflatex', '{0}.tex'.format(f_name)])  
+            os.remove(f_name + '.aux')
+            os.remove(f_name + '.log')
+        if plot == 2:
+            display(f_name + '.pdf')
+def sma():
+    s = Pgf2()
+    s.append(r"""  \begin{tikzpicture}
+    \begin{axis} 
+""")
+    s.plot([0,1],[0,1])
+    s.append("    \\end{axis}\n  \\end{tikzpicture}\n")
+    s.fplot([0,1],[0,1])
+    s.mfplot([0,1], np.array([[0,1],[1,2]]), ('one', 'two'))
+#     s.append"""\begin{tikzpicture}
+#     \\begin{groupplot}[group style={group size=2 by 1}, ymin=0, ymax=1500]
+# """
+#     s+= plot([0,1], [0, 1])
+#     s+= plot([0,1], [1, 0])
+    s.compile('sma')
+stB1 = '''\documentclass[margin=0in]{article}
+\usepackage{orne1}
+\begin{document}
+'''
+stC1 = """\begin{tikzpicture}
+    \begin{axis}"""
 class PgfAxis():
     def __init__(z, xlabel='', ylabel=''):
         z.buf = []
@@ -2551,23 +2644,46 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
                     o['slots'][k,t,i,2] = max(rs_net.schedule())
         savedict(**o)
     r = load_npz()
-    g = Pgf()
+    g = Pgf2()
+    xsi = "xlabel={normalized network size}" 
+    leg = 'BF2', 'BF3', 'RandSched'
+    g.append("\\section{Each graph for a different $x$}\n")
     for t, x in enumerate(xv):
-        g.add("node density $\rho$", "$M/N$ for xnorm={0}".format(x/tx_rg1))
-        g.mplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), 
-                ['BF2', 'BF3', 'RandSched'])
-        g.add("node density $\\rho$", "uncon")
-        g.mplot(rho_v, r['uncon'][t,:,:2], ['BF2', 'BF3'])
-        # g.add("normalized square size", "$M/N$")
-        # g.mplot(xv / tx_rg1, r['slots'][t] / n_nodes.reshape(-1,1), 
-        #         ['BF2', 'BF3', 'RandSched'])
+        g.append("\\subsection{{$x/t={0}$}}\n".format(x/tx_rg1))
+        g.mfplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), leg, '',
+                 r"xlabel={node density $\rho$}, " +
+                 r"ylabel={{$M/N$ for xnorm={0}}}".format(x/tx_rg1))
+        g.mfplot(rho_v, r['uncon'][t,:,:2], leg, '',
+                r"xlabel={node density $\rho$}, " +
+                r"ylabel={uncon}")
+    g.append("\\section{Each graph for a different $\rho$}\n")
     for i, rho in enumerate(rho_v):
-        g.add("normalized network side", "$M/N$ for $\\rho={0}$".format(rho))
-        g.mplot(xv / tx_rg1, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1), 
-                ['BF2', 'BF3', 'RandSched'])
-        g.add("number of node in the network $M$", "uncon")
-        g.mplot(xv / tx_rg1, r['uncon'][:,i,:2], ['BF2', 'BF3'])
-    g.save(plot=plot)
+        g.append("\\subsection{{$\\rho={0}$}}\n".format(rho))
+        g.mfplot(xv/tx_rg1,r['slots'][:,i,:]/n_nodes[:,i].reshape(-1,1),
+                 leg, '', r"xlabel={normalized network size}" +
+                 r"ylabel={{$M/N$ for $\rho={0}}}$".format(rho))
+        g.mfplot(xv / tx_rg1, r['uncon'][:,i,:2], leg, '',
+                 r"xlabel={normalized network size}" + 
+                 r"ylabel={{uncon for $\rho={0}}}".format(rho))
+    g.append(r"""\section{With grouplot}
+  \begin{tikzpicture}
+    \begin{groupplot}[group style={group size=3 by 1}, width=44mm,
+      ymin=0.4,ymax=1]
+      \nextgroupplot[ylabel={$M/N$},""" + xsi + """]
+""")
+    indices = 1, 3, 5
+    for h, i in enumerate(indices):
+        if h:
+            g.append(r"      \nextgroupplot[" + xsi + "]\n")
+        g.mplot(xv / tx_rg1, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1))
+    g.leg(leg)
+    g.append("    \end{groupplot}\n")
+    for h, i in enumerate(indices):
+        g.append("    \\node at (group c{0}r1.south)".format(h + 1))
+        g.append("[yshift=-14mm] {{({0}) $\\rho={1}$}};\n"
+                 .format('abc'[h], rho_v[i]))
+    g.append("\\end{tikzpicture}\n")
+    g.compile(plot=plot)
 def tst_FlexiTP2():
     np.random.seed(0)
     wsn = PhyNet(c=8,x=3*tx_rg1, y=1*tx_rg1, **net_par1)
