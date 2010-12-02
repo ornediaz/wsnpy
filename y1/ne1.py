@@ -890,21 +890,27 @@ class PhyNet(Tree):
         # access to the medium.
         tx1,rx1=[],[]# nodes that actually transmit and their recipients
         for src1, rcv1 in zip(src, rec):
-           if (np.random.rand() < 2**-src_fail[src1] and not
-               np.any([neigh in tx1 for neigh in z.tx_l[src1]])):
-               tx1.append(src1)
-               rx1.append(rcv1)
+           if np.random.rand() < 2**-src_fail[src1]: 
+               for neigh in z.tx_l[src1]:
+                   if neigh in tx1:
+                       break
+               else:
+                   tx1.append(src1)
+                   rx1.append(rcv1)
         t1, r1 = z.correct(tx1, rx1)
         # Make the recipients confirm with an ACK
         tx2, rx2 = [], []
         for src1, rcv1 in zip(r1, t1):
-            if not np.any([neigh in tx2 for neigh in z.tx_l[src1]]):
-               tx2.append(rcv1)
-               rx2.append(src1)
+            for neigh in z.tx_l[src1]:
+                if neigh in tx2:
+                    break
+            else:
+               tx2.append(src1)
+               rx2.append(rcv1)
         r2, t2 = z.correct(tx2,rx2)
         for x in t1:
             src_fail[x] = 0 if x in t2 else src_fail[x] + 1
-        return tx, rx
+        return t2, r2
     def broadcast_schedule(z, cap_packet):
         """
         cap_packet indicates how many schedule fit into one packet.
@@ -913,9 +919,9 @@ class PhyNet(Tree):
         src_fail = np.zeros(z.c, int)
         to_transmit = [[] for i in xrange(z.c)]
         for x in z.children(0):
-            for n in xrange(int((z.n_descendants[x]+1.)/cap_packet))):
+            for n in xrange(int(np.ceil((z.n_descendants[x]+1.)/cap_packet))):
                 to_transmit[0].append(x) 
-        for dbs in xrange(9999999):
+        for dbs in xrange(100):
             contenders = [i    for i, j in enumerate(to_transmit) if j]
             receivers  = [j[0] for i, j in enumerate(to_transmit) if j]
             txs, rxs = z.cont_succ(contenders, receivers, src_fail)
@@ -923,12 +929,12 @@ class PhyNet(Tree):
                 ch = to_transmit[i].pop(0)
                 if ch not in to_transmit[i]:
                     for x in z.children(ch):
-                        for n in xrange(float(
-                            (z.n_descendants[x]+1.)/cap_packet)):
+                        for n in xrange(int(np.ceil(
+                            (z.n_descendants[x]+1.)/cap_packet))):
                             to_transmit[ch].append(x)
-            if sum(bool(x) for x in to_transmit):
+            if not sum(bool(x) for x in to_transmit):
                 break
-        print("Number of elapsed iterations")
+        print("Number of elapsed iterations: {0}".format(dbs))
 class DiskModelNetwork(Tree):
     ''' WSN using transmission and interference range model.'''
     def __init__(z, c=100, x=200, y=200, tx_rg=50, ix_rg=100, n_tries=50):
