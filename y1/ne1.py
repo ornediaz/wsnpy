@@ -390,6 +390,12 @@ class Tree(object):
         z.xL = [a.union(b) for a, b in zip(z.txL, z.ixL)]
     def children(z, x):
         return [i for i, j in enumerate(z.f) if j == x]
+    def compute_n_descendants(z):
+        z.n_descendants = np.zeros(z.c)
+        for f in z.f:
+            while -1 < f < z.c:
+                z.n_descendants[f] += 1
+                f = z.f[f]
     def plot_tree(z):        
         '''Plot a tree.
         Parameters:
@@ -899,11 +905,30 @@ class PhyNet(Tree):
         for x in t1:
             src_fail[x] = 0 if x in t2 else src_fail[x] + 1
         return tx, rx
-    def broadcast_schedule(z):
-        
-               
-           
-        
+    def broadcast_schedule(z, cap_packet):
+        """
+        cap_packet indicates how many schedule fit into one packet.
+
+        """
+        src_fail = np.zeros(z.c, int)
+        to_transmit = [[] for i in xrange(z.c)]
+        for x in z.children(0):
+            for n in xrange(int((z.n_descendants[x]+1.)/cap_packet))):
+                to_transmit[0].append(x) 
+        for dbs in xrange(9999999):
+            contenders = [i    for i, j in enumerate(to_transmit) if j]
+            receivers  = [j[0] for i, j in enumerate(to_transmit) if j]
+            txs, rxs = z.cont_succ(contenders, receivers, src_fail)
+            for i in txs:
+                ch = to_transmit[i].pop(0)
+                if ch not in to_transmit[i]:
+                    for x in z.children(ch):
+                        for n in xrange(float(
+                            (z.n_descendants[x]+1.)/cap_packet)):
+                            to_transmit[ch].append(x)
+            if sum(bool(x) for x in to_transmit):
+                break
+        print("Number of elapsed iterations")
 class DiskModelNetwork(Tree):
     ''' WSN using transmission and interference range model.'''
     def __init__(z, c=100, x=200, y=200, tx_rg=50, ix_rg=100, n_tries=50):
@@ -2733,69 +2758,13 @@ def graphRandSched6(tst_nr=1, repetitions=1, action=0, plot=1):
     ''' Test in a simple network an algorithm to compute the overhead
 
     '''
-    xv = np.linspace(*((1,3,2),(3,8,5))[tst_nr]) * tx_rg1
-    rho_v = np.linspace(*((6,12,3),(6,24,6))[tst_nr])
-    n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
-                        np.pi / tx_rg1**2).round(), int)
-    printarray("n_nodes")
-    o = dict(slots=np.zeros((repetitions, len(xv), len(rho_v), 3)),
-             uncon=np.zeros((repetitions, len(xv), len(rho_v), 3)))
-    if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
-            for t, x in enumerate(xv):
-                for i, c in enumerate(n_nodes[t]):
-                    print_nodes(c, k)
-                    wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
-                    for j, h in enumerate((2,3)):
-                        slot_v = wsn.bf_schedule(hops=h)
-                        o['slots'][k,t,i,j] = max(slot_v)
-                        o['uncon'][k,t,i,j] = wsn.duly_scheduled_sinr(slot_v)
-                    rs_net = RandSchedNet(wsn, cont_f=40, pairs=10, Q=0.1, 
-                                          slot_t=2, VB=False, until=1e9)
-                    o['slots'][k,t,i,2] = max(rs_net.schedule())
-        savedict(**o)
-    r = load_npz()
-    g = Pgf2()
-    xsi = "xlabel={normalized network size}" 
-    leg = 'BF2', 'BF3', 'RandSched'
-    g.append("\\section{Each graph for a different $x$}\n")
-    for t, x in enumerate(xv):
-        g.append("\\subsection{{$x/t={0}$}}\n".format(x/tx_rg1))
-        g.mfplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), leg, '',
-                 r"xlabel={node density $\rho$}, " +
-                 r"ylabel={{$M/N$ for xnorm={0}}}".format(x/tx_rg1))
-        g.mfplot(rho_v, r['uncon'][t,:,:2], leg, '',
-                r"xlabel={node density $\rho$}, " +
-                r"ylabel={uncon}")
-    g.append("\\section{Each graph for a different $\rho$}\n")
-    for i, rho in enumerate(rho_v):
-        g.append("\\subsection{{$\\rho={0}$}}\n".format(rho))
-        g.mfplot(xv/tx_rg1,r['slots'][:,i,:]/n_nodes[:,i].reshape(-1,1),
-                 leg, '', r"xlabel={normalized network size}" +
-                 r"ylabel={{$M/N$ for $\rho={0}}}$".format(rho))
-        g.mfplot(xv / tx_rg1, r['uncon'][:,i,:2], leg, '',
-                 r"xlabel={normalized network size}" + 
-                 r"ylabel={{uncon for $\rho={0}}}".format(rho))
-    g.append(r"""\section{With grouplot}
-  \begin{tikzpicture}
-    \begin{groupplot}[group style={group size=3 by 1}, width=44mm,
-      ymin=0.4,ymax=1]
-      \nextgroupplot[ylabel={$M/N$},""" + xsi + """]
-""")
-    indices = 1, 3, 5
-    for h, i in enumerate(indices):
-        if h:
-            g.append(r"      \nextgroupplot[" + xsi + "]\n")
-        g.mplot(xv / tx_rg1, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1))
-    g.leg(leg)
-    g.append("    \end{groupplot}\n")
-    for h, i in enumerate(indices):
-        g.append("    \\node at (group c{0}r1.south)".format(h + 1))
-        g.append("[yshift=-14mm] {{({0}) $\\rho={1}$}};\n"
-                 .format('abc'[h], rho_v[i]))
-    g.append("\\end{tikzpicture}\n")
-    g.compile(plot=plot)
+    np.random.seed(0)
+    wsn = PhyNet(c=10, x=2 * tx_rg1, y=2 * tx_rg1, n_tries=80,**net_par1)
+    printarray('wsn.f')
+    wsn.compute_n_descendants()
+    printarray('wsn.n_descendants')
+    wsn.broadcast_schedule(cap_packet=2)
+    pdb.set_trace()
 def tst_FlexiTP2():
     np.random.seed(0)
     wsn = PhyNet(c=8,x=3*tx_rg1, y=1*tx_rg1, **net_par1)
@@ -2887,7 +2856,7 @@ def graphFlexiDensity2(tst_nr=1, repetitions=1, action=0, plot=1):
                     print_nodes(c, k)
                     wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
                     for j, h in enumerate((2,3)):
-                        ne = FlexiTPNet(wsn, fw=h, n_exch=70)
+                        ne = FlexiTPNet(wsn, fw=h, n_exch=70, nm=123456)
                         o['slots'][k,t,i,j] = ne.n_slots()
                         o['nadv1'][k,t,i,j] = ne.nadve
                         o['uncon'][k,t,i,j] = ne.dismissed()
