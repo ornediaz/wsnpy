@@ -859,6 +859,51 @@ class PhyNet(Tree):
             else:
                 connected[i] = True
         return 1 - float(sum(connected)) / sum(slot_v > 0)
+    def cont_succ(z, src, rec, src_fail):
+        """ Nodes in src contend to transmit  a packet.
+
+        src: list of nodes that transmit a packet.
+
+        rec: list of recipients
+
+        src_fail: np.array which in location *i* show how many repeated
+        failed attempts node *i* suffered.
+
+        ============================
+
+        Returns:
+        
+        tx -- list with the IDs of the nodes that receive an ACK.
+
+        rx -- list with the IDs of the nodes whose ACKs reaches the sensor
+        nodes
+
+        src_fail: it is not returned, but it is modified
+        """
+        # First: using contention, select which of selected sources gain
+        # access to the medium.
+        tx1,rx1=[],[]# nodes that actually transmit and their recipients
+        for src1, rcv1 in zip(src, rec):
+           if (np.random.rand() < 2**-src_fail[src1] and not
+               np.any([neigh in tx1 for neigh in z.tx_l[src1]])):
+               tx1.append(src1)
+               rx1.append(rcv1)
+        t1, r1 = z.correct(tx1, rx1)
+        # Make the recipients confirm with an ACK
+        tx2, rx2 = [], []
+        for src1, rcv1 in zip(r1, t1):
+            if not np.any([neigh in tx2 for neigh in z.tx_l[src1]]):
+               tx2.append(rcv1)
+               rx2.append(src1)
+        r2, t2 = z.correct(tx2,rx2)
+        for x in t1:
+            src_fail[x] = 0 if x in t2 else src_fail[x] + 1
+        return tx, rx
+    def broadcast_schedule(z):
+        
+               
+           
+        
 class DiskModelNetwork(Tree):
     ''' WSN using transmission and interference range model.'''
     def __init__(z, c=100, x=200, y=200, tx_rg=50, ix_rg=100, n_tries=50):
@@ -2620,6 +2665,73 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
     * action: 
         0: compute the results and store them in a file
         1: plot all the results
+    '''
+    xv = np.linspace(*((1,3,2),(3,8,5))[tst_nr]) * tx_rg1
+    rho_v = np.linspace(*((6,12,3),(6,24,6))[tst_nr])
+    n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
+                        np.pi / tx_rg1**2).round(), int)
+    printarray("n_nodes")
+    o = dict(slots=np.zeros((repetitions, len(xv), len(rho_v), 3)),
+             uncon=np.zeros((repetitions, len(xv), len(rho_v), 3)))
+    if action == 1:
+        for k in xrange(repetitions):
+            print_iter(k, repetitions)
+            for t, x in enumerate(xv):
+                for i, c in enumerate(n_nodes[t]):
+                    print_nodes(c, k)
+                    wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
+                    for j, h in enumerate((2,3)):
+                        slot_v = wsn.bf_schedule(hops=h)
+                        o['slots'][k,t,i,j] = max(slot_v)
+                        o['uncon'][k,t,i,j] = wsn.duly_scheduled_sinr(slot_v)
+                    rs_net = RandSchedNet(wsn, cont_f=40, pairs=10, Q=0.1, 
+                                          slot_t=2, VB=False, until=1e9)
+                    o['slots'][k,t,i,2] = max(rs_net.schedule())
+        savedict(**o)
+    r = load_npz()
+    g = Pgf2()
+    xsi = "xlabel={normalized network size}" 
+    leg = 'BF2', 'BF3', 'RandSched'
+    g.append("\\section{Each graph for a different $x$}\n")
+    for t, x in enumerate(xv):
+        g.append("\\subsection{{$x/t={0}$}}\n".format(x/tx_rg1))
+        g.mfplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), leg, '',
+                 r"xlabel={node density $\rho$}, " +
+                 r"ylabel={{$M/N$ for xnorm={0}}}".format(x/tx_rg1))
+        g.mfplot(rho_v, r['uncon'][t,:,:2], leg, '',
+                r"xlabel={node density $\rho$}, " +
+                r"ylabel={uncon}")
+    g.append("\\section{Each graph for a different $\rho$}\n")
+    for i, rho in enumerate(rho_v):
+        g.append("\\subsection{{$\\rho={0}$}}\n".format(rho))
+        g.mfplot(xv/tx_rg1,r['slots'][:,i,:]/n_nodes[:,i].reshape(-1,1),
+                 leg, '', r"xlabel={normalized network size}" +
+                 r"ylabel={{$M/N$ for $\rho={0}}}$".format(rho))
+        g.mfplot(xv / tx_rg1, r['uncon'][:,i,:2], leg, '',
+                 r"xlabel={normalized network size}" + 
+                 r"ylabel={{uncon for $\rho={0}}}".format(rho))
+    g.append(r"""\section{With grouplot}
+  \begin{tikzpicture}
+    \begin{groupplot}[group style={group size=3 by 1}, width=44mm,
+      ymin=0.4,ymax=1]
+      \nextgroupplot[ylabel={$M/N$},""" + xsi + """]
+""")
+    indices = 1, 3, 5
+    for h, i in enumerate(indices):
+        if h:
+            g.append(r"      \nextgroupplot[" + xsi + "]\n")
+        g.mplot(xv / tx_rg1, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1))
+    g.leg(leg)
+    g.append("    \end{groupplot}\n")
+    for h, i in enumerate(indices):
+        g.append("    \\node at (group c{0}r1.south)".format(h + 1))
+        g.append("[yshift=-14mm] {{({0}) $\\rho={1}$}};\n"
+                 .format('abc'[h], rho_v[i]))
+    g.append("\\end{tikzpicture}\n")
+    g.compile(plot=plot)
+def graphRandSched6(tst_nr=1, repetitions=1, action=0, plot=1):
+    ''' Test in a simple network an algorithm to compute the overhead
+
     '''
     xv = np.linspace(*((1,3,2),(3,8,5))[tst_nr]) * tx_rg1
     rho_v = np.linspace(*((6,12,3),(6,24,6))[tst_nr])
