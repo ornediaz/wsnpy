@@ -751,7 +751,6 @@ class PhyNet(Tree):
         z.p = np.array([[0, z.y / 2.0]])
         z.f = np.array([-1])
         z.mutate_network(1, c-1)
-        z.compute_n_descendants()
     def mutate_network(z, old, new):
         """Keep the first 'old' nodes and add 'new' new nodes.
 
@@ -787,6 +786,7 @@ class PhyNet(Tree):
         # Neighbors within transmission range
         z.tx_l = [[j for j in xrange(tot) if j != i and z.tx_p / 
                     z.att_m[i, j] / z.noise > z.sinr] for i in xrange(tot)]
+        z.compute_n_descendants()
     def atten(z, d):
         '''Return attenuation in natural units.'''
         distance_atten = z.PL0 * (d / z.d0) ** z.p_exp
@@ -1161,7 +1161,7 @@ class Node(simpy.Process):
         A number of attempts are made:
         + natte: number of packtes that the transmitter transmits
         + nsucc: number of success to consider the transmission successful
-        + fadin: standard deviation of the log normal fading applied to every
+        + fadng: standard deviation of the log normal fading applied to every
                  transmisson
 
         """
@@ -1172,7 +1172,7 @@ class Node(simpy.Process):
         nothing = 0
         pw1 = np.array([p.pow for p in z.i])
         for j in xrange(z.sim.natte):
-            att  = 10 ** (np.random.randn(len(pw1)) * z.sim.fadin / 10)
+            att  = 10 ** (np.random.randn(len(pw1)) * z.sim.fadng / 10)
             pw = pw1 * att
             i = pw.argmax()
             sinr = pw[i] / (pw.sum() - pw[i] + z.noise)
@@ -1318,8 +1318,9 @@ class RandSchedNode(Node):
         '''Run RandSched's distributed scheduling routine.'''
         # z.b contains z.id if the node should find a slot for itself.
         z.frame_n = 0
-        z.b = [z.id] if z.id else [] # sources to be scheduled
-        while len(z.rx_d) < len(z.children): 
+        z.b = [z.id for i in xrange(z.sim.npakts(z.id))] if z.id else []
+        n_expected_packets = sum(z.sim.npakts(ch) for ch in z.children)
+        while len(z.rx_d) < n_expected_packets:
             z.print("starts serving")
             z.update()
             z.print("starts checking the channel") 
@@ -1332,7 +1333,7 @@ class RandSchedNode(Node):
                 for i in z.serve(): yield i
             yield z.sleep(z.pause)
         if z.f >= 0:
-            while not z.tx_d:
+            while z.b:
                 z.update()
                 for i in z.bo(): yield i
                 if  z.i.p == 'nothing_received': 
@@ -1348,6 +1349,99 @@ class RandSchedNode(Node):
         if z.frame_n > z.sim.last_successful_contention_frame + 10:
             z.sim.stopSimulation() 
             raise NoProgressError
+    def seek(z):
+        for i in z.tx_pkt(d=z.f, p='pre', t=z.fs+z.t_w-z.now()): yield i
+        # sleep for an even random number of slots
+        sn = np.random.randint(z.pairs) 
+        yield z.sleep(2 * sn * z.slot_t)
+        for i in z.tx_pkt(d=z.f, p='cont', t=z.slot_t): yield i
+        yield z.listen(z.slot_t)
+        if z.correct_rec(p='ack'):
+            # Protect my frame by transmitting in remaining slots.
+            for i in xrange(sn + 1, z.pairs):
+                for i in z.tx_pkt(t=z.slot_t, d=z.f, p='cont'): yield i
+                yield z.sleep(z.slot_t)
+            # Final contention against all the winners.
+            for i in z.tx_pkt(t=z.slot_t, d=z.f, p='cont'): yield i
+            yield z.listen(z.slot_t)
+            if z.correct_rec(p='ack'):
+                z.sim.last_successful_contention_frame = z.frame_n
+                z.print('obtained slot {0} to communicate with {1}'.format(
+                        z.frame_n, z.f))
+                src = z.b.pop(0)
+                z.tx_d[z.frame_n] = src
+                z.sim[z.f].rx_d[z.frame_n] = z.id, src
+                for i in z.tx_pkt(d=z.f,p='cont',t=z.slot_t,s=z.b.pop(0)):
+                    yield i
+        yield z.sleep(z.fe - z.now())
+    def serve(z):
+        s = 0 # Have I received a packet from a child?  If not, s=0.  If
+              # yes, s is equal to the ID of that node.
+        for i in xrange(z.pairs):
+            if s:
+                yield z.sleep(z.slot_t)
+                for j in z.tx_pkt(d=s, p='ack', t=z.slot_t): yield j
+            else: 
+                yield z.listen(z.slot_t)
+                if z.correct_rec(p='cont'):
+                    s = z.i.r
+                    for j in z.tx_pkt(d=s, p='ack', t=z.slot_t): yield j
+                else:
+                    yield z.sleep(z.slot_t)
+        # Listen again for packets. Now only winners will transmit.
+        yield z.listen(z.slot_t)
+        if z.correct_rec(p='cont'):
+            for i in z.tx_pkt(d=z.i.r, p='ack', t=z.slot_t): yield i
+            yield z.listen(z.slot_t)
+        yield z.sleep(z.fe - z.now())
+class ACSPNode(RandSchedNode):
+    def help_children(z):
+        return len(z.rx_d) < z.n_descendants() and (z.id==0 or len(z.b)<z.B)
+        # 1 <= len(z.b) <= z.B in my simulations
+    def bt2(z):
+        """Previous back off algorithm.  Deprecated."""
+        return (z.B - len(z.b) + np.random.rand()) * (z.t_w-z.Q) / z.B
+    def bt(z):
+        """Back off time prioritizing hop distance and then buffer
+        capacity.  
+        
+        z.b > 0 (otherwise it would not contend)
+        z.tier > 0 (otherwise it would not contend)
+        
+        """
+        block = min(z.tier - 1, z.tiermax)
+        assert block >= 0
+        slot = block * z.B + z.B - min(len(z.b), z.B) + np.random.rand()
+        t = slot / z.B / z.tiermax * (z.t_w - z.Q)
+        assert t < z.t_w - z.Q
+        return t
+    def run_su(z):
+        """Run the initial setup algorithm."""
+        z.frame_n = 0
+        z.b = [z.id] if z.id else [] # packets to be scheduled
+        while z.b or z.help_children():
+            if z.id == 0: 
+                z.print('begins frame {0}{1}'.format(z.n_frames(),15 * '-'))
+            z.update()
+            z.assert_sync()
+            if z.b:
+                for i in z.bo(): yield i
+                if z.i.p == 'nothing_received':
+                    for i in z.seek(): yield i
+                elif z.help_children():
+                    yield z.sleep(z.fs + z.t_w - z.now())
+                    for i in z.serve(): yield i
+                else: 
+                    z.print("lost will not help")
+                    yield z.sleep(z.fe - z.now())
+            else:
+                z.print("starts checking the channel") 
+                yield z.listen(z.t_w) 
+                z.process_reception_buffer() 
+                if z.i.p == 'nothing_received': 
+                    yield z.sleep(z.fe - z.now()) 
+                else:
+                    for i in z.serve(): yield i
     def seek(z):
         for i in z.tx_pkt(d=z.f, p='pre', t=z.fs+z.t_w-z.now()): yield i
         # sleep for an even random number of slots
@@ -1399,54 +1493,6 @@ class RandSchedNode(Node):
             else:
                 z.print("failed to assign slot in the last test")
         yield z.sleep(z.fe - z.now())
-class ACSPNode(RandSchedNode):
-    def help_children(z):
-        return len(z.rx_d) < z.n_descendants() and (z.id==0 or len(z.b)<z.B)
-        # 1 <= len(z.b) <= z.B in my simulations
-    def bt2(z):
-        """Previous back off algorithm.  Deprecated."""
-        return (z.B - len(z.b) + np.random.rand()) * (z.t_w-z.Q) / z.B
-    def bt(z):
-        """Back off time prioritizing hop distance and then buffer
-        capacity.  
-        
-        z.b > 0 (otherwise it would not contend)
-        z.tier > 0 (otherwise it would not contend)
-        
-        """
-        block = min(z.tier - 1, z.tiermax)
-        assert block >= 0
-        slot = block * z.B + z.B - min(len(z.b), z.B) + np.random.rand()
-        t = slot / z.B / z.tiermax * (z.t_w - z.Q)
-        assert t < z.t_w - z.Q
-        return t
-    def run_su(z):
-        """Run the initial setup algorithm."""
-        z.frame_n = 0
-        z.b = [z.id] if z.id else [] # packets to be scheduled
-        while z.b or z.help_children():
-            if z.id == 0: 
-                z.print('begins frame {0}{1}'.format(z.n_frames(),15 * '-'))
-            z.update()
-            z.assert_sync()
-            if z.b:
-                for i in z.bo(): yield i
-                if z.i.p == 'nothing_received':
-                    for i in z.seek(): yield i
-                elif z.help_children():
-                    yield z.sleep(z.fs + z.t_w - z.now())
-                    for i in z.serve(): yield i
-                else: 
-                    z.print("lost will not help")
-                    yield z.sleep(z.fe - z.now())
-            else:
-                z.print("starts checking the channel") 
-                yield z.listen(z.t_w) 
-                z.process_reception_buffer() 
-                if z.i.p == 'nothing_received': 
-                    yield z.sleep(z.fe - z.now()) 
-                else:
-                    for i in z.serve(): yield i
     def assert_sync(z, offset=0.0, tolerance=0.01):
         t = float(z.now() - offset)
         mult = np.round(t / z.ft) 
@@ -1655,16 +1701,112 @@ class SimNet(list, simpy.Simulation):
     def print(z, *args, **kwargs):
         if z.VB:
             print(*args, **kwargs)
+    def npakts(z, id):
+        return int(np.ceil((z.n_descendants[id] + 1.0) /
+                           (1.0 + z.compf)))
+    def sche_len(z):
+        """Return the length of the schedule."""
+        return max(max(x.keys()) for x in z)
+    def success_ratio(z):
+        """ Return the success ratio of the schedule when the attentuation
+        of each link oscillates with standard deviation fadng
+        """
+        natte = 0
+        nsucc = 0
+        repetitions = 100
+        for slot in xrange(99999):
+            src = [i for i, j in enumerate(z) if slot in j.tx_d]
+            if src:
+                last_used = slot
+                natte += len(src) * repetitions
+                for i in src:
+                    for k in xrange(repetitions):
+                        sig1 = (z.wsn.tx_p / z.attm[i,z.f[i]] * 10 ** (
+                                np.random.randn() * z.fadng / 10)) 
+                        inx1 = sum(z.wsn.tx_p / z.attm[j,z.f[i]] * 10 ** (
+                                np.random.randn() * z.fadng / 10)
+                                   for j in src if j != i) + z.noise
+                        sig2 = (z.wsn.tx_p / z.attm[z.f[i],i] * 10 ** (
+                                np.random.randn() * z.fadng / 10)) 
+                        inx2 = sum(z.wsn.tx_p / z.attm[z.f[j],i] * 10 ** (
+                                np.random.randn() * z.fadng / 10)
+                                   for j in src if j !=i) + z.noise
+                        if min(sig1/inx1, sig2/inx2) > z.sinr:
+                            nsucc += 1
+            elif slot - last_used > 20:
+                break
+        else:
+            raise Error('We should not reach this point')
+        suc_ratio = float(nsucc) / natte
+        return suc_ratio
+    def bf_schedule(z, hops=2)
+        '''Return tree schedule computed in breadth first order.
+
+        Parameters:
+        z.p       -- vector of coordinates; necessary if sort==True 
+        z.f       -- vector of parents
+        z.tx_l   -- tx_l[i] contains the list of neighbors of node i
+        hops    -- number of hops within two nodes interfere with each other
+        sort    -- sort the nodes according to their position? 
+                   This sorting seems not to improve the performance,
+                   so I recommend passing p=None.
+
+        In the coloring process, no color within 'hops' hops away in the
+        graph defined by 'tx_l' is used.
+        
+        The output is slot_v which is a vector that in position $i$
+        indicates the slot assigned to node $i$.  In other words, every node
+        is only assigned one slot, which means that the schedule is for data
+        aggregation.
+        
+        '''
+        c = len(z.wsn.f)
+        # Queue used to color the nodes in Breadth First order
+        q = [y for y in z.wsn.children(0) for i in xrange(z.npakts(y))]
+        tmp = [[] for i in xrange(c)]
+        max_slot_number = 0 
+        while q:
+            x = q.pop(0) # node to color in current iteration
+            q.extend(y for y in z.wsn.children(x)for i in xrange(z.npakts(y)))
+            # Compute the set of nodes s whose color I cannot use. Two parts:
+            # 1) Nodes that interfere with my parent's reception
+            s = k_neigh(node_set=z.wsn.f[x], hops=hops, tx_l=z.wsn.tx_l)
+            # 2) Nodes whose parents can interfere with me
+            s1 = k_neigh(node_set=x, hops=hops, tx_l=z.wsn.tx_l) 
+            for w in s1:
+                s.update(z.wsn.children(w)) # Their parents
+            # Start testing the next color to the one of the parent. 
+            usedColors = set(tmp[x])
+            for y in s:
+                usedColors.union(tmp[y])
+            clr = max(tmp[z.wsn.f[x]]) + 1
+            while clr in usedColors:
+                clr += 1
+            tmp[x].append(clr)
+            max_slot_number = max(max_slot_number, clr) + 1
+        for node_index, color_list in enumerate(tmp):
+            for clr in color_list:
+                z[node_index].tx_d[clr] = max_slot_number - clr
+        return max_slot_number
+class BFNet(SimNet):
+    def __init__(z, wsn, fadng=0, compf=99999):
+        """
+        Schedule the network providing more than one DB per node according
+        to  compf.
+
+        """
+        stamp(z, locals())
 class RandSchedNet(SimNet):
     AlNode = RandSchedNode
     def __init__(z, wsn, cont_f=10, pairs=2, Q=0.1, slot_t=2, pause=10.0, 
-                 VB=False, until=1e8, natte=1, nsucc=1, fadin=0, **kwargs):
+                 VB=False, until=1e8, natte=1, nsucc=1, fadng=0, compf=99999,
+                 **kwargs):
 
         """
         >>> RandSchedNet(test_net1(), VB=False, until=15).schedule()
         [-1, 1]
         >>> RandSchedNet(test_net2(), VB=False, until=100).schedule()
-        [-1, 2, 1]
+        [-1, 2, 1]jjj
         """
         t_w = cont_f * Q # Contention window duration
         ft = t_w + slot_t * (pairs * 2 + 3) + pause # frame duration
@@ -2933,7 +3075,7 @@ def tst_process(tst_nr=1, repetitions=1, action=0, plot=1):
     cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
     dim = repetitions, len(vnatte), len(vnsucc), len(vfadin)
     o = dict(slots=np.zeros(dim),
-             uncon=np.zeros(dim))
+             succr=np.zeros(dim))
     if action == 1:
         for k in xrange(repetitions):
             print_iter(k, repetitions)
@@ -2944,10 +3086,11 @@ def tst_process(tst_nr=1, repetitions=1, action=0, plot=1):
                     for j, f in enumerate(vfadin):
                         print_nodes(c, k)
                         wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
-                        rs_net = RandSchedNet(wsn,cont_f=40,pairs=10,Q=0.1, 
+                        rs = RandSchedNet(wsn,cont_f=40,pairs=10,Q=0.1, 
                                               slot_t=2, VB=False, until=1e9
-                                              natte=a,nsucc=s,fading=f)
-                        o['slots'][k,t,i,j] = max(rs_net.schedule())
+                                              natte=a,nsucc=s,fadng=f)
+                        o['succr'][k,t,i,j] = rs.success_ratio()
+                        o['slots'][k,t,i,j] = rs.sche_len()
         savedict(**o)
     r = load_npz()
     g = Pgf2()
