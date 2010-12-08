@@ -1186,6 +1186,8 @@ class Node(simpy.Process):
             z.i = z.i[j]
         elif nothing == natte:
             z.i = Packet(r=None, d=None, p='nothing_received')
+        else:
+            z.i = Packet(r=None, d=None, p='ruined_reception')
     def sleep(z, time):
         z.set_radio('sl')
         return simpy.hold, z, time

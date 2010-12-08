@@ -488,7 +488,7 @@ class Tree(object):
             # 2) Nodes whose parents can interfere with me
             s1 = k_neigh(node_set=current_node, hops=hops, tx_l=z.tx_l) 
             for q in s1:
-                s = s.union(set(z.children(q))) # Their parents
+                s.update(z.children(q)) # Their parents
             # Start testing the next color to the one of the parent. 
             usedColors = set(slot_v[h] for h in s)
             clr = slot_v[z.f[current_node]] + 1
@@ -747,7 +747,7 @@ class PhyNet(Tree):
         '''
         stamp(z, locals())
         z.noise = KBOL * T0 * BW
-        z.att_m = np.ones((1, 1))
+        z.attm = np.ones((1, 1))
         z.p = np.array([[0, z.y / 2.0]])
         z.f = np.array([-1])
         z.mutate_network(1, c-1)
@@ -759,24 +759,24 @@ class PhyNet(Tree):
         - z.p_old is the previous vector of parents 
 
         """
-        if old > min(len(z.p), len(z.att_m)):
+        if old > min(len(z.p), len(z.attm)):
             raise Error('Unsufficient past size to expand network')
             raise
         tot = old + new
         z.old = old
         z.f_old = z.f
         z.p = np.vstack((z.p[:old], np.zeros((new, 2))))
-        att_m = z.att_m
-        z.att_m = np.ones((tot, tot))
-        z.att_m[:old, :old]  = att_m[:old, :old]
+        attm = z.attm
+        z.attm = np.ones((tot, tot))
+        z.attm[:old, :old]  = attm[:old, :old]
         for attempt in xrange(z.n_tries):
             z.p[old:] = np.random.rand(new, 2) * [z.x, z.y] 
             for i in xrange(tot):
                 for j in xrange(max(i+1, old), tot):
                     d = sum((z.p[i] - z.p[j]) ** 2) ** .5
-                    z.att_m[[i, j], [j, i]] = z.atten(d)
+                    z.attm[[i, j], [j, i]] = z.atten(d)
             # Cost function used in Dijkstra
-            cost_m = np.where(z.tx_p / z.att_m / z.noise > z.sinr, 1, INF)
+            cost_m = np.where(z.tx_p / z.attm / z.noise > z.sinr, 1, INF)
             z.f = np.array(dijkstra(cost_m))
             if sum(z.f >= 0) > 0.9 * (tot - 1):
                 # The created network is sufficiently connected and we stop.
@@ -785,7 +785,7 @@ class PhyNet(Tree):
             raise UnsufficientDensity
         # Neighbors within transmission range
         z.tx_l = [[j for j in xrange(tot) if j != i and z.tx_p / 
-                    z.att_m[i, j] / z.noise > z.sinr] for i in xrange(tot)]
+                    z.attm[i, j] / z.noise > z.sinr] for i in xrange(tot)]
         z.compute_n_descendants()
     def atten(z, d):
         '''Return attenuation in natural units.'''
@@ -813,7 +813,7 @@ class PhyNet(Tree):
             for j in rx_v: # Transmit signal to all receivers
                 # If the receiver is the destination, count the received
                 # power as signal, otherwise count it as interference
-                rec_pow = z.tx_p / z.att_m[s, j]
+                rec_pow = z.tx_p / z.attm[s, j]
                 if j == d:
                     signal[j] += rec_pow
                 else:
@@ -945,6 +945,10 @@ class PhyNet(Tree):
         if VB:
             print("Number of elapsed iterations: {0}".format(dbs+1))
         return dbs + 1
+    def npakts(z,compf):
+        net = BFNet(z,compf=compf)
+        npkts = sum(net.npakts(i) for i in xrange(z.c) if z.f[i] >= 0)
+        return npkts
 class DiskModelNetwork(Tree):
     ''' WSN using transmission and interference range model.'''
     def __init__(z, c=100, x=200, y=200, tx_rg=50, ix_rg=100, n_tries=50):
@@ -1120,7 +1124,7 @@ class Node(simpy.Process):
                 if n.radio == 'id':
                     n.set_radio('rx')
                 pkt_i = copy.deepcopy(pkt)
-                pkt_i.pow = z.tx_p / z.wsn.att_m[z.id, i]
+                pkt_i.pow = z.tx_p / z.wsn.attm[z.id, i]
                 n.i.append(pkt_i)   
         # Setting transmit state ensures it will not be interrupted
         z.set_radio('tx')
@@ -1172,7 +1176,7 @@ class Node(simpy.Process):
         nothing = 0
         pw1 = np.array([p.pow for p in z.i])
         for j in xrange(z.sim.natte):
-            att  = 10 ** (np.random.randn(len(pw1)) * z.sim.fadng / 10)
+            att  = 10 ** (np.random.randn(len(pw1)) * z.sim.fadng / 10.)
             pw = pw1 * att
             i = pw.argmax()
             sinr = pw[i] / (pw.sum() - pw[i] + z.noise)
@@ -1182,10 +1186,12 @@ class Node(simpy.Process):
             elif pw.sum() / z.noise < z.sinr:
                 nothing += 1
         j = rec.argmax()
-        if rec[j] >= nsucc:
+        if rec[j] >= z.nsucc:
             z.i = z.i[j]
-        elif nothing == natte:
+        elif nothing == z.natte:
             z.i = Packet(r=None, d=None, p='nothing_received')
+        else:
+            z.i = Packet(r=None, d=None, p='ruined_reception')
     def sleep(z, time):
         z.set_radio('sl')
         return simpy.hold, z, time
@@ -1346,7 +1352,7 @@ class RandSchedNode(Node):
         z.frame_n += 1 # frame number
         z.fs = z.now()  # frame start time
         z.fe = z.fs + z.ft # Frame end time.
-        if z.frame_n > z.sim.last_successful_contention_frame + 10:
+        if z.frame_n > z.sim.last_successful_contention_frame + 100:
             z.sim.stopSimulation() 
             raise NoProgressError
     def seek(z):
@@ -1371,7 +1377,7 @@ class RandSchedNode(Node):
                 src = z.b.pop(0)
                 z.tx_d[z.frame_n] = src
                 z.sim[z.f].rx_d[z.frame_n] = z.id, src
-                for i in z.tx_pkt(d=z.f,p='cont',t=z.slot_t,s=z.b.pop(0)):
+                for i in z.tx_pkt(d=z.f,p='cont',t=z.slot_t,s=src):
                     yield i
         yield z.sleep(z.fe - z.now())
     def serve(z):
@@ -1669,7 +1675,7 @@ class ACSPNode(RandSchedNode):
                     conc2 = [z.sim[node.f] for node in conc1]
                     max_sig  = 0.0
                     for sources in conc1, conc2:
-                        sig = sum(node.tx_p / z.wsn.att_m[node.id, z.id] 
+                        sig = sum(node.tx_p / z.wsn.attm[node.id, z.id] 
                                   for node in sources)
                         max_sig = max(max_sig, sig)
                     if max_sig / z.wsn.noise < z.wsn.sinr:
@@ -1702,11 +1708,19 @@ class SimNet(list, simpy.Simulation):
         if z.VB:
             print(*args, **kwargs)
     def npakts(z, id):
-        return int(np.ceil((z.n_descendants[id] + 1.0) /
+        return int(np.ceil((z.wsn.n_descendants[id] + 1.0) /
                            (1.0 + z.compf)))
     def sche_len(z):
         """Return the length of the schedule."""
-        return max(max(x.keys()) for x in z)
+        lgt = 0
+        for x in z:
+            if x.tx_d:
+                lgt = max(lgt, max(x.tx_d.keys()))
+        return lgt
+    def recf(z, i, j):
+        """Return received power between i and j when there is fading"""
+        return (z.wsn.tx_p / z.wsn.attm[i, j] * 
+                10 ** (np.random.randn() * z.fadng / 10.))
     def success_ratio(z):
         """ Return the success ratio of the schedule when the attentuation
         of each link oscillates with standard deviation fadng
@@ -1714,24 +1728,21 @@ class SimNet(list, simpy.Simulation):
         natte = 0
         nsucc = 0
         repetitions = 100
-        for slot in xrange(99999):
+        last_used = 0
+        for slot in xrange(1, 99999):
             src = [i for i, j in enumerate(z) if slot in j.tx_d]
             if src:
                 last_used = slot
                 natte += len(src) * repetitions
                 for i in src:
                     for k in xrange(repetitions):
-                        sig1 = (z.wsn.tx_p / z.attm[i,z.f[i]] * 10 ** (
-                                np.random.randn() * z.fadng / 10)) 
-                        inx1 = sum(z.wsn.tx_p / z.attm[j,z.f[i]] * 10 ** (
-                                np.random.randn() * z.fadng / 10)
-                                   for j in src if j != i) + z.noise
-                        sig2 = (z.wsn.tx_p / z.attm[z.f[i],i] * 10 ** (
-                                np.random.randn() * z.fadng / 10)) 
-                        inx2 = sum(z.wsn.tx_p / z.attm[z.f[j],i] * 10 ** (
-                                np.random.randn() * z.fadng / 10)
-                                   for j in src if j !=i) + z.noise
-                        if min(sig1/inx1, sig2/inx2) > z.sinr:
+                        sig1 = z.recf(i, z.wsn.f[i])
+                        inx1 = z.wsn.noise + sum(z.recf(j, z.wsn.f[i]) 
+                                                 for j in src if j != i)
+                        sig2 = z.recf(z.wsn.f[i], i) 
+                        inx2 = z.wsn.noise + sum(z.recf(z.wsn.f[j], i)
+                                             for j in src if j !=i)
+                        if min(sig1/inx1, sig2/inx2) > z.wsn.sinr:
                             nsucc += 1
             elif slot - last_used > 20:
                 break
@@ -1739,7 +1750,7 @@ class SimNet(list, simpy.Simulation):
             raise Error('We should not reach this point')
         suc_ratio = float(nsucc) / natte
         return suc_ratio
-    def bf_schedule(z, hops=2)
+    def bf_schedule(z, hops=2):
         '''Return tree schedule computed in breadth first order.
 
         Parameters:
@@ -1768,25 +1779,31 @@ class SimNet(list, simpy.Simulation):
         while q:
             x = q.pop(0) # node to color in current iteration
             q.extend(y for y in z.wsn.children(x)for i in xrange(z.npakts(y)))
-            # Compute the set of nodes s whose color I cannot use. Two parts:
-            # 1) Nodes that interfere with my parent's reception
-            s = k_neigh(node_set=z.wsn.f[x], hops=hops, tx_l=z.wsn.tx_l)
-            # 2) Nodes whose parents can interfere with me
-            s1 = k_neigh(node_set=x, hops=hops, tx_l=z.wsn.tx_l) 
-            for w in s1:
-                s.update(z.wsn.children(w)) # Their parents
-            # Start testing the next color to the one of the parent. 
-            usedColors = set(tmp[x])
-            for y in s:
-                usedColors.union(tmp[y])
-            clr = max(tmp[z.wsn.f[x]]) + 1
-            while clr in usedColors:
-                clr += 1
+            clr = 1 
+            if hops == INF:
+                clr = max_slot_number + 1
+            else: 
+                # Compute the set of nodes s whose color I cannot use. Two
+                # parts: 1) Nodes that interfere with my parent's reception
+                s = k_neigh(node_set=z.wsn.f[x], hops=hops, tx_l=z.wsn.tx_l)
+                # 2) Nodes whose parents can interfere with me
+                s1 = k_neigh(node_set=x, hops=hops, tx_l=z.wsn.tx_l) 
+                for w in s1:
+                    s.update(z.wsn.children(w)) # Their parents
+                # Start testing the next color to the one of the parent. 
+                usedColors = set(tmp[x])
+                for y in s:
+                    usedColors.update(tmp[y])
+                slots_parent = tmp[z.wsn.f[x]]
+                if slots_parent:
+                    clr =  max(slots_parent) + 1
+                while clr in usedColors:
+                    clr += 1
             tmp[x].append(clr)
-            max_slot_number = max(max_slot_number, clr) + 1
+            max_slot_number = max(max_slot_number, clr)
         for node_index, color_list in enumerate(tmp):
             for clr in color_list:
-                z[node_index].tx_d[clr] = max_slot_number - clr
+                z[node_index].tx_d[clr] = max_slot_number + 1 - clr
         return max_slot_number
 class BFNet(SimNet):
     def __init__(z, wsn, fadng=0, compf=99999):
@@ -1796,11 +1813,12 @@ class BFNet(SimNet):
 
         """
         stamp(z, locals())
+        z[:] = [Node(id=i, sim=z) for i in xrange(len(wsn.f))]
 class RandSchedNet(SimNet):
     AlNode = RandSchedNode
     def __init__(z, wsn, cont_f=10, pairs=2, Q=0.1, slot_t=2, pause=10.0, 
                  VB=False, until=1e8, natte=1, nsucc=1, fadng=0, compf=99999,
-                 **kwargs):
+                 AlNode=RandSchedNode, **kwargs):
 
         """
         >>> RandSchedNet(test_net1(), VB=False, until=15).schedule()
@@ -1812,7 +1830,7 @@ class RandSchedNet(SimNet):
         ft = t_w + slot_t * (pairs * 2 + 3) + pause # frame duration
         stamp(z, locals())
         z.print("t_w = {0}; ft = {1}".format(t_w, ft))
-        z[:] = [z.AlNode(id=i, sim=z) for i in xrange(len(wsn.f))]
+        z[:] = [AlNode(id=i, sim=z) for i in xrange(len(wsn.f))]
         z.last_successful_contention_frame = -1
         z.simulate_net()
     def schedule(z):
@@ -3016,7 +3034,7 @@ def graphRandSched6(tst_nr=1, repetitions=1, action=0, plot=1):
   #   g.append("\\end{tikzpicture}\n")
 
     g.append(r"""\newpage
-\section{With grouplot2}
+\section{With groupplot2}
   \begin{tikzpicture}
     \begin{groupplot}[group style={group size=3 by 4},height=34mm,width=44mm]
       \nextgroupplot[ylabel={$M/N$}]
@@ -3053,54 +3071,63 @@ def graphRandSched6(tst_nr=1, repetitions=1, action=0, plot=1):
                  .format('abc'[h], rho_v[i]))
     g.append("\\end{tikzpicture}\n")
     g.compile(plot=plot)
-def tst_process(tst_nr=1, repetitions=1, action=0, plot=1):
-    """
-        + natte: number of packtes that the transmitter transmits
-        + nsucc: number of success to consider the transmission successful
-        + fadin: standard deviation of the log normal fading applied to every
-                 transmisson
-    """
+def graphRandSched7(tst_nr=1, repetitions=1, action=0, plot=1):
+    ''' Plot M/N (schedule size / number of nodes in the network).
+
+    Parameters to call this script with:
+    * tst_nr:
+            0: fast test
+            1: parameters for publication
+
+    * action: 
+        0: compute the results and store them in a file
+        1: plot all the results
+    '''
     packet_size = 56 * 8 # bits
     id_size = 16 # bits
     slot_id_size = 16 # bits to indicate the slot number
     slot_pairs = 5
-    vnatte = np.arange(1,10)
-    vnsucc = np.arange(1,4)
-    vfadin = np.linspace(0,9,3)
+    vcompf = np.logspace(-1, 2, 5)
+    xv = np.linspace(*((1,3,2),(3,8,5))[tst_nr]) * tx_rg1
     rho_v = np.linspace(*((6,20,3),(6,24,6))[tst_nr])
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
     printarray("n_nodes")
+
     cap1=int(np.ceil(packet_size/(id_size+slot_id_size)))
     cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
-    dim = repetitions, len(vnatte), len(vnsucc), len(vfadin)
-    o = dict(slots=np.zeros(dim),
-             succr=np.zeros(dim))
+    dm1 = (repetitions,len(xv),len(rho_v),len(vcompf),3)
+    o = dict(slots=zeros(dm1),
+             # number of dbs used by BF in the two centralized operations
+             dbsce=np.zeros(dm1),
+             uncon=np.zeros(dm1))
     if action == 1:
         for k in xrange(repetitions):
             print_iter(k, repetitions)
-            for t, a in enumerate(vnatte):
-                for i, s in enumerate(nsucc):
-                    if s > x:
-                        continue
-                    for j, f in enumerate(vfadin):
-                        print_nodes(c, k)
-                        wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
-                        rs = RandSchedNet(wsn,cont_f=40,pairs=10,Q=0.1, 
-                                              slot_t=2, VB=False, until=1e9
-                                              natte=a,nsucc=s,fadng=f)
-                        o['succr'][k,t,i,j] = rs.success_ratio()
-                        o['slots'][k,t,i,j] = rs.sche_len()
+            for t, x in enumerate(xv):
+                for i, c in enumerate(n_nodes[t]):
+                    print_nodes(c, k)
+                    wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
+                    for h, f in enumerate(vcompf):
+                        for r, cap in enumerate((cap1, cap2[i], 9999)):
+                            o['dbsce'][k,t,i,f,r] = wsn.broad_sche(cap_packet=cap)
+                        for j, h in enumerate((2,3)):
+                            bf = BFNet(wsn, compf=f)
+                            slot_v = wsn.bf_schedule(hops=h)
+                            o['slots'][k,t,i,j] = max(slot_v)
+                            o['uncon'][k,t,i,j] = wsn.duly_scheduled_sinr(slot_v)
+                        rs_net = RandSchedNet(wsn, cont_f=40, pairs=10, Q=0.1, 
+                                              slot_t=2, VB=False, until=1e9)
+                    o['slots'][k,t,i,2] = max(rs_net.schedule())
         savedict(**o)
     r = load_npz()
     g = Pgf2()
     xsi = "xlabel={normalized network size}" 
     leg = 'BF2', 'BF3', 'RandSched'
-    overhead = np.zeros((len(xv), len(rho_v), 2)) # BF, RandSched
     slott1 = 0.03  # slot time without contention in seconds
     slott2 =  slott1 * 1.10# with contention
-    overhead[:,:,0] = r['dbsce'][:,:,:2].sum(2) * 2 * slott2  
-    overhead[:,:,1] = r['slots'][:,:,2] * (slot_pairs * 2 + 3.1) * slott1
+    overhead=np.dstack((r['dbsce'][:,:,:2].sum(2) * 2 * slott2, #BF
+                        r['slots'][:,:,2] * (slot_pairs * 2 + 3.1) * slott1))
   #   g.append("\\section{Each graph for a different $x$}\n")
   #   for t, x in enumerate(xv):
   #       g.append("\\subsection{{$x/t={0}$}}\n".format(x/tx_rg1))
@@ -3139,7 +3166,7 @@ def tst_process(tst_nr=1, repetitions=1, action=0, plot=1):
   #   g.append("\\end{tikzpicture}\n")
 
     g.append(r"""\newpage
-\section{With grouplot2}
+\section{With groupplot2}
   \begin{tikzpicture}
     \begin{groupplot}[group style={group size=3 by 4},height=34mm,width=44mm]
       \nextgroupplot[ylabel={$M/N$}]
@@ -3149,27 +3176,163 @@ def tst_process(tst_nr=1, repetitions=1, action=0, plot=1):
     for h, i in enumerate(indices):
         if h: g.append("      \\nextgroupplot[ymin=0.4, ymax=1.0]\n """)
         g.mplot(xvn, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1))
+    g.leg(leg)
+
     g.append("\\nextgroupplot[ylabel={uncon}]\n")
     for h, i in enumerate(indices):
         if h: g.append("      \\nextgroupplot\n")
         g.mplot(xvn, r['uncon'][:,i,:])
+    g.leg(('BF2', 'BF3'))
+
     g.append("\\nextgroupplot[ylabel={overhead}]\n")
     for h, i in enumerate(indices):
         if h: g.append("      \\nextgroupplot\n")
         g.mplot(xvn, overhead[:,i,:])
     g.leg(('BF', 'FlexiTP'))
+
     g.append("\\nextgroupplot[ylabel={{dbsce}}, {0}]\n".format(xsi))
     for h, i in enumerate(indices):
         if h: g.append("      \\nextgroupplot[{0}]\n".format(xsi))
-        g.plot(xvn, r['dbsce'][:,i])
-    g.leg(leg)
+        g.mplot(xvn, r['dbsce'][:,i,:])
+    g.leg(('neighbors', 'schedule', '9999'))
     g.append("    \\end{groupplot}\n")
+
     for h, i in enumerate(indices):
         g.append("    \\node at (group c{0}r4.south)".format(h + 1))
         g.append("[yshift=-14mm] {{({0}) $\\rho={1}$}};\n"
                  .format('abc'[h], rho_v[i]))
     g.append("\\end{tikzpicture}\n")
     g.compile(plot=plot)
+def graphRandSchedUnr1(tst_nr=1, repetitions=1, action=0, plot=1):
+    """
+        + natte: number of packtes that the transmitter transmits
+        + nsucc: number of success to consider the transmission successful
+        + fadin: standard deviation of the log normal fading applied to every
+                 transmisson
+    """
+    packet_size = 56 * 8 # bits
+    id_size = 16 # bits
+    slot_id_size = 16 # bits to indicate the slot number
+    slot_pairs = 5
+    vnatte = np.arange(1,10)
+    vnsucc = np.arange(1,4)
+    vfadin = np.linspace(0,9,3)
+    x = [3,6][tst_nr] * tx_rg1
+    rho_v = np.linspace(*((6,20,3),(6,24,6))[tst_nr])
+    n_nodes = np.array((rho_v * x **2 / np.pi / tx_rg1**2).round(), int)
+    printarray("n_nodes")
+    # cap1=int(np.ceil(packet_size/(id_size+slot_id_size)))
+    # cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
+    dim1 = repetitions, len(n_nodes), len(vfadin), len(vnatte), len(vnsucc)
+    dim2 = repetitions, len(n_nodes), len(vfadin), 3
+    o = dict(slot1=np.zeros(dim1),
+             slot2=np.zeros(dim2),
+             npaks=np.zeros((repetitions, len(n_nodes))),
+             nopro=np.zeros(dim1),
+             succ1=np.zeros(dim1),
+             succ2=np.zeros(dim2)
+             )
+    if action == 1:
+        for k in xrange(repetitions):
+            print_iter(k, repetitions)
+            for i, c in enumerate(n_nodes):
+                print_nodes(c, k)
+                wsn = PhyNet(c=c, x=x, y=x, n_tries=80, **net_par1)
+                compf = 999999
+                o['npaks'][k,i] = wsn.npakts(compf)
+                for j, f in enumerate(vfadin):
+                    for q, w in enumerate((2,3,INF)):
+                        bf = BFNet(wsn, fadng=f)
+                        bf.bf_schedule(hops=w)
+                        o['slot2'][k,i,j,q] = bf.sche_len()
+                        o['succ2'][k,i,j,q] = bf.success_ratio()
+                    for t, a in enumerate(vnatte):
+                        for h, s in enumerate(vnsucc):
+                            if s > a or o['nopro'][k,i,j,t,h]:
+                                continue
+                            try:
+                                rs = RandSchedNet(wsn,cont_f=40,pairs=10,
+                                     Q=0.1, slot_t=2, VB=False, until=1e9, 
+                                     natte=a,nsucc=s,fadng=f, compf=compf)
+                            except NoProgressError:
+                                o['nopro'][:,i,j,t,h] = True
+                            else:
+                                o['slot1'][k,i,j,t,h] = rs.sche_len()
+                                o['succ1'][k,i,j,t,h] = rs.success_ratio()
+        savedict(**o)
+    r = load_npz()
+    # thrg: number of successfully transmitted packets per
+    # area_tx: area blocked by a transmission pair
+    for m in (1,2):
+        exec "tpst{0} = np.zeros(dim{0}[1:])".format(m,m)
+        exec "i = r['slot{0}'].nonzero()".format(m)
+        exec "tpst{0}[i] = r['npaks'][i[0]] / r['slot{1}'][i]".format(m,m)
+    mn1 = r['slot1'] / r['npaks'].reshape(-1,1,1,1)
+    mn2 = r['slot2'] / n_nodes.reshape(-1,1,1)
+    thrg1 = tpst1 * r['succ1']
+    thrg2 = tpst2 * r['succ2']
+#     printarray('tpst1')
+#     max_thrg = x ** 2 / (20 * tx_rg1 ** 2)
+    g = Pgf2()
+    rows = 4
+    g.append("\\section{With grouplot2}\n" + 
+             "  \\begin{tikzpicture}\n"  + 
+             "    \\begin{groupplot}[group style={group size=3 by " +
+             str(rows) + "},\n height=34mm, width=44mm]\n")
+#     xvn = xv / tx_rg1
+#     i_fad = 0, 1, 2
+#     i2 = 
+    vsnatt = [1, 2, 2]
+    vsnsuc = [0, 0, 1]
+    vsfadi = [0, 1, 2]
+    vsbfco = [0, 1, 2]
+    incorrect = False
+    for a, s in zip(vsnatt, vsnsuc):
+        if r['nopro'][:,:,a,s].any():
+            print("Error with a={0}".format(a, s))
+            incorrect = True
+    if incorrect:
+        raise Error("Some of the measurements are unreliable")
+    rv = np.arange(len(n_nodes)).reshape(-1,1)
+    lg = ['BF2','BF3','BF99'] + ['A={0},S={1}'.format(a, s) for a, s in 
+                                 zip(vnatte[vsnatt], vnsucc[vsnsuc])]
+
+    g.append("      \\nextgroupplot[ylabel=$M/N$]\n")
+    for h, i in enumerate(vsfadi):
+        if h: g.append("      \\nextgroupplot\n")
+        g.mplot(rho_v, mn2[rv, i, vsbfco])
+        g.mplot(rho_v, mn1[rv, i, vsnatt, vsnsuc])
+    g.leg(lg)
+
+    g.append("      \\nextgroupplot[ylabel=succ]\n")
+    for h, i in enumerate(vsfadi):
+        if h: g.append("      \\nextgroupplot\n")
+        g.mplot(rho_v, r['succ2'][rv, i, vsbfco])
+        g.mplot(rho_v, r['succ1'][rv, i, vsnatt, vsnsuc])
+    g.leg(lg)
+
+    g.append("      \\nextgroupplot[ylabel=tpst]\n")     
+    for h, i in enumerate(vsfadi):
+        if h: g.append("      \\nextgroupplot\n """)
+        g.mplot(rho_v, tpst2[rv, i, vsbfco])
+        g.mplot(rho_v, tpst1[rv, i, vsnatt, vsnsuc])
+    g.leg(lg)
+
+    g.append("      \\nextgroupplot[ylabel=thrg]\n")     
+    for h, i in enumerate(vsfadi):
+        if h: g.append("      \\nextgroupplot\n """)
+        g.mplot(rho_v, thrg2[rv, i, vsbfco])
+        g.mplot(rho_v, thrg1[rv, i, vsnatt, vsnsuc])
+    g.leg(lg)
+
+    g.append("    \\end{groupplot}\n")
+    for h, i in enumerate(vfadin[vsfadi]):
+        g.append("    \\node at (group c{0}r{1}.south)".format(h + 1, rows))
+        g.append("[yshift=-14mm] {{({0}) $\\sigma_f={1}$}};\n"
+                 .format('abc'[h], i))
+    g.append("\\end{tikzpicture}\n")
+    g.compile(plot=plot)
+    
 def tst_broadcast(tst_nr=1, repetitions=1, action=0, plot=1):
     ''' Test in a simple network an algorithm to compute the overhead
 
