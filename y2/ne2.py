@@ -1727,15 +1727,15 @@ class SimNet(list, simpy.Simulation):
         """
         natte = 0
         nsucc = 0
-        repetitions = 100
+        reptt = 100
         last_used = 0
         for slot in xrange(1, 99999):
             src = [i for i, j in enumerate(z) if slot in j.tx_d]
             if src:
                 last_used = slot
-                natte += len(src) * repetitions
+                natte += len(src) * reptt
                 for i in src:
-                    for k in xrange(repetitions):
+                    for k in xrange(reptt):
                         sig1 = z.recf(i, z.wsn.f[i])
                         inx1 = z.wsn.noise + sum(z.recf(j, z.wsn.f[i]) 
                                                  for j in src if j != i)
@@ -2527,7 +2527,7 @@ def graphACSPNet0(tst_nr, action):
     tx_rg = PhyNet(d0=100, PL0=1e8, p_exp=3.5, shadow=8.0).tx_rg()
     x, y = np.array([[1,8],[3,8]][tst_nr]) * tx_rg
     rho_v = np.array([[7,14], [7,14,28]] [tst_nr])
-    repetitions = [2, 1107][tst_nr] # Number of repetitions
+    reptt = [2, 1107][tst_nr] # Number of repetitions
 def graphACSPNet1(tst_nr, action):
     """Compare ACSP and FlexiTP.
 
@@ -2561,7 +2561,7 @@ def name_npz():
     variables = frame_record[0].f_locals
     return "{0}_{1:02d}_{2:06d}".format(frame_record[3], 
                                             variables['tst_nr'],
-                                            variables['repetitions'])
+                                            variables['reptt'])
 def save_npz(*args):
     frame_record = inspect.stack(0)[1]
     variables = frame_record[0].f_locals
@@ -2590,7 +2590,7 @@ def print_nodes(c, seed):
     np.random.seed(seed)
     print("{0}.  Simulating for {1:3d} nodes"
             .format(ellapsed_time(), c))
-def graphAcspPairs(tst_nr=0, repetitions=1, action=0, plot=0):
+def graphAcspPairs(tst_nr=0, reptt=1, action=0, plot=0):
     """ACSP setup as a function of the number of pairs."""
     x = [3, 5][tst_nr] * tx_rg1
     y = x
@@ -2598,10 +2598,10 @@ def graphAcspPairs(tst_nr=0, repetitions=1, action=0, plot=0):
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
     print('Number of nodes to be tested: {0}'.format(n_nodes))
     pairs = np.arange(1, 25, 2)
-    n_slots = np.zeros((repetitions, rho_v.size, pairs.size))
+    n_slots = np.zeros((reptt, rho_v.size, pairs.size))
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for i , c in enumerate(rho_v):
                 print("Simulating for {0:3d} nodes".format(c))
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
@@ -2609,7 +2609,7 @@ def graphAcspPairs(tst_nr=0, repetitions=1, action=0, plot=0):
                     try:
                         s = ACSPNet(wsn, pairs=p).n_slots()
                     except NoProgressError:
-                        s = - 10000 * repetitions
+                        s = - 10000 * reptt
                     n_slots[k, i, j] = s
         save_npz('n_slots')
     r = load_npz()
@@ -2646,22 +2646,22 @@ def graphFatMatlab():
     for y, l in zip(d['s'][[0,1,3,5],1,:,0], lg):
         p.plot(sources, y, l)
     p.save()
-def graphFlexiCycles(tst_nr=0, repetitions=1, action=0, plot=False):
+def graphFlexiCycles(tst_nr=0, reptt=1, action=0, plot=False):
     """Dependence on the number of channel change cycles. """
     x, y = np.array([[2, 2],[3,3], [4, 4]][tst_nr]) * tx_rg1
     rho = 8
-    repetitions = [2, 400][tst_nr] # Number of repetitions
+    reptt = [2, 400][tst_nr] # Number of repetitions
     cycles = [3, 3][tst_nr]
     c = int(np.round(rho * x * y / np.pi / tx_rg1**2))
     nnew = 5 # Number of new nodes to add 
     print(("Simulated network contains {0} nodes. " + 
             "In each cycle, the last {1} nodes are replaced.")
             .format(c, nnew))
-    n_slots_tx = np.zeros((repetitions, cycles + 1, 3))
-    n_dismissed = np.zeros((repetitions, cycles + 1, 2))
+    n_slots_tx = np.zeros((reptt, cycles + 1, 3))
+    n_dismissed = np.zeros((reptt, cycles + 1, 2))
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k,repetitions)
+        for k in xrange(reptt):
+            print_iter(k,reptt)
             wsn = PhyNet(c=c, x=x, y=y, **net_par1)
             nets = [FlexiTPNet(wsn, fw=2, n_exch=80), 
                     FlexiTPNet(wsn, fw=3, n_exch=80),
@@ -2703,7 +2703,7 @@ def graphFlexiCycles(tst_nr=0, repetitions=1, action=0, plot=False):
 #     nw = ACSPNet(w, VB=False, until=1000)
 #     w.mutate_network(2, 2)
 #     nw.VB = True
-def graphFlexiLength(tst_nr=0, repetitions=1, action=0, plot=0):
+def graphFlexiLength(tst_nr=0, reptt=1, action=0, plot=0):
     """Dependence on the normalized network length in a square network.
 
     tst_nr:seconds per iteration, 1:5687@eemoda
@@ -2712,11 +2712,11 @@ def graphFlexiLength(tst_nr=0, repetitions=1, action=0, plot=0):
     y_v = np.arange(*[[1, 4, 2], [1, 10, 2]][tst_nr]) * tx_rg1
     n_nodes = np.array((rho * y_v * y_v / np.pi / tx_rg1**2).round(), int)
     print('Number of nodes to be tested: {0}'.format(n_nodes))
-    n_slots = np.zeros((repetitions, n_nodes.size, 3))
-    n_frames = np.zeros((repetitions, n_nodes.size, 3))
+    n_slots = np.zeros((reptt, n_nodes.size, 3))
+    n_frames = np.zeros((reptt, n_nodes.size, 3))
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for i, (c, y) in enumerate(zip(n_nodes, y_v)):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=y, y=y, **net_par1)
@@ -2743,7 +2743,7 @@ def graphFlexiLength(tst_nr=0, repetitions=1, action=0, plot=0):
     g.add(x_t, 'number of setup frames')
     g.mplot(yn, r['n_frames'], leg)
     g.save(plot=plot)
-def graphFlexiLength2(tst_nr=0, repetitions=1, action=0, plot=0):
+def graphFlexiLength2(tst_nr=0, reptt=1, action=0, plot=0):
     """Dependence on the normalized network length in a square network.
 
     tst_nr:seconds per iteration, 1:5687@eemoda
@@ -2752,11 +2752,11 @@ def graphFlexiLength2(tst_nr=0, repetitions=1, action=0, plot=0):
     y_v = np.arange(1,8,2) * tx_rg1
     n_nodes = np.array((rho * y_v * y_v / np.pi / tx_rg1**2).round(), int)
     print('Number of nodes to be tested: {0}'.format(n_nodes))
-    n_slots = np.zeros((repetitions, n_nodes.size, 3))
-    n_frames = np.zeros((repetitions, n_nodes.size, 3))
+    n_slots = np.zeros((reptt, n_nodes.size, 3))
+    n_frames = np.zeros((reptt, n_nodes.size, 3))
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for i, (c, y) in enumerate(zip(n_nodes, y_v)):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=y, y=y, **net_par1)
@@ -2783,7 +2783,7 @@ def graphFlexiLength2(tst_nr=0, repetitions=1, action=0, plot=0):
     g.add(x_t, 'number of setup frames')
     g.mplot(yn, r['n_frames'], leg)
     g.save(plot=plot)
-def graphRandSched1(tst_nr, repetitions, action):
+def graphRandSched1(tst_nr, reptt, action):
     """ Generate two graphs using SINR model:
     
     1) number of slots for RandSched and the First Breadth First
@@ -2801,12 +2801,12 @@ def graphRandSched1(tst_nr, repetitions, action):
     # Number of nodes in the network (cardinalityVector)
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
     # Slots of centralized algorithms
-    o = dict(slots=np.zeros((repetitions, n_nodes.size, 3)), 
+    o = dict(slots=np.zeros((reptt, n_nodes.size, 3)), 
              # Unconnection ratio of of centralized algorithms
-             uncon=np.zeros((repetitions, n_nodes.size, 2)))
+             uncon=np.zeros((reptt, n_nodes.size, 2)))
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=y, n_tries=50, **net_par1)
@@ -2827,7 +2827,7 @@ def graphRandSched1(tst_nr, repetitions, action):
     #g.opt('ymode=log')
     g.mplot(rho_v, r['uncon'], ['BF2','BF3'])
     g.save()
-def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=1):
+def graphRandSched4(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
@@ -2842,11 +2842,11 @@ def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=1):
     xv = np.array([[4, 6, 8, 10, 12],[4, 6, 8, 10, 12]][tst_nr]) * tx_rg1
     rho = 7
     n_nodes = np.array((rho * xv**2 / np.pi / tx_rg1**2).round(), int)
-    o = dict(slots=np.zeros((repetitions, n_nodes.size,3)),
-             uncon=np.zeros((repetitions, n_nodes.size,3)))
+    o = dict(slots=np.zeros((reptt, n_nodes.size,3)),
+             uncon=np.zeros((reptt, n_nodes.size,3)))
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=xv[i], y=xv[i], n_tries=50, **net_par1)
@@ -2867,7 +2867,7 @@ def graphRandSched4(tst_nr=1, repetitions=1, action=0, plot=1):
     g.mplot(xv / tx_rg1, r['slots'] / n_nodes.reshape(-1,1), 
             ['BF2', 'BF3', 'RandSched'])
     g.save(plot=plot)
-def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
+def graphRandSched5(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
@@ -2884,11 +2884,11 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
     printarray("n_nodes")
-    o = dict(slots=np.zeros((repetitions, len(xv), len(rho_v), 3)),
-             uncon=np.zeros((repetitions, len(xv), len(rho_v), 3)))
+    o = dict(slots=np.zeros((reptt, len(xv), len(rho_v), 3)),
+             uncon=np.zeros((reptt, len(xv), len(rho_v), 3)))
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for t, x in enumerate(xv):
                 for i, c in enumerate(n_nodes[t]):
                     print_nodes(c, k)
@@ -2942,7 +2942,7 @@ def graphRandSched5(tst_nr=1, repetitions=1, action=0, plot=1):
                  .format('abc'[h], rho_v[i]))
     g.append("\\end{tikzpicture}\n")
     g.compile(plot=plot)
-def graphRandSched6(tst_nr=1, repetitions=1, action=0, plot=1):
+def graphRandSched6(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
@@ -2966,14 +2966,14 @@ def graphRandSched6(tst_nr=1, repetitions=1, action=0, plot=1):
 
     cap1=int(np.ceil(packet_size/(id_size+slot_id_size)))
     cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
-    o = dict(slots=np.zeros((repetitions, len(xv), len(rho_v), 3)),
+    o = dict(slots=np.zeros((reptt, len(xv), len(rho_v), 3)),
              # number of dbs used by BF in the two centralized operations
-             dbsce=np.zeros((repetitions, len(xv), len(rho_v), 3)),
-             uncon=np.zeros((repetitions, len(xv), len(rho_v), 2)))
+             dbsce=np.zeros((reptt, len(xv), len(rho_v), 3)),
+             uncon=np.zeros((reptt, len(xv), len(rho_v), 2)))
 
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for t, x in enumerate(xv):
                 for i, c in enumerate(n_nodes[t]):
                     print_nodes(c, k)
@@ -3071,7 +3071,7 @@ def graphRandSched6(tst_nr=1, repetitions=1, action=0, plot=1):
                  .format('abc'[h], rho_v[i]))
     g.append("\\end{tikzpicture}\n")
     g.compile(plot=plot)
-def graphRandSched7(tst_nr=1, repetitions=1, action=0, plot=1):
+def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
@@ -3093,32 +3093,36 @@ def graphRandSched7(tst_nr=1, repetitions=1, action=0, plot=1):
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
     printarray("n_nodes")
-
+    ncap=3 # cap1, cap2, and 999
+    # number of neighbors that a node can report in one packet
     cap1=int(np.ceil(packet_size/(id_size+slot_id_size)))
+    # number 
     cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
-    dm1 = (repetitions,len(xv),len(rho_v),len(vcompf),3)
-    o = dict(slots=zeros(dm1),
+    o = dict(slots=np.zeros((reptt,len(xv),len(rho_v),len(vcompf),3)),
              # number of dbs used by BF in the two centralized operations
-             dbsce=np.zeros(dm1),
-             uncon=np.zeros(dm1))
+             dbsce=np.zeros((reptt,len(xv),len(rho_v),len(vcompf),ncap)),
+             npaks=np.zeros((reptt,len(xv),len(rho_v),len(vcompf))),
+             succa=np.zeros((reptt,len(xv),len(rho_v),len(vcompf),3)))
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for t, x in enumerate(xv):
                 for i, c in enumerate(n_nodes[t]):
                     print_nodes(c, k)
                     wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
-                    for h, f in enumerate(vcompf):
+                    for m, f in enumerate(vcompf):
+                        o['npaks'][k,t,i,m] = wsn.npakts(compf=f)
                         for r, cap in enumerate((cap1, cap2[i], 9999)):
-                            o['dbsce'][k,t,i,f,r] = wsn.broad_sche(cap_packet=cap)
+                            o['dbsce'][k,t,i,m,r] = wsn.broad_sche(
+                                cap_packet=cap)
                         for j, h in enumerate((2,3)):
                             bf = BFNet(wsn, compf=f)
-                            slot_v = wsn.bf_schedule(hops=h)
-                            o['slots'][k,t,i,j] = max(slot_v)
-                            o['uncon'][k,t,i,j] = wsn.duly_scheduled_sinr(slot_v)
-                        rs_net = RandSchedNet(wsn, cont_f=40, pairs=10, Q=0.1, 
-                                              slot_t=2, VB=False, until=1e9)
-                    o['slots'][k,t,i,2] = max(rs_net.schedule())
+                            bf.bf_schedule(hops=h)
+                            o['slots'][k,t,i,m,j] = bf.sche_len()
+                            o['succa'][k,t,i,m,j] = bf.success_ratio()
+                        rs = RandSchedNet(wsn,cont_f=40,pairs=10,Q=0.1,
+                                          slot_t=2,VB=0,until=1e9,compf=f)
+                        o['slots'][k,t,i,m,2] = bf.sche_len()
         savedict(**o)
     r = load_npz()
     g = Pgf2()
@@ -3165,45 +3169,47 @@ def graphRandSched7(tst_nr=1, repetitions=1, action=0, plot=1):
   #                .format('abc'[h], rho_v[i]))
   #   g.append("\\end{tikzpicture}\n")
 
-    g.append(r"""\newpage
-\section{With groupplot2}
-  \begin{tikzpicture}
-    \begin{groupplot}[group style={group size=3 by 4},height=34mm,width=44mm]
-      \nextgroupplot[ylabel={$M/N$}]
-""")
-    xvn = xv /tx_rg1
-    indices = 1, 3, 5
-    for h, i in enumerate(indices):
-        if h: g.append("      \\nextgroupplot[ymin=0.4, ymax=1.0]\n """)
-        g.mplot(xvn, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1))
-    g.leg(leg)
+    for q in vcompf:
+        g.append("\\newpage\n" + 
+                 "\\section{{With groupplot2 for compf={0}}}\n".format(q) + 
+                 "  \\begin{tikzpicture}\n" + 
+                 "    \\begin{groupplot}[group style={group size=3 by 4}," +
+                 "      height=34mm,width=44mm]\n")
+        xvn = xv /tx_rg1
+        indices = 1, 3, 5
 
-    g.append("\\nextgroupplot[ylabel={uncon}]\n")
-    for h, i in enumerate(indices):
-        if h: g.append("      \\nextgroupplot\n")
-        g.mplot(xvn, r['uncon'][:,i,:])
-    g.leg(('BF2', 'BF3'))
+        g.append("      \nextgroupplot[ylabel={$M/N$}]")
+        for h, i in enumerate(indices):
+            if h: g.append("      \\nextgroupplot[ymin=0.4, ymax=1.0]\n """)
+            g.mplot(xvn, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1))
+        g.leg(leg)
 
-    g.append("\\nextgroupplot[ylabel={overhead}]\n")
-    for h, i in enumerate(indices):
-        if h: g.append("      \\nextgroupplot\n")
-        g.mplot(xvn, overhead[:,i,:])
-    g.leg(('BF', 'FlexiTP'))
+        g.append("\\nextgroupplot[ylabel={uncon}]\n")
+        for h, i in enumerate(indices):
+            if h: g.append("      \\nextgroupplot\n")
+            g.mplot(xvn, r['uncon'][:,i,:])
+        g.leg(('BF2', 'BF3'))
 
-    g.append("\\nextgroupplot[ylabel={{dbsce}}, {0}]\n".format(xsi))
-    for h, i in enumerate(indices):
-        if h: g.append("      \\nextgroupplot[{0}]\n".format(xsi))
-        g.mplot(xvn, r['dbsce'][:,i,:])
-    g.leg(('neighbors', 'schedule', '9999'))
-    g.append("    \\end{groupplot}\n")
+        g.append("\\nextgroupplot[ylabel={overhead}]\n")
+        for h, i in enumerate(indices):
+            if h: g.append("      \\nextgroupplot\n")
+            g.mplot(xvn, overhead[:,i,:])
+        g.leg(('BF', 'FlexiTP'))
 
-    for h, i in enumerate(indices):
-        g.append("    \\node at (group c{0}r4.south)".format(h + 1))
-        g.append("[yshift=-14mm] {{({0}) $\\rho={1}$}};\n"
-                 .format('abc'[h], rho_v[i]))
-    g.append("\\end{tikzpicture}\n")
+        g.append("\\nextgroupplot[ylabel={{dbsce}}, {0}]\n".format(xsi))
+        for h, i in enumerate(indices):
+            if h: g.append("      \\nextgroupplot[{0}]\n".format(xsi))
+            g.mplot(xvn, r['dbsce'][:,i,:])
+        g.leg(('neighbors', 'schedule', '9999'))
+        g.append("    \\end{groupplot}\n")
+
+        for h, i in enumerate(indices):
+            g.append("    \\node at (group c{0}r4.south)".format(h + 1))
+            g.append("[yshift=-14mm] {{({0}) $\\rho={1}$}};\n"
+                     .format('abc'[h], rho_v[i]))
+        g.append("\\end{tikzpicture}\n")
     g.compile(plot=plot)
-def graphRandSchedUnr1(tst_nr=1, repetitions=1, action=0, plot=1):
+def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
     """
         + natte: number of packtes that the transmitter transmits
         + nsucc: number of success to consider the transmission successful
@@ -3223,18 +3229,18 @@ def graphRandSchedUnr1(tst_nr=1, repetitions=1, action=0, plot=1):
     printarray("n_nodes")
     # cap1=int(np.ceil(packet_size/(id_size+slot_id_size)))
     # cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
-    dim1 = repetitions, len(n_nodes), len(vfadin), len(vnatte), len(vnsucc)
-    dim2 = repetitions, len(n_nodes), len(vfadin), 3
+    dim1 = reptt, len(n_nodes), len(vfadin), len(vnatte), len(vnsucc)
+    dim2 = reptt, len(n_nodes), len(vfadin), 3
     o = dict(slot1=np.zeros(dim1),
              slot2=np.zeros(dim2),
-             npaks=np.zeros((repetitions, len(n_nodes))),
+             npaks=np.zeros((reptt, len(n_nodes))),
              nopro=np.zeros(dim1),
              succ1=np.zeros(dim1),
              succ2=np.zeros(dim2)
              )
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=x, n_tries=80, **net_par1)
@@ -3333,7 +3339,7 @@ def graphRandSchedUnr1(tst_nr=1, repetitions=1, action=0, plot=1):
     g.append("\\end{tikzpicture}\n")
     g.compile(plot=plot)
     
-def tst_broadcast(tst_nr=1, repetitions=1, action=0, plot=1):
+def tst_broadcast(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Test in a simple network an algorithm to compute the overhead
 
     '''
@@ -3343,7 +3349,7 @@ def tst_broadcast(tst_nr=1, repetitions=1, action=0, plot=1):
     printarray('wsn.n_descendants')
     wsn.broad_sche(cap_packet=2)
     pdb.set_trace()
-def tst_broadcast2(tst_nr=1, repetitions=1, action=0, plot=1):
+def tst_broadcast2(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Test in a simple network an algorithm to compute the overhead
 
     '''
@@ -3362,7 +3368,7 @@ def tst_FlexiTP2():
     n1.complete_convergecast()
     n1.print_dicts()
     print(n1.dismissed())
-def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
+def graphFlexiDensity(tst_nr=-1, reptt=1, action=0, plot=0):
     """Dependence on the node density.
 
     tsn_nr:seconds per iteration:
@@ -3375,16 +3381,16 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     print('Number of nodes to be tested: {0}'.format(n_nodes))
     o = dict(
         # number of nodes unduly dismissed as unreachable
-        dismi = np.zeros((repetitions, n_nodes.size, 4)),
+        dismi = np.zeros((reptt, n_nodes.size, 4)),
         # slots per scheduling operation
-        nadv1 = np.zeros((repetitions, n_nodes.size, 2)),
+        nadv1 = np.zeros((reptt, n_nodes.size, 2)),
         # schedule length $M$
-        slosu=np.zeros((repetitions, n_nodes.size, 3)),
+        slosu=np.zeros((reptt, n_nodes.size, 3)),
         )
     # Number of slots per FTS used in the transmission phase of FlexiTP
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
@@ -3417,7 +3423,7 @@ def graphFlexiDensity(tst_nr=-1, repetitions=1, action=0, plot=0):
     g.add(x_t, r"slots per exchange in FlexiTP's init")
     g.mplot(rho_v, r['nadv1'], leg[:3])
     g.save(plot=plot)
-def graphFlexiDensity2(tst_nr=1, repetitions=1, action=0, plot=1):
+def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
@@ -3434,12 +3440,12 @@ def graphFlexiDensity2(tst_nr=1, repetitions=1, action=0, plot=1):
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
     printarray("n_nodes")
-    o = dict(nadv1=np.zeros((repetitions, len(xv), len(rho_v), 3)),
-             slots=np.zeros((repetitions, len(xv), len(rho_v), 3)),
-             uncon=np.zeros((repetitions, len(xv), len(rho_v), 3)))
+    o = dict(nadv1=np.zeros((reptt, len(xv), len(rho_v), 3)),
+             slots=np.zeros((reptt, len(xv), len(rho_v), 3)),
+             uncon=np.zeros((reptt, len(xv), len(rho_v), 3)))
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for t, x in enumerate(xv):
                 for i, c in enumerate(n_nodes[t]):
                     print_nodes(c, k)
@@ -3475,7 +3481,7 @@ def debgraphFlexiDensity():
     """Dependence on the node density.
     """
     tst_nr=2
-    repetitions=1
+    reptt=1
     action=1
     plot=1
     x, y = np.array(((3,3), (3,3), (3,3))[tst_nr]) * tx_rg1
@@ -3484,13 +3490,13 @@ def debgraphFlexiDensity():
     wsn = PhyNet(c=c, x=x, y=y, **net_par1)
     np.random.seed(8)
     n1 = FlexiTPNet(wsn, fw=2, n_exch=70)
-def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
+def graphFlexiSds(tst_nr=0, reptt=1, action=0, plot=False):
     """Dependence on the number of SDS tones. 
 
     tsn_nr:seconds per iteration, 1:2700@ee-modalap
     1:3982@packard
     
-    1000 repetitions on ee-moda take 15 days
+    1000 reptt on ee-moda take 15 days
 
     DEBUGGING:
     
@@ -3512,29 +3518,29 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
     fltfw = (2, 3) # values of fw used in FlexiTP
     nnew = 2 # Number of new nodes to add 
     o = dict(
-        attem=np.zeros((repetitions, len(rho_v), len(sdsl))),
-        dismi=np.zeros((repetitions, len(rho_v), 1+len(fltfw))),
-        energ=np.zeros((repetitions, len(rho_v), len(sdsl))),
-        expe1=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
-        expe2=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
+        attem=np.zeros((reptt, len(rho_v), len(sdsl))),
+        dismi=np.zeros((reptt, len(rho_v), 1+len(fltfw))),
+        energ=np.zeros((reptt, len(rho_v), len(sdsl))),
+        expe1=np.zeros((reptt, len(rho_v), len(sdsl)+len(fltfw))),
+        expe2=np.zeros((reptt, len(rho_v), len(sdsl)+len(fltfw))),
         # laten: acquisition latency (time to obtain a DB) multiplied
         # by (1 + exp1 + exp2) (to take into account expulsions)
-        laten=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
+        laten=np.zeros((reptt, len(rho_v), len(sdsl)+len(fltfw))),
         # lates: number of DBs spent without desired DBs
-        lates=np.zeros((repetitions, len(rho_v), len(sdsl)+len(fltfw))),
-        losse=np.zeros((repetitions, len(rho_v), len(sdsl))),
-        nadv1=np.zeros((repetitions, len(rho_v), len(fltfw))),
-        nadv2=np.zeros((repetitions, len(rho_v), len(fltfw))),
-        natre=np.zeros((repetitions, len(rho_v))),
+        lates=np.zeros((reptt, len(rho_v), len(sdsl)+len(fltfw))),
+        losse=np.zeros((reptt, len(rho_v), len(sdsl))),
+        nadv1=np.zeros((reptt, len(rho_v), len(fltfw))),
+        nadv2=np.zeros((reptt, len(rho_v), len(fltfw))),
+        natre=np.zeros((reptt, len(rho_v))),
         #total number of packets that have to be scheduled:
-        pkets=np.zeros((repetitions, len(rho_v))), 
-        sloov=np.zeros((repetitions, len(rho_v), len(sdsl) + len(fltfw))),
-        slosu=np.zeros((repetitions, len(rho_v), 1+len(fltfw))),
+        pkets=np.zeros((reptt, len(rho_v))), 
+        sloov=np.zeros((reptt, len(rho_v), len(sdsl) + len(fltfw))),
+        slosu=np.zeros((reptt, len(rho_v), 1+len(fltfw))),
         )
     print(n_nodes)
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
@@ -3949,7 +3955,7 @@ def graphFlexiSds(tst_nr=0, repetitions=1, action=0, plot=False):
 \end{verbatim}
 """)
     g.save(plot=plot)
-def graphFlexiSds2(tst_nr=0, repetitions=1, action=0, plot=False):
+def graphFlexiSds2(tst_nr=0, reptt=1, action=0, plot=False):
     """ Energy comparison between SUTP with Q=0, FlexiTP2, and FlexiTP3.
 
     """
@@ -3964,32 +3970,32 @@ def graphFlexiSds2(tst_nr=0, repetitions=1, action=0, plot=False):
     rho_v = np.array(((7,8,9), (7,11,15,19,22), 
                       (7,10,13,16,19,21))[tst_nr])
     # Since the number of expelled nodes per incorporation is 0.05, the
-    # minimum number of repetitions should be 200.
+    # minimum number of reptt should be 200.
     n_nodes = np.array((rho_v * x * y / np.pi / tx_rg1**2).round(), int)
     nnew = 2 # Number of new nodes to add 
     o = dict(
-        attem=np.zeros((repetitions, len(rho_v))),
-        dismi=np.zeros((repetitions, len(rho_v), 3)),
-        energ=np.zeros((repetitions, len(rho_v))),
-        expe1=np.zeros((repetitions, len(rho_v),3)),
-        expe2=np.zeros((repetitions, len(rho_v),3)),
+        attem=np.zeros((reptt, len(rho_v))),
+        dismi=np.zeros((reptt, len(rho_v), 3)),
+        energ=np.zeros((reptt, len(rho_v))),
+        expe1=np.zeros((reptt, len(rho_v),3)),
+        expe2=np.zeros((reptt, len(rho_v),3)),
         # laten: acquisition latency (time to obtain a DB) multiplied
         # by (1 + exp1 + exp2) (to take into account expulsions)
-        laten=np.zeros((repetitions, len(rho_v), 3)),
+        laten=np.zeros((reptt, len(rho_v), 3)),
         # lates: number of DBs spent without desired DBs
-        lates=np.zeros((repetitions, len(rho_v), 3)),
-        losse=np.zeros((repetitions, len(rho_v))),
-        nadv1=np.zeros((repetitions, len(rho_v),2)),
-        nadv2=np.zeros((repetitions, len(rho_v),2)),
-        natre=np.zeros((repetitions, len(rho_v))),
+        lates=np.zeros((reptt, len(rho_v), 3)),
+        losse=np.zeros((reptt, len(rho_v))),
+        nadv1=np.zeros((reptt, len(rho_v),2)),
+        nadv2=np.zeros((reptt, len(rho_v),2)),
+        natre=np.zeros((reptt, len(rho_v))),
         #total number of packets that have to be scheduled:
-        pkets=np.zeros((repetitions, len(rho_v))), 
-        slots=np.zeros((repetitions, cycles+1, len(rho_v), 3)),
+        pkets=np.zeros((reptt, len(rho_v))), 
+        slots=np.zeros((reptt, cycles+1, len(rho_v), 3)),
         )
     print(n_nodes)
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k, repetitions)
+        for k in xrange(reptt):
+            print_iter(k, reptt)
             for i, c in enumerate(n_nodes):
                 print_nodes(c, k)
                 wsn = PhyNet(c=c, x=x, y=y, **net_par1)
@@ -4006,7 +4012,7 @@ def graphFlexiSds2(tst_nr=0, repetitions=1, action=0, plot=False):
                     if r > 0:
                         o['nadv1'][k,i,r-1] = n.nadve
                 for q in xrange(cycles):
-                    np.random.seed(repetitions + 20 * k + q)
+                    np.random.seed(reptt + 20 * k + q)
                     wsn.mutate_network(c - nnew, nnew)
                     for u, nx in enumerate(nt):
                         print("Updating network {0}".format(u))
@@ -4381,7 +4387,7 @@ def test_rate2():
     fv = [-1, 0, 1, 1, 1 , 1]
     ps = [1, 0.2, 0.5, 0.5, 0.5, 0.5]
     size = 30
-    repetitions = 2000
+    reptt = 2000
     rate_v = np.arange(1, 0.1, -0.1)[-1::-1]
     for type in (0, 1, 2, 3):
         print("****** Executing %d" % type)
@@ -4391,21 +4397,21 @@ def test_rate2():
             t = LossTree(fv, ps, size)
             if type == 3:
                 t.find_schedule(50, 3)
-            t.simulate_it(repetitions, rate, type)
+            t.simulate_it(reptt, rate, type)
             print("%8s %8.2f %8.2f %8.2f" % (rate, t.results.mean(),
                 t.results.std(), t.results.sum()))
     opt = t.optimum() 
     print("The optimum fraction of packets is %8.2f" %opt) 
-    print("The optimal sum is %8.2f" % (opt * repetitions)) 
-    print("The max without failures is %d" % ((len(fv)-1) * repetitions)) 
+    print("The optimal sum is %8.2f" % (opt * reptt)) 
+    print("The max without failures is %d" % ((len(fv)-1) * reptt)) 
     # Now compute the optimum
-def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
+def graphRate1(tst_nr=0, reptt=2, action=0, plot=0):
     """ Some plots
 
     plot: 0=do not compile, 1: compile, 2: compile and display
     """
     tst_nr = int(tst_nr)
-    repetitions = int(repetitions)
+    reptt = int(reptt)
     action = int(action)
     plot = int(plot)
     if tst_nr == 0:
@@ -4509,14 +4515,14 @@ def graphRate1(tst_nr=0, repetitions=2, action=0, plot=0):
     types = (0, 1, 2, 3, 4)
     metrics = 'mean', 'std','sum'
     iterations = 2000
-    mean = np.zeros((repetitions, len(rate_v), len(types)))
-    std = np.zeros((repetitions, len(rate_v), len(types)))
-    sum = np.zeros((repetitions, len(rate_v), len(types)))
-    pmin = np.zeros((repetitions, len(rate_v), len(types)))
+    mean = np.zeros((reptt, len(rate_v), len(types)))
+    std = np.zeros((reptt, len(rate_v), len(types)))
+    sum = np.zeros((reptt, len(rate_v), len(types)))
+    pmin = np.zeros((reptt, len(rate_v), len(types)))
     threshold = 3
     if action == 1:
-        for k in xrange(repetitions):
-            print_iter(k,repetitions)
+        for k in xrange(reptt):
+            print_iter(k,reptt)
             for j, rate in enumerate(rate_v):
                 for i, type in enumerate(types):
                     np.random.seed(k)
@@ -4563,7 +4569,7 @@ def test_rate3():
     fv = [-1, 0, 1, 1, 1 , 1]
     ps = np.ones(len(fv)) * 0.3
     size = 50
-    repetitions = 2000
+    reptt = 2000
     rate_v = np.arange(0.05, 1.0, 0.1)
     d = collections.namedtuple('d', 'mean', 'std', 'sum')
     types = (0, 1, 2)
@@ -4576,13 +4582,13 @@ def test_rate3():
         for i, rate in enumerate(rate_v):
             np.random.seed(0)
             t = LossTree(fv, ps, size)
-            t.simulate_it(repetitions, rate, type)
+            t.simulate_it(reptt, rate, type)
             print("%8s %8.2f %8.2f %8.2f" % (rate, t.results.mean(),
                 t.results.std(), t.results.sum()))
     opt = t.optimum() 
     print("The optimum fraction of packets is %8.2f" %opt) 
-    print("The optimal sum is %8.2f" % (opt * repetitions)) 
-    print("The max without failures is %d" % ((len(fv)-1) * repetitions)) 
+    print("The optimal sum is %8.2f" % (opt * reptt)) 
+    print("The max without failures is %d" % ((len(fv)-1) * reptt)) 
 def test_find_schedule(test, plot):
     if test == 0:
         fv = [-1, 0, 1, 1, 1 , 1]
