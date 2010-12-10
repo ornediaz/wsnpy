@@ -3227,10 +3227,9 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
     id_size = 16 # bits
     slot_id_size = 16 # bits to indicate the slot number
     slot_pairs = 5
-    vnatte = np.arange(1,10)
+    vnatte = np.arange(1,5)
     vnsucc = np.arange(1,4)
-    # vfadin = np.linspace(0,9,3)
-    vfadin = np.array([4.5])
+    vfadin = np.linspace(0,9,3)
     x = [3,6][tst_nr] * tx_rg1
     rho_v = np.linspace(*((6,20,3),(6,24,6))[tst_nr])
     n_nodes = np.array((rho_v * x **2 / np.pi / tx_rg1**2).round(), int)
@@ -3297,7 +3296,7 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
 #     printarray('tpst1')
 #     max_thrg = x ** 2 / (20 * tx_rg1 ** 2)
     g = Pgf2()
-    rows = 4
+    rows = 5
     g.append("\\section{With grouplot2}\n" + 
              "  \\begin{tikzpicture}\n"  + 
              "    \\begin{groupplot}[group style={group size=3 by " +
@@ -3317,47 +3316,41 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
     if incorrect:
         raise Error("Some of the measurements are unreliable")
     rv = np.arange(len(n_nodes)).reshape(-1,1)
-    lg = ['BF2','BF3','BF99'] + ['A={0},S={1}'.format(a, s) for a, s in 
-                                 zip(vnatte[vsnatt], vnsucc[vsnsuc])]
-
+    L1 = ['A={0},S={1}'.format(a, s) for a, s in 
+          zip(vnatte[vsnatt], vnsucc[vsnsuc])]
+    L2 = ['BF2','BF3','BF99'] + L1
     g.append("      \\nextgroupplot[ylabel=$M/N$]\n")
     for h, i in enumerate(vsfadi):
         if h: g.append("      \\nextgroupplot\n")
         g.mplot(rho_v, mn2[rv, i, vsbfco])
         g.mplot(rho_v, mn1[rv, i, vsnatt, vsnsuc])
-    g.leg(lg)
-
+    g.leg(L2)
     g.append("      \\nextgroupplot[ylabel=succ]\n")
     for h, i in enumerate(vsfadi):
         if h: g.append("      \\nextgroupplot\n")
         g.mplot(rho_v, r['succ2'][rv, i, vsbfco])
         g.mplot(rho_v, r['succ1'][rv, i, vsnatt, vsnsuc])
-    g.leg(lg)
-
+    g.leg(L2)
     g.append("      \\nextgroupplot[ylabel=tpst]\n")     
     for h, i in enumerate(vsfadi):
         if h: g.append("      \\nextgroupplot\n """)
         g.mplot(rho_v, tpst2[rv, i, vsbfco])
         g.mplot(rho_v, tpst1[rv, i, vsnatt, vsnsuc])
-    g.leg(lg)
-
+    g.leg(L2)
     g.append("      \\nextgroupplot[ylabel=thrg]\n")     
     for h, i in enumerate(vsfadi):
         if h: g.append("      \\nextgroupplot\n """)
         g.mplot(rho_v, thrg2[rv, i, vsbfco])
         g.mplot(rho_v, thrg1[rv, i, vsnatt, vsnsuc])
-    g.leg(lg)
-
-
-    ovrhd1 = r['dbsce'][:,:,:2].sum(2) * 2 * slott2
-    ovrhd2 = (0.1 + r['slot2'] * vnatte.reshape(-1,1)) * slott2
+    g.leg(L2)
+    ovrhd2 = r['dbsce'][:,:,:2].sum(2) * 2 * slott2
+    ovrhd1 = (3.1 + r['slot1']) * vnatte.reshape(1,1,-1,1) * slott2
     g.append("      \\nextgroupplot[ylabel=ovrhd]\n")     
     for h, i in enumerate(vsfadi):
         if h: g.append("      \\nextgroupplot\n """)
-        g.plot(rho_v, ovrhd2[:,i,:])
-        g.mplot(rho_v, ovrh2[rv, i, vsnatt, vsnsuc])
-    g.leg(lg)
-
+        g.plot(rho_v, ovrhd2[:,i])
+        g.mplot(rho_v, ovrhd1[rv, i, vsnatt, vsnsuc])
+    g.leg(['BF'] + L1)
     g.append("    \\end{groupplot}\n")
     for h, i in enumerate(vfadin[vsfadi]):
         g.append("    \\node at (group c{0}r{1}.south)".format(h + 1, rows))
