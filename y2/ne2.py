@@ -46,6 +46,11 @@ def printarray(string):
     # array = eval(string, globals(), loc)
     # print(array)
     print(eval(string, globals(), loc))
+def stackl(*args):
+    """stack arrays in the last dimension."""
+    ndims = len(args[0].shape)
+    ar2 = [a.reshape(a.shape + (1,)) for a in args]
+    return np.concatenate(ar2, ndims)
 def display(filename):
     if filename.endswith('pdf'):
         if platform.system() == 'Windows':
@@ -918,36 +923,46 @@ class PhyNet(Tree):
         for x in tx1:
             src_fail[x] = 0 if x in t2 else src_fail[x] + 1
         return t2, r2
-    def broad_sche(z, cap_packet, VB=False):
+    def broad_sche(z, cap_packet, compf=9999, VB=False):
         """
         cap_packet indicates how many schedule fit into one packet.
 
         """
         src_fail = np.zeros(z.c, int)
-        to_transmit = [[] for i in xrange(z.c)]
-        to_transmit[0] = [x for x in z.chlr(0) for n in xrange(int(
-                    np.ceil((z.n_descendants[x]+1.)/cap_packet)))]
-        for dbs in xrange(10000):
+        #dbssubtree[i] contains the number of dbs needed by *i* and all its
+        #descendants.
+        dbssubtree = np.zeros(z.c)
+        for i in xrange(z.c):
+            x = z.npakno(i, compf)
+            while True:
+                dbssubtree[i] += x
+                i = z.f[i]
+                if i < 0:
+                    break
+        # p[i] indicates the number of packets that node *i* needs to
+        # receive from its parent.
+        p = np.array(np.ceil(dbssubtree / cap_packet), int)
+        # ttx[i] is the list of the next recipients of *i*'s packets
+        ttx = [[] for i in xrange(z.c)] # to transmit
+        ttx[0] = [x for x in z.chlr(0) for n in xrange(p[x])] 
+        for dbs in xrange(100000):
             if VB: 
                 print("dbs = {0}".format(dbs))
-            contenders = [i    for i, j in enumerate(to_transmit) if j]
-            receivers  = [j[0] for i, j in enumerate(to_transmit) if j]
+            contenders = [i    for i, j in enumerate(ttx) if j]
+            receivers  = [j[0] for i, j in enumerate(ttx) if j]
             txs, rxs = z.cont_succ(contenders, receivers, src_fail)
             if VB:
                 printarray('txs')
             dummy = 3
-            # if len(to_transmit[0]) > 4:
+            # if len(ttx[0]) > 4:
             #     pdb.set_trace()
             for i in txs:
-                ch = to_transmit[i].pop(0)
+                ch = ttx[i].pop(0)
                 if VB:
                     print("removed {0} from {1}.".format(ch, i))
-                if ch not in to_transmit[i]:
-                    for x in z.chlr(ch):
-                        for n in xrange(int(np.ceil(
-                            (z.n_descendants[x]+1.)/cap_packet))):
-                            to_transmit[ch].append(x)
-            if not sum(bool(x) for x in to_transmit):
+                if ch not in ttx[i]:
+                    ttx[ch].extend(x for x in z.chlr(ch)for n in xrange(p[x]))
+            if not sum(bool(x) for x in ttx):
                 break
         else:
             raise Error("broad_sche did not conclude")
@@ -3113,21 +3128,21 @@ def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1):
             print_iter(k, reptt)
             for t, x in enumerate(xv):
                 for i, c in enumerate(n_nodes[t]):
-                    print_nodes(c, k)
-                    wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
                     for m, f in enumerate(vcompf):
+                        print_nodes(c, k, "compf = {0}".format(f))
+                        wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
                         o['npaks'][k,t,i,m] = wsn.npakto(compf=f)
                         for r, cap in enumerate((cap1, cap2[i], 9999)):
                             o['dbsce'][k,t,i,m,r] = wsn.broad_sche(
-                                cap_packet=cap)
+                                cap_packet=cap, compf=f)
                         for j, h in enumerate((2,3)):
-                            bf = BFNet(wsn, compf=f)
-                            bf.bf_schedule(hops=h)
-                            o['slots'][k,t,i,m,j] = bf.sche_len()
-                            o['succa'][k,t,i,m,j] = bf.success_ratio()
+                            scd = wsn.bf_schedule(hops=h,compf=f)
+                            o['slots'][k,t,i,m,j] = scdlength(scd)
+                            o['succa'][k,t,i,m,j] = wsn.success_ratio(scd)
                         rs = RandSchedNet(wsn,cont_f=40,pairs=10,Q=0.1,
                                           slot_t=2,VB=0,until=1e9,compf=f)
-                        o['slots'][k,t,i,m,2] = bf.sche_len()
+                        scd = [node.tx_d.keys() for node in rs]
+                        o['slots'][k,t,i,m,2] = scdlength(scd)
         savedict(**o)
     r = load_npz()
     g = Pgf2()
@@ -3135,8 +3150,10 @@ def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1):
     leg = 'BF2', 'BF3', 'RandSched'
     slott1 = 0.03  # slot time without contention in seconds
     slott2 =  slott1 * 1.10# with contention
-    overhead=np.dstack((r['dbsce'][:,:,:2].sum(2) * 2 * slott2, #BF
-                        r['slots'][:,:,2] * (slot_pairs * 2 + 3.1) * slott1))
+    oh = stackl(r['dbsce'][:,:,:,:2].sum(3) * 2 * slott2,  #BF
+                r['slots'][:,:,:,2]*(slot_pairs*2+3.1)*slott1) # RandSched
+    # transmission per slot:
+    tps = r['npaks'].reshape(r['npaks'].shape+(1,))/r['slots'] 
   #   g.append("\\section{Each graph for a different $x$}\n")
   #   for t, x in enumerate(xv):
   #       g.append("\\subsection{{$x/t={0}$}}\n".format(x/tx_rg1))
@@ -3174,42 +3191,38 @@ def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1):
   #                .format('abc'[h], rho_v[i]))
   #   g.append("\\end{tikzpicture}\n")
 
-    for q in vcompf:
+    vsrho = ([0,1,2],[1,3,5])[tst_nr]
+    rows = 4
+    for q, f in enumerate(vcompf):
         g.append("\\newpage\n" + 
                  "\\section{{With groupplot2 for compf={0}}}\n".format(q) + 
                  "  \\begin{tikzpicture}\n" + 
-                 "    \\begin{groupplot}[group style={group size=3 by 4}," +
-                 "      height=34mm,width=44mm]\n")
-        xvn = xv /tx_rg1
-        indices = 1, 3, 5
-
-        g.append("      \nextgroupplot[ylabel={$M/N$}]")
-        for h, i in enumerate(indices):
+                 "    \\begin{groupplot}[group style={group size=3 by " +
+                 str(rows) + "},=34mm,width=44mm]\n")
+        xvn = xv / tx_rg1
+        g.append("      \\nextgroupplot[ylabel={$M/N$}]")
+        for h, i in enumerate(vsrho):
             if h: g.append("      \\nextgroupplot[ymin=0.4, ymax=1.0]\n """)
-            g.mplot(xvn, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1))
+            g.mplot(xvn, tps[:,i,q,:])
         g.leg(leg)
-
-        g.append("\\nextgroupplot[ylabel={uncon}]\n")
-        for h, i in enumerate(indices):
+        g.append("\\nextgroupplot[ylabel={succa}]\n")
+        for h, i in enumerate(vsrho):
             if h: g.append("      \\nextgroupplot\n")
-            g.mplot(xvn, r['uncon'][:,i,:])
+            g.mplot(xvn, r['succa'][:,i,q,:])
         g.leg(('BF2', 'BF3'))
-
         g.append("\\nextgroupplot[ylabel={overhead}]\n")
-        for h, i in enumerate(indices):
+        for h, i in enumerate(vsrho):
             if h: g.append("      \\nextgroupplot\n")
-            g.mplot(xvn, overhead[:,i,:])
+            g.mplot(xvn, oh[:,i,q,:])
         g.leg(('BF', 'FlexiTP'))
-
         g.append("\\nextgroupplot[ylabel={{dbsce}}, {0}]\n".format(xsi))
-        for h, i in enumerate(indices):
+        for h, i in enumerate(vsrho):
             if h: g.append("      \\nextgroupplot[{0}]\n".format(xsi))
-            g.mplot(xvn, r['dbsce'][:,i,:])
+            g.mplot(xvn, r['dbsce'][:,i,q,:])
         g.leg(('neighbors', 'schedule', '9999'))
         g.append("    \\end{groupplot}\n")
-
-        for h, i in enumerate(indices):
-            g.append("    \\node at (group c{0}r4.south)".format(h + 1))
+        for h, i in enumerate(vsrho):
+            g.append("    \\node at (group c{0}r{1}.south)".format(h+1,rows))
             g.append("[yshift=-14mm] {{({0}) $\\rho={1}$}};\n"
                      .format('abc'[h], rho_v[i]))
         g.append("\\end{tikzpicture}\n")
