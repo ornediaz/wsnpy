@@ -51,6 +51,8 @@ def stackl(*args):
     ndims = len(args[0].shape)
     ar2 = [a.reshape(a.shape + (1,)) for a in args]
     return np.concatenate(ar2, ndims)
+def deepen(mat):
+    return mat.reshape(mat.shape + (1,))
 def zerom(*args):
     v = []
     for i in args:
@@ -59,6 +61,8 @@ def zerom(*args):
         except TypeError:
             v.append(i)
     return np.zeros(v)
+def insh(mat, *arg):
+    return np.arange(len(mat)).reshape(arg)
 def rangemat(mat, factor = 0.1):
     """Return the minimum and the maximum of the matrix multiplied by a
     factor."""
@@ -3257,7 +3261,7 @@ def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1,
         g.leg(lgd)
     g.end(["compf={0}".format(vcompf[c]) for c in vscomf], len(pairz))
     g.compile(plot=plot)
-def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
+def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     """
         + natte: number of packtes that the transmitter transmits
         + nsucc: number of success to consider the transmission successful
@@ -3265,6 +3269,8 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
                  transmisson
 
     tst_nr = 0 : 80s/rep@hp1
+
+    rdp: plot a reduced version
     """
     packet_size = 56 * 8 # bits
     id_size = 16 # bits
@@ -3287,13 +3293,13 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
     g = Pgf2()
     for v in ('n_nodes', 'vfadin', 'vcap'):
         g.printarray(v)
-    o = dict(dbsce=zerom(reptt,n_nodes,vfadin,vcap)),
+    o = dict(dbsce=zerom(reptt,n_nodes,vfadin,vcap),
              slot1=zerom(reptt,n_nodes,vfadin,vhops),
-             slot2=zerom(reptt,n_nodes,vfading,vnatte,vnsucc),
+             slot2=zerom(reptt,n_nodes,vfadin,vnatte,vnsucc),
              npaks=zerom(reptt,n_nodes),
-             nopro=zerom(reptt,n_nodes,vfading,vnatte,vnsucc),
-             succ1==zerom(reptt,n_nodes,vfadin,vhops),
-             succ2=zerom(reptt,n_nodes,vfading,vnatte,vnsucc))
+             nopro=zerom(reptt,n_nodes,vfadin,vnatte,vnsucc),
+             fail1=zerom(reptt,n_nodes,vfadin,vhops),
+             fail2=zerom(reptt,n_nodes,vfadin,vnatte,vnsucc))
     if action == 1:
         for k in xrange(reptt):
             print_iter(k, reptt)
@@ -3321,36 +3327,22 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
                                 o['nopro'][:,i,j,t,h] = True
                             else:
                                 o['slot2'][k,i,j,t,h] = scdlength(scd)
-                                o['succ2'][k,i,j,t,h] = wsn.fail_ratio(scd)
+                                o['fail2'][k,i,j,t,h] = wsn.fail_ratio(scd)
         savedict(**o)
     r = load_npz()
     # thrg: number of successfully transmitted packets per
     # area_tx: area blocked by a transmission pair
-    for m in (1,2):
-        exec "tpst{0} = np.zeros(dim{0}[1:])".format(m,m)
-        exec "i = r['slot{0}'].nonzero()".format(m)
-        exec "tpst{0}[i] = r['npaks'][i[0]] / r['slot{1}'][i]".format(m,m)
-    mn1 = r['slot2'] / n_nodes.reshape(-1,1,1)
-    mn2 = r['slot1'] / r['npaks'].reshape(-1,1,1,1)
-    thrg1 = tpst1 * r['succ1']
-    thrg2 = tpst2 * r['succ2']
     slott1 = 0.03
-    slott2 = slott1 * 0.8
-
-#     printarray('tpst1')
-#     max_thrg = x ** 2 / (20 * tx_rg1 ** 2)
+    slott2 = slott1 * 0.7
     rows = 5
     g.append("\\section{With grouplot2}\n" + 
              "  \\begin{tikzpicture}\n"  + 
              "    \\begin{groupplot}[group style={group size=3 by " +
              str(rows) + "},\n height=34mm, width=44mm]\n")
-#     xvn = xv / tx_rg1
-#     i_fad = 0, 1, 2
-#     i2 = 
-    vsnatt = [1, 2, 2]
-    vsnsuc = [0, 0, 1]
-    vsfadi = [0, 1, 2]
-    vsbfco = [0, 1, 2]
+    vsnatt = np.array([1, 2, 2])
+    vsnsuc = np.array([0, 0, 1])
+    vsfadi = np.array([0, 1, 2])
+    vshops = np.array([0, 1, 2])# indices to plot of vhops
     incorrect = False
     for a, s in zip(vsnatt, vsnsuc):
         if r['nopro'][:,:,a,s].any():
@@ -3358,112 +3350,36 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
             incorrect = True
     if incorrect:
         raise Error("Some of the measurements are unreliable")
-    rv = np.arange(len(n_nodes)).reshape(-1,1)
-    L1 = ['A={0},S={1}'.format(a, s) for a, s in 
+    ix1 = insh(n_nodes,-1,1,1), insh(vfadin,-1,1), vshops
+    ix2 = insh(n_nodes,-1,1,1), insh(vfadin,-1,1), vsnatt, vsnsuc
+    # flatten:
+    slo = np.dstack((r['slot1'][ix1], r['slot2'][ix2]))
+    tps = slo / r['npaks'].reshape(-1,1,1)
+    fai = np.dstack((r['fail1'][ix1], r['fail2'][ix2]))
+    ovd = np.dstack((deepen(r['dbsce'].sum(2) * 2 * slott2),
+                     (3.1+r['slot2'][ix2] * vsnatt.reshape(-1,1))*slott2))
+    L1a = ['BF2','BF3','BF99']
+    L2a = ['RandSched with A={0},S={1}'.format(a, s) for a, s in 
           zip(vnatte[vsnatt], vnsucc[vsnsuc])]
-    L2 = ['BF2','BF3','BF99'] + L1
     g.append("      \\nextgroupplot[ylabel=$M/N$]\n")
-    for h, i in enumerate(vsfadi):
-        if h: g.append("      \\nextgroupplot\n")
-        g.mplot(rho_v, mn2[rv, i, vsbfco])
-        g.mplot(rho_v, mn1[rv, i, vsnatt, vsnsuc])
-    g.leg(L2)
-    g.append("      \\nextgroupplot[ylabel=succ]\n")
-    for h, i in enumerate(vsfadi):
-        if h: g.append("      \\nextgroupplot\n")
-        g.mplot(rho_v, r['succ2'][rv, i, vsbfco])
-        g.mplot(rho_v, r['succ1'][rv, i, vsnatt, vsnsuc])
-    g.leg(L2)
-    g.append("      \\nextgroupplot[ylabel=tpst]\n")     
-    for h, i in enumerate(vsfadi):
-        if h: g.append("      \\nextgroupplot\n """)
-        g.mplot(rho_v, tpst2[rv, i, vsbfco])
-        g.mplot(rho_v, tpst1[rv, i, vsnatt, vsnsuc])
-    g.leg(L2)
-    g.append("      \\nextgroupplot[ylabel=thrg]\n")     
-    for h, i in enumerate(vsfadi):
-        if h: g.append("      \\nextgroupplot\n """)
-        g.mplot(rho_v, thrg2[rv, i, vsbfco])
-        g.mplot(rho_v, thrg1[rv, i, vsnatt, vsnsuc])
-    g.leg(L2)
-    ovrhd2 = r['dbsce'][:,:,:2].sum(2) * 2 * slott2
-    ovrhd1 = (3.1 + r['slot1']) * vnatte.reshape(1,1,-1,1) * slott2
-    g.append("      \\nextgroupplot[ylabel=ovrhd]\n")     
-    for h, i in enumerate(vsfadi):
-        if h: g.append("      \\nextgroupplot\n """)
-        g.plot(rho_v, ovrhd2[:,i])
-        g.mplot(rho_v, ovrhd1[rv, i, vsnatt, vsnsuc])
-    g.leg(['BF'] + L1)
-    g.append("    \\end{groupplot}\n")
-    for h, i in enumerate(vfadin[vsfadi]):
-        g.append("    \\node at (group c{0}r{1}.south)".format(h + 1, rows))
-        g.append("[yshift=-14mm] {{({0}) $\\sigma_f={1}$}};\n"
-                 .format('abc'[h], i))
-    g.append("\\end{tikzpicture}\n")
-    
-    rows = 4
-    g.append("\\section{For Elsevier}\n" + 
-             "  \\begin{tikzpicture}\n"  + 
-             "    \\begin{groupplot}[group style={group size=3 by " +
-             str(rows) + "},\n height=34mm, width=44mm]\n")
-#     xvn = xv / tx_rg1
-#     i_fad = 0, 1, 2
-#     i2 = 
-    vsnatt = [1, 2, 2]
-    vsnsuc = [0, 0, 1]
-    vsfadi = [0, 1, 2]
-    vsbfco = [0, 1, 2]
-    incorrect = False
-    for a, s in zip(vsnatt, vsnsuc):
-        if r['nopro'][:,:,a,s].any():
-            print("Error with a={0}".format(a, s))
-            incorrect = True
-    if incorrect:
-        raise Error("Some of the measurements are unreliable")
-    rv = np.arange(len(n_nodes)).reshape(-1,1)
-    L1 = ['A={0},S={1}'.format(a, s) for a, s in 
-          zip(vnatte[vsnatt], vnsucc[vsnsuc])]
-    L2 = ['BF2','BF3','BF99'] + L1
-    g.append("      \\nextgroupplot[ylabel=succ]\n")
-    for h, i in enumerate(vsfadi):
-        if h: g.append("      \\nextgroupplot\n")
-        g.mplot(rho_v, r['succ2'][rv, i, vsbfco])
-        g.mplot(rho_v, r['succ1'][rv, i, vsnatt, vsnsuc])
-    g.leg(L2)
-    g.append("      \\nextgroupplot[ylabel=tpst]\n")     
-    for h, i in enumerate(vsfadi):
-        if h: g.append("      \\nextgroupplot\n """)
-        g.mplot(rho_v, tpst2[rv, i, vsbfco])
-        g.mplot(rho_v, tpst1[rv, i, vsnatt, vsnsuc])
-    g.leg(L2)
-    g.append("      \\nextgroupplot[ylabel=thrg]\n")     
-    for h, i in enumerate(vsfadi):
-        if h: g.append("      \\nextgroupplot\n """)
-        g.mplot(rho_v, thrg2[rv, i, vsbfco])
-        g.mplot(rho_v, thrg1[rv, i, vsnatt, vsnsuc])
-    g.leg(L2)
-    ovrhd2 = r['dbsce'][:,:,:2].sum(2) * 2 * slott2
-    ovrhd1 = (3.1 + r['slot1']) * vnatte.reshape(1,1,-1,1) * slott2
-    g.append("      \\nextgroupplot[ylabel=ovrhd]\n")     
-    for h, i in enumerate(vsfadi):
-        if h: g.append("      \\nextgroupplot\n """)
-        g.plot(rho_v, ovrhd2[:,i])
-        g.mplot(rho_v, ovrhd1[rv, i, vsnatt, vsnsuc])
-    g.leg(['BF'] + L1)
-    g.append("    \\end{groupplot}\n")
-    for h, i in enumerate(vfadin[vsfadi]):
-        g.append("    \\node at (group c{0}r{1}.south)".format(h + 1, rows))
-        g.append("[yshift=-14mm] {{({0}) $\\sigma_f={1}$}};\n"
-                 .format('abc'[h], i))
-    g.append("\\end{tikzpicture}\n")
-
-    tps1 = tpst1
-    pairs =( (tps,           'tps',       leg), 
-             (r['slots'],    'slots',     leg), 
-             (r['faila'],    'faila',     ('BF2', 'BF3')), 
-             (oh,            'overhead',  ('BF',  'RandSched')),
-             (r['dbsce'],    'dbsce',    ('neighors', 'schedule', '9999')))
-    g.compile(plot=plot)
+    pairs = (
+        (tps          ,'tps'     ,L1a + L2a),
+        (slo          ,'slots'   ,L1a + L2a),
+        (fai          ,'failure' ,L1a + L2a),
+        (ovd          ,'ovd'     ,['BF$k$ for all $k$'] + L2a),
+        (r['dbsce']   ,'dbsce'   ,('neighbors', 'schedule')))
+    pairz = pairs
+    if rdp == 1:
+        pairz = [pairs[i] for i in (0, 1, 2)]
+    g.section("groupplot")
+    g.start(c=3,r=len(pairz),h=35,w=44)
+    for b, (mat, lbl,lgd) in enumerate(pairz):
+        for h, i in enumerate(vsfadi):
+            g.next(c=h,y=lbl,r=b==len(pairz)-1,x='node density $\\rho$',
+                   s=rangeax(mat[:,vsfadi,:]))
+            g.mplot(rho_v, mat[:,i,:])
+        g.leg(lgd)
+    g.end(["fading={0}\,dB".format(vfadin[f]) for f in vsfadi], len(pairz)) 
 def tst_broadcast(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Test in a simple network an algorithm to compute the overhead
 
