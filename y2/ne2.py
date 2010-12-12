@@ -51,6 +51,25 @@ def stackl(*args):
     ndims = len(args[0].shape)
     ar2 = [a.reshape(a.shape + (1,)) for a in args]
     return np.concatenate(ar2, ndims)
+def zerom(*args):
+    v = []
+    for i in args:
+        try:
+            v.append(len(i))
+        except TypeError:
+            v.append(i)
+    return np.zeros(v)
+def rangemat(mat, factor = 0.1):
+    """Return the minimum and the maximum of the matrix multiplied by a
+    factor."""
+    mn = mat.min()
+    mx = mat.max()
+    rng = mx - mn
+    mn = mn - rng * factor 
+    mx = mx + rng * factor
+    return mn, mx
+def rangeax(mat, factor = 0.1):
+    return "ymin = {0}, ymax = {1}".format(*rangemat(mat))
 def display(filename):
     if filename.endswith('pdf'):
         if platform.system() == 'Windows':
@@ -238,6 +257,46 @@ class Pgf2(list):
             z.append(header)
         else:
             z.extend(header)
+    def printarray(z, string):
+        frame_record = inspect.stack(0)[1]
+        loc = frame_record[0].f_locals
+        z.append("\\begin{verbatim}\n")
+        z.append(string + " = \n")
+        z.append(str(loc[string]))
+        z.append("\n\\end{verbatim}\n")
+    def section(z, title):
+        z.append("\\section{{{0}}}\n".format(title))
+    def subsection(z, title):
+        z.append("\\subsection{{{0}}}\n".format(title))
+    def start(z, c, r, h=35, w=44):
+        """Start a groupplot of *c* columns, *r* rows, where each cell has
+        height *h*mm and width *w* mm."""
+        z.append("  \\begin{tikzpicture}\n")
+        z.append("     \\begin{groupplot}[group style={group size=" + str(c))
+        z.append(" by " + str(r) + "}, height=" + str(h) + "mm, width=") 
+        z.append(str(w) + "mm]\n")
+    def next(z, c=1, y=None, r=0,x=None,s=None):
+        """Append nextgroupplot.  If c=0, use y as an ylabel. If r==True,
+        use x as an xlabel. If s is not None, append it to groupplot.""" 
+        par = ''
+        if s is not None:
+            par = s
+        if r:
+            par = "xlabel={{{0}}},{1}".format(x,par)
+        if c == 0:
+            par = "ylabel={{{0}}},{1}".format(y,par)
+        if par == '':
+            z.append("    \\nextgroupplot\n")
+        else:
+            z.append("    \\nextgroupplot[{0}]\n".format(par))
+    def end(z, lab, r):
+        """Conclude the groupplot and label the columns with the labels in
+        lab.  *r* is the number of columns. """
+        z.append("    \\end{groupplot}\n")
+        for h,i,b in zip('12345', 'abcdef', lab):
+            z.append("    \\node at (group c{0}r{1}.south)".format(h,r))
+            z.append("[yshift=-14mm] {{({0}) {1}}};\n".format(i, b))
+        z.append("\\end{tikzpicture}\n\n")
     def leg(z, lg=None):
          if lg is not None:
             z.append('      \legend{{' +  '}, {'.join(lg) + '}}\n')
@@ -923,9 +982,17 @@ class PhyNet(Tree):
         for x in tx1:
             src_fail[x] = 0 if x in t2 else src_fail[x] + 1
         return t2, r2
-    def broad_sche(z, cap_packet, compf=9999, VB=False):
+    def broad_sche(z, sc, pktc, compf=9999, VB=False):
         """
-        cap_packet indicates how many schedule fit into one packet.
+       
+        if sc == 0: report your neighbors. (Actually what is simulated is
+        the inverse of what actually happens: the data sink reports the
+        neighbors to each node.)
+
+        if sc == 1: report the schedule.
+        
+        pktc (packet capacity) how many schedule fit into one packet.
+       
 
         """
         src_fail = np.zeros(z.c, int)
@@ -933,7 +1000,7 @@ class PhyNet(Tree):
         #descendants.
         dbssubtree = np.zeros(z.c)
         for i in xrange(z.c):
-            x = z.npakno(i, compf)
+            x = z.npakno(i, compf) if sc else len(z.tx_l[i]) + 1
             while True:
                 dbssubtree[i] += x
                 i = z.f[i]
@@ -941,7 +1008,7 @@ class PhyNet(Tree):
                     break
         # p[i] indicates the number of packets that node *i* needs to
         # receive from its parent.
-        p = np.array(np.ceil(dbssubtree / cap_packet), int)
+        p = np.array(np.ceil(dbssubtree / pktc), int)
         # ttx[i] is the list of the next recipients of *i*'s packets
         ttx = [[] for i in xrange(z.c)] # to transmit
         ttx[0] = [x for x in z.chlr(0) for n in xrange(p[x])] 
@@ -1004,12 +1071,12 @@ class PhyNet(Tree):
         msn = 0 # maximum slot number
         while q:
             x = q.pop(0) # node to color in current iteration
-            q.extend(y for y in z.chlr(x)for i in xrange(z.npakno(y,compf)))
-            clr = 1 
-            if hops == INF:
-                clr = msn + 1
-            else: 
-                # Compute the set of nodes s whose color I cannot use. Two
+            if x not in q: # This is the last packet of x
+                q.extend(y for y in z.chlr(x)
+                         for i in xrange(z.npakno(y,compf)))
+            clr = msn + 1
+            if hops != INF:
+                # Compute the set of nodes *s* whose color I cannot use. Two
                 # parts: 1) Nodes that interfere with my parent's reception
                 s = k_neigh(node_set=z.f[x], hops=hops, tx_l=z.tx_l).union(
                     # children of the nodes that can interfere with me
@@ -1023,15 +1090,15 @@ class PhyNet(Tree):
             msn = max(msn, clr)
         fin=[[msn + 1 - clr for clr in tmp[x]] for x in xrange(z.c)]
         return fin
-    def success_ratio(z, scd):
-        """ Return the success ratio of the schedule when the attentuation
+    def fail_ratio(z, scd):
+        """ Return the failure ratio of the schedule when the attentuation
         of each link oscillates with standard deviation fadng.
         
         scd is the schedule given by a list of z.c lists. Each list
         indicates the slots in which a node transmits.
         """
         natte = 0
-        nsucc = 0
+        nfail = 0
         reptt = 100
         last_used = 0
         for slot in xrange(1, 99999):
@@ -1047,14 +1114,14 @@ class PhyNet(Tree):
                         sig2 = z.recf(z.f[i], i) 
                         inx2 = z.noise + sum(z.recf(z.f[j], i)
                                              for j in src if j !=i)
-                        if min(sig1/inx1, sig2/inx2) > z.sinr:
-                            nsucc += 1
+                        if min(sig1/inx1, sig2/inx2) < z.sinr:
+                            nfail += 1
             elif slot - last_used > 20:
                 break
         else:
             raise Error('We should not reach this point')
-        suc_ratio = float(nsucc) / natte
-        return suc_ratio
+        fai_ratio = float(nfail) / natte
+        return fai_ratio
 class DiskModelNetwork(Tree):
     ''' WSN using transmission and interference range model.'''
     def __init__(z, c=100, x=200, y=200, tx_rg=50, ix_rg=100, n_tries=50):
@@ -3091,7 +3158,9 @@ def graphRandSched6(tst_nr=1, reptt=1, action=0, plot=1):
                  .format('abc'[h], rho_v[i]))
     g.append("\\end{tikzpicture}\n")
     g.compile(plot=plot)
-def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1):
+def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1,
+                    rdp=0,# plot a reduced version of pairs
+                    ):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
@@ -3107,22 +3176,22 @@ def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1):
     id_size = 16 # bits
     slot_id_size = 16 # bits to indicate the slot number
     slot_pairs = 5
-    vcompf = np.logspace(-1, 2, 5)
-    xv = np.linspace(*((1,3,2),(3,8,5))[tst_nr]) * tx_rg1
+    vcompf = np.array([0,10, 100, 10000])
+    xvn = np.linspace(*((1,3,2),(3,8,5))[tst_nr]) 
+    xv = xvn * tx_rg1
     rho_v = np.linspace(*((6,20,3),(6,24,6))[tst_nr])
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
     printarray("n_nodes")
-    ncap=3 # cap1, cap2, and 999
-    # number of neighbors that a node can report in one packet
-    cap1=int(np.ceil(packet_size/(id_size+slot_id_size)))
-    # number 
-    cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
-    o = dict(slots=np.zeros((reptt,len(xv),len(rho_v),len(vcompf),3)),
+    # number of neighbors that can be informed 
+    nk = packet_size / id_size
+    l3t = 'BF2', 'BF3', 'RandSched'
+    vcap = np.array(np.ceil([nk, nk]), int)
+    o = dict(slots=zerom(reptt,xv,rho_v,vcompf,l3t),
              # number of dbs used by BF in the two centralized operations
-             dbsce=np.zeros((reptt,len(xv),len(rho_v),len(vcompf),ncap)),
-             npaks=np.zeros((reptt,len(xv),len(rho_v),len(vcompf))),
-             succa=np.zeros((reptt,len(xv),len(rho_v),len(vcompf),3)))
+             dbsce=zerom(reptt,xv,rho_v,vcompf,vcap),
+             npaks=zerom(reptt,xv,rho_v,vcompf),
+             faila=zerom(reptt,xv,rho_v,vcompf,l3t))
     if action == 1:
         for k in xrange(reptt):
             print_iter(k, reptt)
@@ -3132,13 +3201,12 @@ def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1):
                         print_nodes(c, k, "compf = {0}".format(f))
                         wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
                         o['npaks'][k,t,i,m] = wsn.npakto(compf=f)
-                        for r, cap in enumerate((cap1, cap2[i], 9999)):
-                            o['dbsce'][k,t,i,m,r] = wsn.broad_sche(
-                                cap_packet=cap, compf=f)
+                        for r, cap in enumerate(vcap):
+                            o['dbsce'][k,t,i,m,r] = wsn.broad_sche(r,cap,f)
                         for j, h in enumerate((2,3)):
                             scd = wsn.bf_schedule(hops=h,compf=f)
                             o['slots'][k,t,i,m,j] = scdlength(scd)
-                            o['succa'][k,t,i,m,j] = wsn.success_ratio(scd)
+                            o['faila'][k,t,i,m,j] = wsn.fail_ratio(scd)
                         rs = RandSchedNet(wsn,cont_f=40,pairs=10,Q=0.1,
                                           slot_t=2,VB=0,until=1e9,compf=f)
                         scd = [node.tx_d.keys() for node in rs]
@@ -3146,86 +3214,48 @@ def graphRandSched7(tst_nr=1, reptt=1, action=0, plot=1):
         savedict(**o)
     r = load_npz()
     g = Pgf2()
+    for v in ('vcompf', 'xvn', 'rho_v', 'n_nodes', 'vcap'):
+        g.printarray(v)
     xsi = "xlabel={normalized network size}" 
-    leg = 'BF2', 'BF3', 'RandSched'
     slott1 = 0.03  # slot time without contention in seconds
     slott2 =  slott1 * 1.10# with contention
-    oh = stackl(r['dbsce'][:,:,:,:2].sum(3) * 2 * slott2,  #BF
-                r['slots'][:,:,:,2]*(slot_pairs*2+3.1)*slott1) # RandSched
+    oh1 = r['dbsce'].sum(3) * 2 * slott2  #BF
+    oh2 = r['slots'][:,:,:,2]*(slot_pairs*2+3.1)*slott1 # RandSched
+    oh = stackl(oh1, oh2)
     # transmission per slot:
     tps = r['npaks'].reshape(r['npaks'].shape+(1,))/r['slots'] 
-  #   g.append("\\section{Each graph for a different $x$}\n")
-  #   for t, x in enumerate(xv):
-  #       g.append("\\subsection{{$x/t={0}$}}\n".format(x/tx_rg1))
-  #       g.mfplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), leg, '',
-  #                r"xlabel={node density $\rho$}, " +
-  #                r"ylabel={{$M/N$ for xnorm={0}}}".format(x/tx_rg1))
-  #       g.mfplot(rho_v, r['uncon'][t,:,:2], leg, '',
-  #               r"xlabel={node density $\rho$}, " +
-  #               r"ylabel={uncon}")
-  #   g.append("\\section{Each graph for a different $\rho$}\n")
-  #   for i, rho in enumerate(rho_v):
-  #       g.append("\\subsection{{$\\rho={0}$}}\n".format(rho))
-  #       g.mfplot(xv/tx_rg1,r['slots'][:,i,:]/n_nodes[:,i].reshape(-1,1),
-  #                leg, '', r"xlabel={normalized network size}" +
-  #                r"ylabel={{$M/N$ for $\rho={0}}}$".format(rho))
-  #       g.mfplot(xv / tx_rg1, r['uncon'][:,i,:2], leg, '',
-  #                r"xlabel={normalized network size}" + 
-  #                r"ylabel={{uncon for $\rho={0}}}".format(rho))
-  #   g.append(r"""\section{With grouplot}
-  # \begin{tikzpicture}
-  #   \begin{groupplot}[group style={group size=3 by 1}, width=44mm,
-  #     ymin=0.4,ymax=1]
-  #     \nextgroupplot[ylabel={$M/N$},""" + xsi + "]\n")
-  #   indices = 1, 3, 5
-  #   # The overhead just needs to be computed for one of the BF protocols
-  #   for h, i in enumerate(indices):
-  #       if h:
-  #           g.append(r"      \nextgroupplot[" + xsi + "]\n")
-  #       g.mplot(xv / tx_rg1, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1))
-  #   g.leg(leg)
-  #   g.append("    \end{groupplot}\n")
-  #   for h, i in enumerate(indices):
-  #       g.append("    \\node at (group c{0}r1.south)".format(h + 1))
-  #       g.append("[yshift=-14mm] {{({0}) $\\rho={1}$}};\n"
-  #                .format('abc'[h], rho_v[i]))
-  #   g.append("\\end{tikzpicture}\n")
-
     vsrho = ([0,1,2],[1,3,5])[tst_nr]
-    rows = 4
+    rows = 5
+    pairs =( (tps,           'tps',       l3t), 
+             (r['slots'],    'slots',     l3t), 
+             (r['faila'],    'faila',     ('BF2', 'BF3')), 
+             (oh,            'overhead',  ('BF',  'RandSched')),
+             (r['dbsce'],    'dbsce',    ('neighors', 'schedule', '9999')))
+    pairz = pairs
+    if rdp == 1:
+        pairz = [pairs[i] for i in (0, 1, 2, 3)]
+    g.section("Multipage over compf")
     for q, f in enumerate(vcompf):
-        g.append("\\newpage\n" + 
-                 "\\section{{With groupplot2 for compf={0}}}\n".format(q) + 
-                 "  \\begin{tikzpicture}\n" + 
-                 "    \\begin{groupplot}[group style={group size=3 by " +
-                 str(rows) + "},=34mm,width=44mm]\n")
-        xvn = xv / tx_rg1
-        g.append("      \\nextgroupplot[ylabel={$M/N$}]")
-        for h, i in enumerate(vsrho):
-            if h: g.append("      \\nextgroupplot[ymin=0.4, ymax=1.0]\n """)
-            g.mplot(xvn, tps[:,i,q,:])
-        g.leg(leg)
-        g.append("\\nextgroupplot[ylabel={succa}]\n")
-        for h, i in enumerate(vsrho):
-            if h: g.append("      \\nextgroupplot\n")
-            g.mplot(xvn, r['succa'][:,i,q,:])
-        g.leg(('BF2', 'BF3'))
-        g.append("\\nextgroupplot[ylabel={overhead}]\n")
-        for h, i in enumerate(vsrho):
-            if h: g.append("      \\nextgroupplot\n")
-            g.mplot(xvn, oh[:,i,q,:])
-        g.leg(('BF', 'FlexiTP'))
-        g.append("\\nextgroupplot[ylabel={{dbsce}}, {0}]\n".format(xsi))
-        for h, i in enumerate(vsrho):
-            if h: g.append("      \\nextgroupplot[{0}]\n".format(xsi))
-            g.mplot(xvn, r['dbsce'][:,i,q,:])
-        g.leg(('neighbors', 'schedule', '9999'))
-        g.append("    \\end{groupplot}\n")
-        for h, i in enumerate(vsrho):
-            g.append("    \\node at (group c{0}r{1}.south)".format(h+1,rows))
-            g.append("[yshift=-14mm] {{({0}) $\\rho={1}$}};\n"
-                     .format('abc'[h], rho_v[i]))
-        g.append("\\end{tikzpicture}\n")
+        g.subsection("With groupplot2 for compf="+str(f))
+        g.start(c=3,r=len(pairz),h=35,w=44) 
+        for b, (mat, lbl, lgd) in enumerate(pairz):
+            for h, i in enumerate(vsrho):
+                g.next(c=h,y=lbl,r=b==len(pairz)-1,x='normalized netw. size',
+                       s=rangeax(mat[:,vsrho,:])) 
+                g.mplot(xvn, mat[:,i,q,:])
+            g.leg(lgd)
+        g.end(["$\\rho={0}$".format(rho_v[i]) for i in vsrho], len(pairz))
+    vscomf = 0, 1, 3
+    indrho = -1
+    g.section("clmn:compf") 
+    g.start(c=3,r=len(pairz),h=35,w=44)
+    for b, (mat, lbl, lgd) in enumerate(pairz):
+        for h, i in enumerate(vscomf):
+            g.next(c=h,y=lbl,r=b==len(pairz)-1,x='normalize netw. size',
+                   s=rangeax(mat[:,-1,vscomf,:]))
+            g.mplot(xvn, mat[:,-1,i,:])
+        g.leg(lgd)
+    g.end(["compf={0}".format(vcompf[c]) for c in vscomf], len(pairz))
     g.compile(plot=plot)
 def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
     """
@@ -3243,25 +3273,27 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
     vnatte = np.arange(1,5)
     vnsucc = np.arange(1,4)
     vfadin = np.linspace(0,9,3)
-    x = [3,6][tst_nr] * tx_rg1
+    xn = [3,6][tst_nr]
+    x =  xn * tx_rg1
     rho_v = np.linspace(*((6,20,3),(6,24,6))[tst_nr])
     n_nodes = np.array((rho_v * x **2 / np.pi / tx_rg1**2).round(), int)
     printarray("n_nodes")
     # cap1=int(np.ceil(packet_size/(id_size+slot_id_size)))
     # cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
     compf = 999999
-    cap1=int(np.ceil(packet_size/(id_size+slot_id_size)))
-    cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
-    dim1 = reptt, len(n_nodes), len(vfadin), len(vnatte), len(vnsucc)
-    dim2 = reptt, len(n_nodes), len(vfadin), 3
-    o = dict(dbsce=np.zeros((reptt, len(n_nodes), len(vfadin), 3)),
-             slot1=np.zeros(dim1),
-             slot2=np.zeros(dim2),
-             npaks=np.zeros((reptt, len(n_nodes))),
-             nopro=np.zeros(dim1),
-             succ1=np.zeros(dim1),
-             succ2=np.zeros(dim2)
-             )
+    nk = packet_size / id_size
+    vcap = np.array(np.ceil([nk, nk]), int)
+    vhops = 2, 3, INF
+    g = Pgf2()
+    for v in ('n_nodes', 'vfadin', 'vcap'):
+        g.printarray(v)
+    o = dict(dbsce=zerom(reptt,n_nodes,vfadin,vcap)),
+             slot1=zerom(reptt,n_nodes,vfadin,vhops),
+             slot2=zerom(reptt,n_nodes,vfading,vnatte,vnsucc),
+             npaks=zerom(reptt,n_nodes),
+             nopro=zerom(reptt,n_nodes,vfading,vnatte,vnsucc),
+             succ1==zerom(reptt,n_nodes,vfadin,vhops),
+             succ2=zerom(reptt,n_nodes,vfading,vnatte,vnsucc))
     if action == 1:
         for k in xrange(reptt):
             print_iter(k, reptt)
@@ -3270,13 +3302,12 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
                     print_nodes(c, k, "fadng = {0}".format(f))
                     wsn = PhyNet(c=c, x=x,y=x,n_tries=80,fadng=f,**net_par1)
                     o['npaks'][k,i] = wsn.npakto(compf)
-                    for r, cap in enumerate((cap1, cap2[i], 9999)):
-                        o['dbsce'][k,i,j,r] = wsn.broad_sche(cap_packet=cap,
-                                                             VB=0)
-                    for q, w in enumerate((2,3,INF)):
+                    for r, cap in enumerate(vcap):
+                        o['dbsce'][k,i,j,r] = wsn.broad_sche(r,cap,VB=0)
+                    for q, w in enumerate(vhops):
                         scd = wsn.bf_schedule(hops=w,compf=compf)
-                        o['slot2'][k,i,j,q] = scdlength(scd)
-                        o['succ2'][k,i,j,q] = wsn.success_ratio(scd)
+                        o['slot1'][k,i,j,q] = scdlength(scd)
+                        o['fail1'][k,i,j,q] = wsn.fail_ratio(scd)
                     for t, a in enumerate(vnatte):
                         for h, s in enumerate(vnsucc):
                             if s > a or o['nopro'][k,i,j,t,h]:
@@ -3289,8 +3320,8 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
                             except NoProgressError:
                                 o['nopro'][:,i,j,t,h] = True
                             else:
-                                o['slot1'][k,i,j,t,h] = scdlength(scd)
-                                o['succ1'][k,i,j,t,h] = wsn.success_ratio(scd)
+                                o['slot2'][k,i,j,t,h] = scdlength(scd)
+                                o['succ2'][k,i,j,t,h] = wsn.fail_ratio(scd)
         savedict(**o)
     r = load_npz()
     # thrg: number of successfully transmitted packets per
@@ -3299,16 +3330,15 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
         exec "tpst{0} = np.zeros(dim{0}[1:])".format(m,m)
         exec "i = r['slot{0}'].nonzero()".format(m)
         exec "tpst{0}[i] = r['npaks'][i[0]] / r['slot{1}'][i]".format(m,m)
-    mn1 = r['slot1'] / r['npaks'].reshape(-1,1,1,1)
-    mn2 = r['slot2'] / n_nodes.reshape(-1,1,1)
+    mn1 = r['slot2'] / n_nodes.reshape(-1,1,1)
+    mn2 = r['slot1'] / r['npaks'].reshape(-1,1,1,1)
     thrg1 = tpst1 * r['succ1']
     thrg2 = tpst2 * r['succ2']
     slott1 = 0.03
-    slott2 = slott1 * 1.10
+    slott2 = slott1 * 0.8
 
 #     printarray('tpst1')
 #     max_thrg = x ** 2 / (20 * tx_rg1 ** 2)
-    g = Pgf2()
     rows = 5
     g.append("\\section{With grouplot2}\n" + 
              "  \\begin{tikzpicture}\n"  + 
@@ -3370,8 +3400,70 @@ def graphRandSchedUnr1(tst_nr=1, reptt=1, action=0, plot=1):
         g.append("[yshift=-14mm] {{({0}) $\\sigma_f={1}$}};\n"
                  .format('abc'[h], i))
     g.append("\\end{tikzpicture}\n")
-    g.compile(plot=plot)
     
+    rows = 4
+    g.append("\\section{For Elsevier}\n" + 
+             "  \\begin{tikzpicture}\n"  + 
+             "    \\begin{groupplot}[group style={group size=3 by " +
+             str(rows) + "},\n height=34mm, width=44mm]\n")
+#     xvn = xv / tx_rg1
+#     i_fad = 0, 1, 2
+#     i2 = 
+    vsnatt = [1, 2, 2]
+    vsnsuc = [0, 0, 1]
+    vsfadi = [0, 1, 2]
+    vsbfco = [0, 1, 2]
+    incorrect = False
+    for a, s in zip(vsnatt, vsnsuc):
+        if r['nopro'][:,:,a,s].any():
+            print("Error with a={0}".format(a, s))
+            incorrect = True
+    if incorrect:
+        raise Error("Some of the measurements are unreliable")
+    rv = np.arange(len(n_nodes)).reshape(-1,1)
+    L1 = ['A={0},S={1}'.format(a, s) for a, s in 
+          zip(vnatte[vsnatt], vnsucc[vsnsuc])]
+    L2 = ['BF2','BF3','BF99'] + L1
+    g.append("      \\nextgroupplot[ylabel=succ]\n")
+    for h, i in enumerate(vsfadi):
+        if h: g.append("      \\nextgroupplot\n")
+        g.mplot(rho_v, r['succ2'][rv, i, vsbfco])
+        g.mplot(rho_v, r['succ1'][rv, i, vsnatt, vsnsuc])
+    g.leg(L2)
+    g.append("      \\nextgroupplot[ylabel=tpst]\n")     
+    for h, i in enumerate(vsfadi):
+        if h: g.append("      \\nextgroupplot\n """)
+        g.mplot(rho_v, tpst2[rv, i, vsbfco])
+        g.mplot(rho_v, tpst1[rv, i, vsnatt, vsnsuc])
+    g.leg(L2)
+    g.append("      \\nextgroupplot[ylabel=thrg]\n")     
+    for h, i in enumerate(vsfadi):
+        if h: g.append("      \\nextgroupplot\n """)
+        g.mplot(rho_v, thrg2[rv, i, vsbfco])
+        g.mplot(rho_v, thrg1[rv, i, vsnatt, vsnsuc])
+    g.leg(L2)
+    ovrhd2 = r['dbsce'][:,:,:2].sum(2) * 2 * slott2
+    ovrhd1 = (3.1 + r['slot1']) * vnatte.reshape(1,1,-1,1) * slott2
+    g.append("      \\nextgroupplot[ylabel=ovrhd]\n")     
+    for h, i in enumerate(vsfadi):
+        if h: g.append("      \\nextgroupplot\n """)
+        g.plot(rho_v, ovrhd2[:,i])
+        g.mplot(rho_v, ovrhd1[rv, i, vsnatt, vsnsuc])
+    g.leg(['BF'] + L1)
+    g.append("    \\end{groupplot}\n")
+    for h, i in enumerate(vfadin[vsfadi]):
+        g.append("    \\node at (group c{0}r{1}.south)".format(h + 1, rows))
+        g.append("[yshift=-14mm] {{({0}) $\\sigma_f={1}$}};\n"
+                 .format('abc'[h], i))
+    g.append("\\end{tikzpicture}\n")
+
+    tps1 = tpst1
+    pairs =( (tps,           'tps',       leg), 
+             (r['slots'],    'slots',     leg), 
+             (r['faila'],    'faila',     ('BF2', 'BF3')), 
+             (oh,            'overhead',  ('BF',  'RandSched')),
+             (r['dbsce'],    'dbsce',    ('neighors', 'schedule', '9999')))
+    g.compile(plot=plot)
 def tst_broadcast(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Test in a simple network an algorithm to compute the overhead
 
