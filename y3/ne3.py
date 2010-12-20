@@ -1060,7 +1060,7 @@ class PhyNet(Tree):
             if not sum(bool(x) for x in ttx):
                 break
         else:
-            raise Error("broad_sche did not conclude")
+            raise NoProgressError("broad_sche did not conclude")
         if VB:
             print("Number of elapsed iterations: {0}".format(dbs+1))
         return dbs + 1
@@ -3440,7 +3440,7 @@ def graphRandSchedb7(tst_nr=1, reptt=1, action=0, plot=1,
     printarray("n_nodes")
     # number of neighbors that can be informed 
     nk = packet_size / id_size
-    l3t = 'BF2', 'BF3', 'RandSched'
+    l3t = 'BF with $k=2$', 'BF with $k=3$', 'TPDA'
     vcap = np.array(np.ceil([nk, nk, 99999]), int)
     o = dict(slots=zerom(reptt,xv,rho_v,vcompf,l3t),
              # number of dbs used by BF in the two centralized operations
@@ -3491,19 +3491,25 @@ def graphRandSchedb7(tst_nr=1, reptt=1, action=0, plot=1,
             r['dbsce'][:,:,:,:2].sum(3) * 2 * slott2 * 2)
         # (r['dbsce'][:,:,-1,2] * slott1 + # constructing the tree
         oh2 = r['slots'][:,:,:,2]*(slot_pairs*2+3.1)*slott1 # RandSched
+    elif option == 4:
+        # Transmit neighbor list and receive schedule
+        oh1 = (deepen(rho_v * 4. * slott1) + 
+            r['dbsce'][:,:,:,:2].sum(3) * 2 * slott2 * 2)
+        # (r['dbsce'][:,:,-1,2] * slott1 + # constructing the tree
+        oh2 = r['slots'][:,:,:,2]*(slot_pairs*2+3.1)*slott1 # RandSched
     oh = stackl(oh1, oh2)
     # transmission per slot:
     tps = r['npaks'].reshape(r['npaks'].shape+(1,))/r['slots'] 
     vsrho = ([0,1,2],[1,3,5])[tst_nr]
     rows = 5
-    pairs =( (tps,           'tps',       l3t), 
-             (r['slots'],    'slots',     l3t), 
-             (r['faila'],    'faila',     ('BF2', 'BF3')), 
-             (oh,            'overhead',  ('BF',  'RandSched')),
-             (r['dbsce'],    'dbsce',    ('neighors', 'schedule', '9999')))
+    pairs =( (tps,           'TPS',       l3t), 
+      (r['slots'],  'slots',     l3t), 
+      (r['faila'],  'failure probability',('BF with $k=2$','BF with $k=3$')), 
+      (oh,          'execution time in s',('BF',  'TPDA')),
+      (r['dbsce'],  'dbsce',    ('neighors', 'schedule', '9999')))
     pairz = pairs
     if rdp == 1:
-        pairz = [pairs[i] for i in (0, 1, 2, 3)]
+        pairz = [pairs[i] for i in (0, 2, 3)]
     netws = "normalized netw. size"
     for commonaxis in (0, 1):
         g.section("Multipage over compf")
@@ -3550,6 +3556,8 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     vnatte = np.arange(1,5)
     vnsucc = np.arange(1,4)
     vfadin = np.array([0, 0.5, 1.])
+    # Vector indicating the maximum back off period used in
+    vbo   = np.array([4, 3  , 2 ]) 
     xn = [3,8][tst_nr]
     x =  xn * tx_rg1
     rho_v = np.linspace(*((6,20,3),(6,24,6))[tst_nr])
@@ -3580,8 +3588,7 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
                     wsn = PhyNet(c=c, x=x,y=x,n_tries=80,fadng=f,**net_par1)
                     o['npaks'][k,i] = wsn.npakto(compf)
                     for r, cap in enumerate(vcap):
-                        o['dbsce'][k,i,j,r] = wsn.broad_sche(r,cap,compf,
-                          1 if f else 4)
+                        o['dbsce'][k,i,j,r]=wsn.broad_sche(r,cap,compf,vbo[j])
                     for q, w in enumerate(vhops):
                         scd = wsn.bf_schedule(hops=w,compf=compf)
                         o['slot1'][k,i,j,q] = scdlength(scd)
@@ -3622,36 +3629,36 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     ix2 = insh(n_nodes,-1,1,1), insh(vfadin,-1,1), vsnatt, vsnsuc
     # flatten:
     slo = np.dstack((r['slot1'][ix1], r['slot2'][ix2]))
-    tps = slo / r['npaks'].reshape(-1,1,1)
+    tps = r['npaks'].reshape(-1,1,1) / slo
     fai = np.dstack((r['fail1'][ix1], r['fail2'][ix2]))
-    option = 1
+    option = 0
     if option == 0:
-        pass
-        # withouth including the neighbor discovery cost
+        # neighbor discovery through random access
+        oh1 = (8 * rho_v.reshape(-1, 1) * slott1 * 6 +  # detecting neighbors
+               # reporting the neighbors and receiving the schedule
+               r['dbsce'][:,:,:2].sum(2) * 2 * slott2)
+        oh2 = r['slot2'][ix2]*(slot_pairs*2+3.1) * slott1 * vnatte[vsnatt]
     elif option == 1:
-        # include neighbor discovery cost
+        #  neighbor discovery cost through token passing
         oh1 = (n_nodes.reshape(-1, 1) * slott1 * 6 +  # detecting neighbors
                # reporting the neighbors and receiving the schedule
                r['dbsce'][:,:,:2].sum(2) * 2 * slott2)
-        asd = r['slot2'][ix2] * (slot_pairs * 2 + 3.1) * slott1 
-        asb =  vnatte[vsnatt]#.reshape(-1,1))
-        oh2 = asd * asb
+        oh2 = r['slot2'][ix2]*(slot_pairs*2+3.1) * slott1 * vnatte[vsnatt]
     # RandSched
     oh = np.dstack((deepen(oh1), oh2))
     printarray('oh2[-1,0,:]')
-    pdb.set_trace()
-    L1a = ['BF2','BF3','BF99']
-    L2a = ['RandSched with A={0},S={1}'.format(a, s) for a, s in 
+    L1a = ['BF with $k=2$','BF with $k=3$','BF with $k=99$']
+    L2a = ['TPDA with A={0},S={1}'.format(a, s) for a, s in 
           zip(vnatte[vsnatt], vnsucc[vsnsuc])]
-    pairs = (
-        (tps          ,'tps'     ,L1a + L2a),
+    pairs = (           
+        (tps          ,'TPTS'     ,L1a + L2a),
         (slo          ,'slots'   ,L1a + L2a),
-        (fai          ,'failure' ,L1a + L2a),
-        (oh           ,'oh'     ,['BF$k$ for all $k$'] + L2a),
+        (fai          ,'failure probability' ,L1a + L2a),
+        (oh           ,'execution time in s'     ,['BF for every $k$'] + L2a),
         (r['dbsce']   ,'dbsce'   ,('neighbors', 'schedule')))
     pairz = pairs
     if rdp == 1:
-        pairz = [pairs[i] for i in (0, 1, 2)]
+        pairz = [pairs[i] for i in (0, 2, 3)]
     g.section("groupplot")
     g.start(c=3,r=len(pairz),h=35,w=44)
     for b, (mat, lbl,lgd) in enumerate(pairz):
@@ -3720,6 +3727,64 @@ def graphRandSchedUnr2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
                     o['npaks'][k,i] = wsn.npakto(compf)
                     for m, b in enumerate(vmbo):
                         o['dbsce'][k,i,j,m] = wsn.broad_sche(0,cap,compf,b,0)
+        savedict(**o)
+    r = load_npz()
+    lg = ['rho = {0}'.format(h) for h in rho_v]
+    g.start(c=3,r=1,h=35,w=44)
+    vsmb = [0, 1, 2, 3]
+    for h, i in enumerate(vfadin):
+        g.next(c=h,y="dbsce", x="node density")
+        g.mplot(rho_v, r['dbsce'][:,h,vsmb])
+    g.leg(["mbo={0}".format(vmbo[b]) for b in vsmb])
+    g.end(["fading={0}\,dB".format(f) for f in vfadin],1) 
+    g.compile(plot=plot)
+def graphRandSchedUnrb2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
+    """Uncompleted new version.  However, the old version works well if not
+    more than 211 repetitions are taken.  Since that should be enough, the
+    current version is deprecated.
+
+        + natte: number of packtes that the transmitter transmits
+        + nsucc: number of success to consider the transmission successful
+        + fadin: standard deviation of the log normal fading applied to every
+                 transmisson
+
+    tst_nr = 0 : 80s/rep@hp1
+
+    rdp: plot a reduced version
+    """
+    vfadin = np.array([0, 0.5, 1])
+    xn = [3,8][tst_nr]
+    x =  xn * tx_rg1
+    rho_v = np.linspace(*((6,20,3),(6,24,6))[tst_nr])
+    n_nodes = np.array((rho_v * x **2 / np.pi / tx_rg1**2).round(), int)
+    printarray('n_nodes')
+    # cap1=int(np.ceil(packet_size/(id_size+slot_id_size)))
+    # cap2 = np.array(np.ceil(packet_size/(id_size*rho_v)),int)
+    compf = 999999
+    packet_size = 56 * 8 # bits
+    id_size = 16 # bits
+    cap = int(np.ceil(packet_size / id_size))
+    vmbo = np.arange(1,6) # maximum back off period
+    g = Pgf2()
+    for v in ('n_nodes', 'cap'):
+        g.printarray(v)
+    o = dict(dbsce=zerom(reptt,n_nodes,vfadin,vmbo),
+             npaks=zerom(reptt,n_nodes),
+             progr=zerom(reptt,n_nodes,vfadin,vmbo))
+    if action == 1:
+        for k in xrange(reptt):
+            print_iter(k, reptt)
+            for i, c in enumerate(n_nodes):
+                for j, f in enumerate(vfadin):
+                    print_nodes(c, k, "fadng = {0}".format(f))
+                    wsn = PhyNet(c=c, x=x,y=x,n_tries=80,fadng=f,**net_par1)
+                    o['npaks'][k,i] = wsn.npakto(compf)
+                    for m, b in enumerate(vmbo):
+                        if not o['progr'][k,i,j,m]:
+                            try:
+                                o['dbsce'][k,i,j,m] = wsn.broad_sche(0,cap,compf,b,0)
+                            except NoProgressError:
+                                o['progr'][:,i,j,m] = False
         savedict(**o)
     r = load_npz()
     lg = ['rho = {0}'.format(h) for h in rho_v]
