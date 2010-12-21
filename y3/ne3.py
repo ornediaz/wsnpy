@@ -1600,7 +1600,7 @@ class RandSchedNode(Node):
         yield z.sleep(z.fe - z.now())
 class ACSPNode(RandSchedNode):
     def help_chlr(z):
-        b1 = len(z.rx_d) < z.sim.wsn.n_descendants(z.id) 
+        b1 = len(z.rx_d) < z.sim.wsn.n_descendants[z.id]
         b2 = z.id==0 or len(z.b)<z.B
         return b1 and b2
         # 1 <= len(z.b) <= z.B in my simulations
@@ -1929,7 +1929,6 @@ class BFNet(SimNet):
         stamp(z, locals())
         z[:] = [Node(id=i, sim=z) for i in xrange(len(wsn.f))]
 class RandSchedNet(SimNet):
-    AlNode = RandSchedNode
     def __init__(z, wsn, cont_f=10, pairs=2, Q=0.1, slot_t=2, pause=10.0, 
                  VB=False, until=1e8, natte=1, nsucc=1, fadng=0, compf=99999,
                  AlNode=RandSchedNode, **kwargs):
@@ -1982,7 +1981,6 @@ class ACSPNet(RandSchedNet):
     tx_d = {3: 3}
     rx_d = {}
     """
-    AlNode = ACSPNode
     def __init__(z, wsn, B=5, tiermax=20, **kwargs):
         """B is the maximum size of each node's z.b list containing the
         nodes pending to be scheduled.
@@ -1990,6 +1988,7 @@ class ACSPNet(RandSchedNet):
         tiermax   -- maximum number of tiers excluding the sink
         
         """
+        kwargs['AlNode'] = ACSPNode
         RandSchedNet.__init__(z, wsn, B=B, tiermax=tiermax, **kwargs) 
         z.complete_convergecast()
     def remove_info(z, i, j):
@@ -3870,6 +3869,85 @@ def graphFlexiDensity(tst_nr=-1, reptt=1, action=0, plot=0):
     g.mplot(rho_v, r['nadv1'], leg[:3])
     g.save(plot=plot)
 def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
+    ''' Plot M/N (schedule size / number of nodes in the network).
+
+    Parameters to call this script with:
+    * tst_nr:
+            0: fast test
+            1: parameters for publication
+
+    * action: 
+        0: compute the results and store them in a file
+        1: plot all the results
+    '''
+    xvn = np.linspace(*((1,3,2),(3,6,3),(3,8,5))[tst_nr])
+    xv = xvn * tx_rg1
+    rho_v = np.linspace(*((6,12,3),(6,15,3),(6,24,6))[tst_nr])
+    n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
+                        np.pi / tx_rg1**2).round(), int)
+    vdft = np.array([2,3,4]) # Number of hops kept by ft
+    printarray("n_nodes")
+    o = dict(nadv1=zerom(reptt, xv, rho_v, len(vdft) + 1),
+             slots=zerom(reptt, xv, rho_v, len(vdft) + 1),
+             faila=zerom(reptt, xv, rho_v, len(vdft) + 1),
+             npaks=zerom(reptt, xv, rho_v),
+             uncon=zerom(reptt, xv, rho_v, len(vdft) + 1))
+    if action == 1:
+        for k in xrange(reptt):
+            print_iter(k, reptt)
+            for t, x in enumerate(xv):
+                for i, c in enumerate(n_nodes[t]):
+                    print_nodes(c, k)
+                    wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
+                    o['npaks'][k,t,i] = wsn.npakto(compf=0)
+                    for j in xrange(len(vdft)+1):
+                        if j < len(vdft):
+                            ne = FlexiTPNet(wsn, fw=vdft[j], n_exch=70, 
+                                            nm=123456)
+                            o['nadv1'][k,t,i,j] = ne.nadve
+                        else:
+                            ne = ACSPNet(wsn, cont_f=100, pairs=10, Q=0.1)
+                        o['slots'][k,t,i,j] = ne.n_slots()
+                        o['uncon'][k,t,i,j] = ne.dismissed()
+                        scd = [node.tx_d.keys() for node in ne]
+                        o['faila'][k,t,i,j] = wsn.fail_ratio(scd)
+        savedict(**o)
+    r = load_npz()
+    g = Pgf2()
+    for v in ('xv','rho_v', 'n_nodes'):
+        g.printarray(v)
+    tps = deepen(r['npaks']) / r['slots']
+    vsrho = ([0,1,2],[0,1,2],[0,1,2])[tst_nr]
+    vsxvn = ([0,1,2],[0,1,2],[0,1,2])[tst_nr]
+    FLeg = ["FlexiTP with $k={0}$".format(i) for i in vdft]
+    lg1 = FLeg + ['SUTP']
+    pairs = ((tps, 'concurrency', lg1),
+             (r['slots'], 'slots', lg1),
+             (r['uncon'], 'uncon', lg1),
+             (r['faila'], 'faila', lg1),
+             (r['nadv1'], 'nadv1', FLeg))
+    pairz = pairs
+    if rdp == 1:
+        pairz = [pairs[i] for i in (0,1,2)]
+    g.section('One $\\rho$ per column')
+    g.start(c=3,r=len(pairz),h=35,w=44)
+    for b, (mat, lbl, lgd) in enumerate(pairz):
+        for h, i in enumerate(vsrho):
+            g.next(c=h,y=lbl,r=b==len(pairz)-1,x="normalized netw. size")
+            g.mplot(xvn, mat[:,i,:])
+        g.leg(lgd)
+    g.end(["$\\rho={0}$".format(rho_v[i]) for i in vsrho], len(pairz))
+    g.section('One size per column')
+    g.start(c=3,r=len(pairz),h=35,w=44)
+    for b, (mat, lbl, lgd) in enumerate(pairz):
+        for h, i in enumerate(vsxvn):
+            g.next(c=h,y=lbl,r=b==len(pairz)-1,x="node density $\\rho$")
+            g.mplot(xvn, mat[i,:,:])
+        g.leg(lgd)
+    g.end(["$\\normalized size={0}$".format(xvn[i]) for i in vsxvn], len(pairz))
+    leg = 'FlexiTP2', 'FlexiTP3', 'ACSP'
+    g.compile(plot=plot)
+def debFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
