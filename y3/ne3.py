@@ -1118,7 +1118,7 @@ class PhyNet(Tree):
             msn = max(msn, clr)
         fin=[[msn + 1 - clr for clr in tmp[x]] for x in xrange(z.c)]
         return fin
-    def fail_ratio(z, scd):
+    def fail_ratio(z, scd, reptt=100):
         """ Return the failure ratio of the schedule when the attentuation
         of each link oscillates with standard deviation fadng.
         
@@ -1127,7 +1127,6 @@ class PhyNet(Tree):
         """
         natte = 0
         nfail = 0
-        reptt = 100
         last_used = 0
         for slot in xrange(1, 99999):
             src = [i for i, j in enumerate(scd) if slot in j]
@@ -1357,12 +1356,12 @@ class Node(simpy.Process):
         """ 
         Place in z.i the received packet if SINR exceeds threshold. The
         output is the received packet or None depending on the success of
-        the operation. The output is both returned and stored in z.i.
+        the operation.
 
         Simulate repeated transmissions.
 
         A number of attempts are made:
-        + natte: number of packtes that the transmitter transmits
+        + natte: number of packets that the transmitter transmits
         + nsucc: number of success to consider the transmission successful
         + fadng: standard deviation of the log normal fading applied to every
                  transmisson
@@ -1372,7 +1371,7 @@ class Node(simpy.Process):
             z.i = Packet(r=None, d=None, p='nothing_received')
             return
         rec = np.zeros(len(z.i), int)
-        nothing = 0
+        nothing = 0 # number of times that channel was idle
         pw1 = np.array([p.pow for p in z.i])
         for j in xrange(z.sim.natte):
             att  = 10 ** (np.random.randn(len(pw1)) * z.sim.fadng / 10.)
@@ -2298,7 +2297,7 @@ class FlexiTPNet(ACSPNet):
     """
     AlNode = FlexiTPNode
     def __init__(z, wsn, cont_f=10, Q=0.1, slot_t=2, n_exch=70, nm=1000, 
-                 fw=2, pause=3, VB=False, until=1e8):
+                 fw=2, pause=3, natte=1, nsucc=1, fadng=0., VB=False, until=1e8):
         """Run the initial scheduling phase of FlexiTP.
 
         Construct a network and simulate it.
@@ -3870,7 +3869,7 @@ def graphFlexiDensity(tst_nr=-1, reptt=1, action=0, plot=0):
     g.add(x_t, r"slots per exchange in FlexiTP's init")
     g.mplot(rho_v, r['nadv1'], leg[:3])
     g.save(plot=plot)
-def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1):
+def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     ''' Plot M/N (schedule size / number of nodes in the network).
 
     Parameters to call this script with:
@@ -3882,14 +3881,18 @@ def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1):
         0: compute the results and store them in a file
         1: plot all the results
     '''
-    xv = np.linspace(*((1,3,2),(3,6,3),(3,8,5))[tst_nr]) * tx_rg1
+    xvn = np.linspace(*((1,3,2),(3,6,3),(3,8,5))[tst_nr])
+    xv = xvn * tx_rg1
     rho_v = np.linspace(*((6,12,3),(6,15,3),(6,24,6))[tst_nr])
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
+    vdft = np.array([2,3,4]) # Number of hops kept by ft
     printarray("n_nodes")
-    o = dict(nadv1=np.zeros((reptt, len(xv), len(rho_v), 3)),
-             slots=np.zeros((reptt, len(xv), len(rho_v), 3)),
-             uncon=np.zeros((reptt, len(xv), len(rho_v), 3)))
+    o = dict(nadv1=zerom(reptt, xv, rho_v, len(vdft) + 1),
+             slots=zerom(reptt, xv, rho_v, len(vdft) + 1),
+             faila=zerom(reptt, xv, rho_v, len(vdft) + 1),
+             npaks=zerom(reptt, xv, rho_v),
+             uncon=zerom(reptt, xv, rho_v, len(vdft) + 1))
     if action == 1:
         for k in xrange(reptt):
             print_iter(k, reptt)
@@ -3897,33 +3900,45 @@ def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1):
                 for i, c in enumerate(n_nodes[t]):
                     print_nodes(c, k)
                     wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
-                    for j, h in enumerate((2,3)):
-                        ne = FlexiTPNet(wsn, fw=h, n_exch=70, nm=123456)
+                    o['npaks'][k,t,i] = wsn.npakto(compf=0)
+                    for j in xrange(len(vdft)+1):
+                        if j < len(vdft):
+                            ne = FlexiTPNet(wsn, fw=vdft[j], n_exch=70, 
+                                            nm=123456)
+                            o['nadv1'][k,t,i,j] = ne.nadve
+                        else:
+                            ne = ACSPNet(wsn, cont_f=100, pairs=10, Q=0.1,VB=1)
                         o['slots'][k,t,i,j] = ne.n_slots()
-                        o['nadv1'][k,t,i,j] = ne.nadve
                         o['uncon'][k,t,i,j] = ne.dismissed()
-                    ne = ACSPNet(wsn, cont_f=100, pairs=10, Q=0.1)
-                    o['slots'][k,t,i,2] = ne.n_slots()
-                    o['uncon'][k,t,i,2] = ne.dismissed()
+                        scd = [node.tx_d.keys() for node in ne]
+                        o['faila'][k,t,i,j] = wsn.fail_ratio(scd)
         savedict(**o)
     r = load_npz()
-    g = Pgf()
+    g = Pgf2()
+    for v in ('xv','rho_v', 'n_nodes'):
+        g.printarray(v)
+    tps = deepen(r['npaks']) / r['slots']
+    vsrho = ([0,1,2],[0,1,2],[0,1,2])[tst_nr]
+    FLeg = ["FlexiTP with $k={0}$".format(i) for i in vdft]
+    lg1 = FLeg + ['SUTP']
+    pairs = ((tps, 'concurrency', lg1),
+             (r['slots'], 'slots', lg1),
+             (r['uncon'], 'uncon', lg1),
+             (r['faila'], 'faila', lg1),
+             (r['nadv1'], 'nadv1', FLeg))
+    pairz = pairs
+    if rdp == 1:
+        pairz = [pairs[i] for i in (0,1,2)]
+    g.section('One $\\rho$ per column')
+    g.start(c=3,r=len(pairz),h=35,w=44)
+    for b, (mat, lbl, lgd) in enumerate(pairz):
+        for h, i in enumerate(vsrho):
+            g.next(c=h,y=lbl,r=b==len(pairz)-1,x="normalized netw. size")
+            g.mplot(xvn, mat[:,i,:])
+        g.leg(lgd)
+    g.end(["$\\rho={0}$".format(rho_v[i]) for i in vsrho], len(pairz))
     leg = 'FlexiTP2', 'FlexiTP3', 'ACSP'
-    for t, x in enumerate(xv):
-        g.add("node density $\rho$", "$M/N$ for xnorm={0}".format(x/tx_rg1))
-        g.mplot(rho_v, r['slots'][t] / n_nodes[t].reshape(-1,1), leg)
-        g.add("node density $\\rho$", "uncon")
-        g.mplot(rho_v, r['uncon'][t,:,:2], leg)
-        # g.add("normalized square size", "$M/N$")
-        # g.mplot(xv / tx_rg1, r['slots'][t] / n_nodes.reshape(-1,1), 
-        #         ['BF2', 'BF3', 'RandSched'])
-    for i, rho in enumerate(rho_v):
-        g.add("normalized network side", "$M/N$ for $\\rho={0}$".format(rho))
-        g.mplot(xv / tx_rg1, r['slots'][:,i,:] / n_nodes[:,i].reshape(-1,1), 
-                ['BF2', 'BF3', 'RandSched'])
-        g.add("number of node in the network $M$", "uncon")
-        g.mplot(xv / tx_rg1, r['uncon'][:,i,:2], ['BF2', 'BF3'])
-    g.save(plot=plot)
+    g.compile(plot=plot)
 def debgraphFlexiDensity():
     """Dependence on the node density.
     """

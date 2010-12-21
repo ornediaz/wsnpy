@@ -2947,7 +2947,7 @@ def tst_process(tst_nr=1, repetitions=1, action=0, plot=1):
                         print_nodes(c, k)
                         wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
                         rs_net = RandSchedNet(wsn,cont_f=40,pairs=10,Q=0.1, 
-                                              slot_t=2, VB=False, until=1e9
+                                              slot_t=2, VB=False, until=1e9,
                                               natte=a,nsucc=s,fading=f)
                         o['slots'][k,t,i,j] = max(rs_net.schedule())
         savedict(**o)
