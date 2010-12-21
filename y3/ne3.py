@@ -3874,7 +3874,7 @@ def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     Parameters to call this script with:
     * tst_nr:
             0: fast test
-            1: parameters for publication
+            1: 8085 seconds at hpa
 
     * action: 
         0: compute the results and store them in a file
@@ -3885,7 +3885,7 @@ def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     rho_v = np.linspace(*((6,12,3),(6,15,3),(6,24,6))[tst_nr])
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
                         np.pi / tx_rg1**2).round(), int)
-    vdft = np.array([2,3,4]) # Number of hops kept by ft
+    vdft = np.array([2,3,4,5]) # Number of hops kept by ft
     printarray("n_nodes")
     o = dict(nadv1=zerom(reptt, xv, rho_v, len(vdft) + 1),
              slots=zerom(reptt, xv, rho_v, len(vdft) + 1),
@@ -3944,77 +3944,7 @@ def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
             g.next(c=h,y=lbl,r=b==len(pairz)-1,x="node density $\\rho$")
             g.mplot(xvn, mat[i,:,:])
         g.leg(lgd)
-    g.end(["$\\normalized size={0}$".format(xvn[i]) for i in vsxvn], len(pairz))
-    leg = 'FlexiTP2', 'FlexiTP3', 'ACSP'
-    g.compile(plot=plot)
-def debFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
-    ''' Plot M/N (schedule size / number of nodes in the network).
-
-    Parameters to call this script with:
-    * tst_nr:
-            0: fast test
-            1: parameters for publication
-
-    * action: 
-        0: compute the results and store them in a file
-        1: plot all the results
-    '''
-    xvn = np.linspace(*((1,3,2),(3,6,3),(3,8,5))[tst_nr])
-    xv = xvn * tx_rg1
-    rho_v = np.linspace(*((6,12,3),(6,15,3),(6,24,6))[tst_nr])
-    n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
-                        np.pi / tx_rg1**2).round(), int)
-    vdft = np.array([2,3,4]) # Number of hops kept by ft
-    printarray("n_nodes")
-    o = dict(nadv1=zerom(reptt, xv, rho_v, len(vdft) + 1),
-             slots=zerom(reptt, xv, rho_v, len(vdft) + 1),
-             faila=zerom(reptt, xv, rho_v, len(vdft) + 1),
-             npaks=zerom(reptt, xv, rho_v),
-             uncon=zerom(reptt, xv, rho_v, len(vdft) + 1))
-    if action == 1:
-        for k in xrange(reptt):
-            print_iter(k, reptt)
-            for t, x in enumerate(xv):
-                for i, c in enumerate(n_nodes[t]):
-                    print_nodes(c, k)
-                    wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
-                    o['npaks'][k,t,i] = wsn.npakto(compf=0)
-                    for j in xrange(len(vdft)+1):
-                        if j < len(vdft):
-                            ne = FlexiTPNet(wsn, fw=vdft[j], n_exch=70, 
-                                            nm=123456)
-                            o['nadv1'][k,t,i,j] = ne.nadve
-                        else:
-                            ne = ACSPNet(wsn, cont_f=100, pairs=10, Q=0.1,VB=1)
-                        o['slots'][k,t,i,j] = ne.n_slots()
-                        o['uncon'][k,t,i,j] = ne.dismissed()
-                        scd = [node.tx_d.keys() for node in ne]
-                        o['faila'][k,t,i,j] = wsn.fail_ratio(scd)
-        savedict(**o)
-    r = load_npz()
-    g = Pgf2()
-    for v in ('xv','rho_v', 'n_nodes'):
-        g.printarray(v)
-    tps = deepen(r['npaks']) / r['slots']
-    vsrho = ([0,1,2],[0,1,2],[0,1,2])[tst_nr]
-    FLeg = ["FlexiTP with $k={0}$".format(i) for i in vdft]
-    lg1 = FLeg + ['SUTP']
-    pairs = ((tps, 'concurrency', lg1),
-             (r['slots'], 'slots', lg1),
-             (r['uncon'], 'uncon', lg1),
-             (r['faila'], 'faila', lg1),
-             (r['nadv1'], 'nadv1', FLeg))
-    pairz = pairs
-    if rdp == 1:
-        pairz = [pairs[i] for i in (0,1,2)]
-    g.section('One $\\rho$ per column')
-    g.start(c=3,r=len(pairz),h=35,w=44)
-    for b, (mat, lbl, lgd) in enumerate(pairz):
-        for h, i in enumerate(vsrho):
-            g.next(c=h,y=lbl,r=b==len(pairz)-1,x="normalized netw. size")
-            g.mplot(xvn, mat[:,i,:])
-        g.leg(lgd)
-    g.end(["$\\rho={0}$".format(rho_v[i]) for i in vsrho], len(pairz))
+    g.end(["normalized size={0}".format(xvn[i]) for i in vsxvn], len(pairz))
     leg = 'FlexiTP2', 'FlexiTP3', 'ACSP'
     g.compile(plot=plot)
 def debgraphFlexiDensity():
