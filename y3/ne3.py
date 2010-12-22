@@ -38,6 +38,16 @@ T0 = 290 # Room temperature in Kelvin (=17C)
 INF = 9999 # Used in Dijkstra's algorithm
 TIER_MAX = 9999 # This tier indicates that the node is disconnected
 STATES = dict(tx=0.063, rx=0.030, id=0.030, sl=3-6) #Energy consumption
+headElse1 = r"""\documentclass[margin=0in]{article}
+\usepackage{orne1,thesisPlots}
+\newcommand{\compCoeff}{\gamma}
+\newcommand{\sutfailp}{p_f}
+\newcommand{\axFailProb}{failure probability $\sutfailp$}
+\newcommand{\axConcurrency}{concurrency $c$}
+\newcommand{\axExec}{execution time in s}
+\newcommand{\axNetS}{normalized netw. side}
+\begin{document}
+"""
 def rice():
     kv =  [0.0, 1, 10, 100]
     mea = np.zeros(len(kv))
@@ -275,16 +285,14 @@ class Pgf(list):
         if plot == 2:
             display(f_name + '.pdf')
 class Pgf2(list):
-    def __init__(z, header=None):
-        if header is None:
+    def __init__(z, *strings):
+        if not strings:
             z.append(r"""\documentclass[margin=0in]{article}
 \usepackage{orne1,thesisPlots}
 \begin{document}
 """)
-        elif isinstance(header, string):
-            z.append(header)
         else:
-            z.extend(header)
+            z.extend(strings)
     def printarray(z, string):
         frame_record = inspect.stack(0)[1]
         loc = frame_record[0].f_locals
@@ -314,9 +322,9 @@ class Pgf2(list):
         if c == 0:
             par = "ylabel={{{0}}},{1}".format(y,par)
         if par == '':
-            z.append("    \\nextgroupplot\n")
+            z.append("    \\nextgroupplot%\n")
         else:
-            z.append("    \\nextgroupplot[{0}]\n".format(par))
+            z.append("    \\nextgroupplot[{0}]%\n".format(par))
     def end(z, lab, r):
         """Conclude the groupplot and label the columns with the labels in
         lab.  *r* is the number of columns. """
@@ -834,6 +842,7 @@ class PhyNet(Tree):
                  tx_p=1e-6, # transmit power
                  BW=256e3, # noise bandwidth
                  fadng=0, #standard deviation of received power
+                 sinkloc=None, # vector indicating the sink location
                  sinr=10):
         '''Generate random topology and construct routing tree.
         >>> print("{0:.3f}".format(PhyNet().tx_range()))
@@ -843,7 +852,10 @@ class PhyNet(Tree):
         stamp(z, locals())
         z.noise = KBOL * T0 * BW
         z.attm = np.ones((1, 1))
-        z.p = np.array([[0, z.y / 2.0]])
+        if sinkloc is None:
+            z.p = np.array([[0, z.y / 2.0]])
+        else:
+            z.p  = sinkloc
         z.f = np.array([-1])
         z.mutate_network(1, c-1)
     def mutate_network(z, old, new):
@@ -3466,7 +3478,7 @@ def graphRandSchedb7(tst_nr=1, reptt=1, action=0, plot=1,
                         o['slots'][k,t,i,m,2] = scdlength(scd)
         savedict(**o)
     r = load_npz()
-    g = Pgf2()
+    g = Pgf2(headElse1)
     for v in ('vcompf', 'xvn', 'rho_v', 'n_nodes', 'vcap'):
         g.printarray(v)
     xsi = "xlabel={normalized network size}" 
@@ -3500,14 +3512,14 @@ def graphRandSchedb7(tst_nr=1, reptt=1, action=0, plot=1,
     tps = r['npaks'].reshape(r['npaks'].shape+(1,))/r['slots'] 
     vsrho = ([0,1,2],[1,3,5])[tst_nr]
     rows = 5
-    pairs =( (tps,           'TPS',       l3t), 
+    pairs =( (tps,  '\\axConcurrency',       l3t), 
       (r['slots'],  'slots',     l3t), 
-      (r['faila'],  'failure probability',('BF with $k=2$','BF with $k=3$')), 
-      (oh,          'execution time in s',('BF',  'TPDA')),
+      (r['faila'],  '\\axFailProb',('BF with $k=2$','BF with $k=3$')), 
+      (oh,          '\\axExec',('BF',  'TPDA')),
       (r['dbsce'],  'dbsce',    ('neighors', 'schedule', '9999')))
     pairz = pairs
     if rdp == 1:
-        pairz = [pairs[i] for i in (0, 2, 3)]
+        pairz = [pairs[i] for i in (2, 0, 3)]
     netws = "normalized netw. size"
     for commonaxis in (0, 1):
         g.section("Multipage over compf")
@@ -3531,7 +3543,7 @@ def graphRandSchedb7(tst_nr=1, reptt=1, action=0, plot=1,
                        s=rangeax(mat[:,-1,vscomf,:],b=commonaxis))
                 g.mplot(xvn, mat[:,-1,i,:])
             g.leg(lgd)
-        g.end(["compf={0}".format(vcompf[c]) for c in vscomf], len(pairz))
+        g.end(["\compCoeff={0}".format(vcompf[c]) for c in vscomf], len(pairz))
     g.compile(plot=plot)
 def nextsim():
     graphRandSchedUnrb1(1,1,1,1)
@@ -3567,7 +3579,7 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     nk = packet_size / id_size
     vcap = np.array(np.ceil([nk, nk, 99999]), int)
     vhops = 2, 3, INF
-    g = Pgf2()
+    g = Pgf2(headElse1)
     for v in ('n_nodes', 'vfadin', 'vcap'):
         g.printarray(v)
     o = dict(dbsce=zerom(reptt,n_nodes,vfadin,vcap),
@@ -3649,14 +3661,14 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     L2a = ['TPDA with A={0},S={1}'.format(a, s) for a, s in 
           zip(vnatte[vsnatt], vnsucc[vsnsuc])]
     pairs = (           
-        (tps          ,'TPTS'     ,L1a + L2a),
+        (tps          ,'\\axConcurrency'     ,L1a + L2a),
         (slo          ,'slots'   ,L1a + L2a),
-        (fai          ,'failure probability' ,L1a + L2a),
-        (oh           ,'execution time in s'     ,['BF for every $k$'] + L2a),
+        (fai          ,'\\axFailProb' ,L1a + L2a),
+        (oh           ,'\\axExec'     ,['BF for every $k$'] + L2a),
         (r['dbsce']   ,'dbsce'   ,('neighbors', 'schedule')))
     pairz = pairs
     if rdp == 1:
-        pairz = [pairs[i] for i in (0, 2, 3)]
+        pairz = [pairs[i] for i in (2, 0, 3)]
     g.section("groupplot")
     g.start(c=3,r=len(pairz),h=35,w=44)
     for b, (mat, lbl,lgd) in enumerate(pairz):
@@ -3674,6 +3686,113 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
             g.mplot(rho_v, mat[:,i,:])
         g.leg(lgd)
     g.end(["fading={0}\,dB".format(vfadin[f]) for f in vsfadi], len(pairz)) 
+    g.compile(plot=plot)
+def graphRandSink1(tst_nr=1, reptt=1, action=0, plot=1,
+                    rdp=0,# plot a reduced version of pairs
+                    ):
+    ''' 
+    Study different positions of the data sink.
+    '''
+    packet_size = 56 * 8 # bits
+    id_size = 16 # bits
+    slot_id_size = 16 # bits to indicate the slot number
+    slot_pairs = 5
+    x = 5 * tx_rg1
+    rho = 15
+    c = int(rho * x **2 / np.pi / tx_rg1**2)
+    printarray("n_nodes")
+    # number of neighbors that can be informed 
+    nk = packet_size / id_size
+    l3t = 'BF with $k=2$', 'BF with $k=3$', 'TPDA'
+    vcap = np.array(np.ceil([nk, nk, 99999]), int)
+    nets = [[0, x/2], [x/2,x/2]]
+    o = dict(slots=zerom(reptt,nets,l3t))
+             # number of dbs used by BF in the two centralized operations
+    if action == 1:
+        for k in xrange(reptt):
+            print_iter(k, reptt)
+            print_nodes(c, k, "compf = {0}".format(f))
+            for i, n in nets:
+                wsn = PhyNet(c=c, x=x,y=x,n_tries=80,**net_par1)
+                o['npaks'][k,t,i,m] = wsn.npakto(compf=f)
+                for r, cap in enumerate(vcap):
+                    o['dbsce'][k,t,i,m,r] = wsn.broad_sche(r,cap,f,4)
+                for j, h in enumerate((2,3)):
+                    scd = wsn.bf_schedule(hops=h,compf=f)
+                    o['slots'][k,t,i,m,j] = scdlength(scd)
+                    o['faila'][k,t,i,m,j] = wsn.fail_ratio(scd)
+                rs = RandSchedNet(wsn,cont_f=40,pairs=10,Q=0.1,
+                                  slot_t=2,VB=0,until=1e9,compf=f)
+                scd = [node.tx_d.keys() for node in rs]
+                o['slots'][k,t,i,m,2] = scdlength(scd)
+        savedict(**o)
+    r = load_npz()
+    g = Pgf2(headElse1)
+    for v in ('vcompf', 'xvn', 'rho_v', 'n_nodes', 'vcap'):
+        g.printarray(v)
+    xsi = "xlabel={normalized network size}" 
+    slott1 = 0.02  # slot time without contention in seconds
+    slott2 =  slott1 * 1.5# with contention
+    option = 2
+    if option == 0:
+        # Receiving the schedule
+        oh1 = r['dbsce'][:,:,:,1] * 2 * slott2 * 2
+        # (r['dbsce'][:,:,-1,2] * slott1 + # constructing the tree
+        oh2 = r['slots'][:,:,:,2]*(slot_pairs*2+3.1)*slott1 # RandSched
+    elif option == 1:
+        # Transmit neighbor list and receive schedule
+        oh1 = r['dbsce'][:,:,:,:2].sum(3) * 2 * slott2 * 2
+        # (r['dbsce'][:,:,-1,2] * slott1 + # constructing the tree
+        oh2 = r['slots'][:,:,:,2]*(slot_pairs*2+3.1)*slott1 # RandSched
+    elif option == 2:
+        # Transmit neighbor list and receive schedule
+        oh1 = (deepen(n_nodes * 4. * slott1) + 
+            r['dbsce'][:,:,:,:2].sum(3) * 2 * slott2 * 2)
+        # (r['dbsce'][:,:,-1,2] * slott1 + # constructing the tree
+        oh2 = r['slots'][:,:,:,2]*(slot_pairs*2+3.1)*slott1 # RandSched
+    elif option == 4:
+        # Transmit neighbor list and receive schedule
+        oh1 = (deepen(rho_v * 4. * slott1) + 
+            r['dbsce'][:,:,:,:2].sum(3) * 2 * slott2 * 2)
+        # (r['dbsce'][:,:,-1,2] * slott1 + # constructing the tree
+        oh2 = r['slots'][:,:,:,2]*(slot_pairs*2+3.1)*slott1 # RandSched
+    oh = stackl(oh1, oh2)
+    # transmission per slot:
+    tps = r['npaks'].reshape(r['npaks'].shape+(1,))/r['slots'] 
+    vsrho = ([0,1,2],[1,3,5])[tst_nr]
+    rows = 5
+    pairs =( (tps,  '\\axConcurrency',       l3t), 
+      (r['slots'],  'slots',     l3t), 
+      (r['faila'],  '\\axFailProb',('BF with $k=2$','BF with $k=3$')), 
+      (oh,          '\\axExec',('BF',  'TPDA')),
+      (r['dbsce'],  'dbsce',    ('neighors', 'schedule', '9999')))
+    pairz = pairs
+    if rdp == 1:
+        pairz = [pairs[i] for i in (2, 0, 3)]
+    netws = "normalized netw. size"
+    for commonaxis in (0, 1):
+        g.section("Multipage over compf")
+        for q, f in enumerate(vcompf):
+            g.subsection("With groupplot2 for compf="+str(f))
+            g.start(c=3,r=len(pairz),h=35,w=44) 
+            for b, (mat, lbl, lgd) in enumerate(pairz):
+                for h, i in enumerate(vsrho):
+                    g.next(c=h,y=lbl,r=b==len(pairz)-1,x=netws,
+                           s=rangeax(mat[:,vsrho,:],b=commonaxis)) 
+                    g.mplot(xvn, mat[:,i,q,:])
+                g.leg(lgd)
+            g.end(["$\\rho={0}$".format(rho_v[i]) for i in vsrho], len(pairz))
+        vscomf = 0, 1, 3
+        indrho = -1
+        g.section("clmn:compf") 
+        g.start(c=3,r=len(pairz),h=35,w=44)
+        for b, (mat, lbl, lgd) in enumerate(pairz):
+            for h, i in enumerate(vscomf):
+                g.next(c=h,y=lbl,r=b==len(pairz)-1,x=netws,
+                       s=rangeax(mat[:,-1,vscomf,:],b=commonaxis))
+                g.mplot(xvn, mat[:,-1,i,:])
+            g.leg(lgd)
+        g.end(["\compCoeff={0}".format(vcompf[c]) for c in vscomf], len(pairz))
     g.compile(plot=plot)
 def tst_broadcast(tst_nr=1, reptt=1, action=0, plot=1):
     ''' Test in a simple network an algorithm to compute the overhead
@@ -3880,7 +3999,7 @@ def graphFlexiDensity2(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
         0: compute the results and store them in a file
         1: plot all the results
     '''
-    xvn = np.linspace(*((1,3,2),(3,6,3),(3,8,5))[tst_nr])
+    xvn = np.linspace(*((1,3,3),(3,6,3),(3,8,5))[tst_nr])
     xv = xvn * tx_rg1
     rho_v = np.linspace(*((6,12,3),(6,15,3),(6,24,6))[tst_nr])
     n_nodes = np.array((rho_v * xv.reshape(-1,1).repeat(len(rho_v),1) **2 /
