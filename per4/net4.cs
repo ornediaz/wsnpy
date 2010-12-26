@@ -2342,6 +2342,7 @@ class ProdGlb
     // Simulations that I consider most useful
     public static void group2(double factor)
     {
+        // execution time 38d6h27m at ee-moda2 for a factor of 8
         maverRxConsum((int) (100 * factor));
         averSource(1, (int) (100 * factor), 1);
         averDensityCR(1, (int) (40 * factor), 1);

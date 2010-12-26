@@ -42,10 +42,12 @@ headElse1 = r"""\documentclass[margin=0in]{article}
 \usepackage{orne1,thesisPlots}
 \newcommand{\compCoeff}{\gamma}
 \newcommand{\sutfailp}{p_f}
+\newcommand{\side}{\bar{x}}
+\newcommand{\stdFluc}{\sigma_f}
 \newcommand{\axFailProb}{failure probability $\sutfailp$}
 \newcommand{\axConcurrency}{concurrency $c$}
 \newcommand{\axExec}{execution time in s}
-\newcommand{\axNetS}{normalized netw. side}
+\newcommand{\axNetS}{norm. net. side $\bar{x}$}
 \begin{document}
 """
 def rice():
@@ -3436,6 +3438,8 @@ def graphRandSchedb7(tst_nr=1, reptt=1, action=0, plot=1,
     * action: 
         0: compute the results and store them in a file
         1: plot all the results
+           
+           124872s per repetition at ee-moda
     '''
     packet_size = 56 * 8 # bits
     id_size = 16 # bits
@@ -3624,7 +3628,7 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     slott1 = 0.02
     slott2 = slott1 * 1.5
     rows = 5
-    vsnatt = np.array([1, 2, 2])
+    vsnatt = np.array([2, 1, 2])
     vsnsuc = np.array([0, 0, 1])
     vsfadi = np.array([0, 1, 2])
     vshops = np.array([0, 1, 2])# indices to plot of vhops
@@ -3657,14 +3661,14 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     # RandSched
     oh = np.dstack((deepen(oh1), oh2))
     printarray('oh2[-1,0,:]')
-    L1a = ['BF with $k=2$','BF with $k=3$','BF with $k=99$']
-    L2a = ['TPDA with A={0},S={1}'.format(a, s) for a, s in 
+    L1a = ['BF$_2$','BF$_3$','BF$_{99}$']
+    L2a = ['TPDA$_{{{0},{1}}}$'.format(s, a) for a, s in 
           zip(vnatte[vsnatt], vnsucc[vsnsuc])]
     pairs = (           
         (tps          ,'\\axConcurrency'     ,L1a + L2a),
         (slo          ,'slots'   ,L1a + L2a),
         (fai          ,'\\axFailProb' ,L1a + L2a),
-        (oh           ,'\\axExec'     ,['BF for every $k$'] + L2a),
+        (oh           ,'\\axExec'     ,['BF$_k$ for every $k$'] + L2a),
         (r['dbsce']   ,'dbsce'   ,('neighbors', 'schedule')))
     pairz = pairs
     if rdp == 1:
@@ -3677,7 +3681,7 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
                    s=rangeax(mat[:,vsfadi,:]))
             g.mplot(rho_v, mat[:,i,:])
         g.leg(lgd)
-    g.end(["fading={0}\,dB".format(vfadin[f]) for f in vsfadi], len(pairz)) 
+    g.end(["$\stdFluc={0}$\,dB".format(vfadin[f])for f in vsfadi],len(pairz))
     g.section("groupplot")
     g.start(c=3,r=len(pairz),h=35,w=44)
     for b, (mat, lbl,lgd) in enumerate(pairz):
@@ -3685,7 +3689,7 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
             g.next(c=h,y=lbl,r=b==len(pairz)-1,x='node density $\\rho$')
             g.mplot(rho_v, mat[:,i,:])
         g.leg(lgd)
-    g.end(["fading={0}\,dB".format(vfadin[f]) for f in vsfadi], len(pairz)) 
+    g.end(["$\stdFluc={0}$\,dB".format(vfadin[f])for f in vsfadi],len(pairz)) 
     g.compile(plot=plot)
 def graphRandSink1(tst_nr=1, reptt=1, action=0, plot=1,
                     rdp=0,# plot a reduced version of pairs
