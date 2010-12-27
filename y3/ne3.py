@@ -1564,7 +1564,7 @@ class RandSchedNode(Node):
         z.frame_n += 1 # frame number
         z.fs = z.now()  # frame start time
         z.fe = z.fs + z.ft # Frame end time.
-        if z.frame_n > z.sim.last_successful_contention_frame + 100:
+        if z.frame_n > z.sim.last_successful_contention_frame + z.sim.noProg:
             z.sim.stopSimulation() 
             raise NoProgressError
     def seek(z):
@@ -1943,9 +1943,9 @@ class BFNet(SimNet):
         stamp(z, locals())
         z[:] = [Node(id=i, sim=z) for i in xrange(len(wsn.f))]
 class RandSchedNet(SimNet):
-    def __init__(z, wsn, cont_f=10, pairs=2, Q=0.1, slot_t=2, pause=10.0, 
-                 VB=False, until=1e8, natte=1, nsucc=1, fadng=0, compf=99999,
-                 AlNode=RandSchedNode, **kwargs):
+    def __init__(z, wsn, cont_f=10, pairs=2, Q=0.1, slot_t=2, pause=10.0,
+                 noProg=100, VB=False, until=1e8, natte=1, nsucc=1,
+                 fadng=0, compf=99999, AlNode=RandSchedNode, **kwargs):
 
         """
         >>> RandSchedNet(test_net1(), VB=False, until=15).schedule()
@@ -3613,12 +3613,12 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
                                 continue
                             try:
                                 rs = RandSchedNet(wsn,cont_f=40,pairs=10,
-                                     Q=0.1, slot_t=2, VB=False, until=1e9, 
+                                     Q=0.1,slot_t=2,noProg=500,VB=0,until=1e9,
                                      natte=a,nsucc=s,fadng=f, compf=compf)
-                                scd = [node.tx_d.keys() for node in rs]
                             except NoProgressError:
                                 o['nopro'][:,i,j,t,h] = True
                             else:
+                                scd = [node.tx_d.keys() for node in rs]
                                 o['slot2'][k,i,j,t,h] = scdlength(scd)
                                 o['fail2'][k,i,j,t,h] = wsn.fail_ratio(scd)
         savedict(**o)
@@ -3628,10 +3628,14 @@ def graphRandSchedUnrb1(tst_nr=1, reptt=1, action=0, plot=1, rdp=0):
     slott1 = 0.02
     slott2 = slott1 * 1.5
     rows = 5
-    vsnatt = np.array([2, 1, 2])
-    vsnsuc = np.array([0, 0, 1])
-    vsfadi = np.array([0, 1, 2])
-    vshops = np.array([0, 1, 2])# indices to plot of vhops
+    # vsnatt = np.array([2, 1, 2])
+    # vsnsuc = np.array([0, 0, 1])
+    # vsfadi = np.array([0, 1, 2])
+    # vshops = np.array([0, 1, 2])# indices to plot of vhops
+    vsnatt = np.array([2, 2])
+    vsnsuc = np.array([0, 1])
+    vsfadi = np.array([0, 2])
+    vshops = np.array([0, 2])# indices to plot of vhops
     incorrect = False
     for a, s in zip(vsnatt, vsnsuc):
         if r['nopro'][:,:,a,s].any():
