@@ -866,7 +866,7 @@ class PhyNet(Tree):
         """Keep the first 'old' nodes and add 'new' new nodes.
 
         The routine keeps track of the previous state:
-        - z.old is the number of nodes that where left intact
+        - z.old is the number of nodes that were left intact
         - z.p_old is the previous vector of parents 
 
         """
